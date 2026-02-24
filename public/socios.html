@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexodus | Gestion de Socios</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/icon.png" />
+    <link rel="stylesheet" href="/assets/css/socios.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+
+<body onload="lucide.createIcons()">
+    <div class="flex h-screen overflow-hidden">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar fixed z-30 inset-y-0 left-0 w-64 transform -translate-x-full md:translate-x-0 transition duration-200 ease-in-out p-4 flex flex-col justify-between overflow-y-auto">
+            <div class="space-y-6">
+                <div class="flex items-center space-x-3 mb-8">
+                    <div class="h-10 w-10 icon-alerta-rojo flex items-center justify-center">
+                        <img src="/assets/images/icon.png" alt="Logo Hexodus" class="w-full h-full object-contain">
+                    </div>
+                    <span class="text-xl font-bold tracking-widest uppercase" style="color: var(--color-rojo-principal);">HEXODUS</span>
+                </div>
+                <nav class="space-y-2">
+                    <a href="/dashboard.html" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5 mr-3"></i> Dashboard
+                    </a>
+                    <a href="#" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                        <i data-lucide="credit-card" class="w-5 h-5 mr-3"></i> Gestion de Membresias
+                    </a>
+                    <a href="/socios.html" class="nav-link nav-activo flex items-center p-3 rounded-lg text-sm font-medium">
+                        <i data-lucide="users" class="w-5 h-5 mr-3"></i> Gestion de Socios
+                    </a>
+                    <a href="#" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                        <i data-lucide="shopping-cart" class="w-5 h-5 mr-3"></i> Gestion de Ventas
+                    </a>
+                    <a href="#" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                        <i data-lucide="package" class="w-5 h-5 mr-3"></i> Inventario y Productos
+                    </a>
+                    <a href="#" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                        <i data-lucide="trending-up" class="w-5 h-5 mr-3"></i> Control de Movimientos
+                    </a>
+                    <a href="#" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                        <i data-lucide="file-text" class="w-5 h-5 mr-3"></i> Reportes
+                    </a>
+                    <a href="#" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                        <i data-lucide="lock" class="w-5 h-5 mr-3"></i> Gestion de Usuarios
+                    </a>
+                </nav>
+            </div>
+            <div class="pb-4 border-t border-gray-800 pt-4">
+                <a href="#" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                    <i data-lucide="settings" class="w-5 h-5 mr-3"></i> Configuracion
+                </a>
+            </div>
+        </aside>
+
+        <!-- Overlay movil -->
+        <div id="backdrop" class="fixed inset-0 bg-black opacity-50 z-20 hidden md:hidden"></div>
+        <button id="menu-toggle" class="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg" style="background-color: var(--color-tarjeta-fondo);">
+            <i data-lucide="menu" class="w-6 h-6" style="color: var(--color-azul-acento);"></i>
+        </button>
+
+        <!-- CONTENIDO PRINCIPAL -->
+        <main class="flex-1 md:ml-64 flex flex-col contenido-principal">
+            <!-- ENCABEZADO -->
+            <header class="encabezado-dashboard flex items-center justify-between p-4 md:p-6 flex-shrink-0 z-20">
+                <h1 class="text-2xl font-bold" style="color: var(--color-azul-acento);">Gestion de Socios</h1>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm hidden sm:block text-gray-400" id="fecha-hora-header"></span>
+                    <i data-lucide="bell" class="w-5 h-5 text-gray-400 hover:text-white transition cursor-pointer"></i>
+                    <i data-lucide="log-out" class="w-5 h-5 text-gray-400 hover:text-white transition cursor-pointer"></i>
+                </div>
+            </header>
+
+            <!-- CONTENIDO SCROLLABLE -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
+
+                <!-- BARRA DE ALERTAS -->
+                <div id="alertas-contratos" class="space-y-2"></div>
+
+                <!-- KPIs -->
+                <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background: rgba(0,191,255,0.1);">
+                            <i data-lucide="users" class="w-5 h-5" style="color: var(--color-azul-acento);"></i>
+                        </div>
+                        <div>
+                            <p class="kpi-label">Total Socios</p>
+                            <p id="kpi-total" class="kpi-value">0</p>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background: rgba(34,197,94,0.1);">
+                            <i data-lucide="user-plus" class="w-5 h-5" style="color: #22c55e;"></i>
+                        </div>
+                        <div>
+                            <p class="kpi-label">Nuevos (Mes)</p>
+                            <div class="flex items-end gap-2">
+                                <p id="kpi-nuevos" class="kpi-value">0</p>
+                                <span id="kpi-nuevos-trend" class="text-xs mb-0.5"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background: rgba(34,197,94,0.1);">
+                            <i data-lucide="file-check" class="w-5 h-5" style="color: #22c55e;"></i>
+                        </div>
+                        <div>
+                            <p class="kpi-label">Contratos Activos</p>
+                            <p id="kpi-contratos-activos" class="kpi-value" style="color: #22c55e;">0</p>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background: rgba(239,68,68,0.1);">
+                            <i data-lucide="alert-triangle" class="w-5 h-5" style="color: #ef4444;"></i>
+                        </div>
+                        <div>
+                            <p class="kpi-label">Por Vencer / Vencidos</p>
+                            <div class="flex items-center gap-2">
+                                <span id="kpi-por-vencer" class="kpi-value text-yellow-400">0</span>
+                                <span class="text-gray-600 text-lg">/</span>
+                                <span id="kpi-vencidos" class="kpi-value text-red-400">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TOOLBAR -->
+                <section class="toolbar-card">
+                    <div class="flex flex-col lg:flex-row gap-3 items-start lg:items-center">
+                        <div class="relative flex-1 w-full lg:max-w-xs">
+                            <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500"></i>
+                            <input type="text" id="busqueda-socios" placeholder="Buscar por nombre, correo o ID..." class="input-field w-full pl-10 pr-4 py-2.5 text-sm">
+                        </div>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <select id="filtro-estado" class="input-field py-2.5 px-3 text-sm w-auto">
+                                <option value="todos">Todos los estados</option>
+                                <option value="activo">Activos</option>
+                                <option value="inactivo">Inactivos</option>
+                            </select>
+                            <select id="filtro-contrato" class="input-field py-2.5 px-3 text-sm w-auto">
+                                <option value="todos">Todos los contratos</option>
+                                <option value="activo">Contrato Activo</option>
+                                <option value="por_vencer">Por Vencer</option>
+                                <option value="vencido">Vencido</option>
+                                <option value="sin_contrato">Sin Contrato</option>
+                            </select>
+                            <select id="filtro-genero" class="input-field py-2.5 px-3 text-sm w-auto">
+                                <option value="todos">Todos</option>
+                                <option value="M">Masculino</option>
+                                <option value="F">Femenino</option>
+                                <option value="O">Otro</option>
+                            </select>
+                            <div class="flex items-center gap-2">
+                                <input type="date" id="filtro-fecha-desde" class="input-field py-2.5 px-3 text-sm" title="Desde">
+                                <span class="text-gray-500 text-xs">a</span>
+                                <input type="date" id="filtro-fecha-hasta" class="input-field py-2.5 px-3 text-sm" title="Hasta">
+                            </div>
+                        </div>
+                        <button id="btn-agregar-socio" class="btn-principal px-5 py-2.5 text-sm rounded-lg whitespace-nowrap">
+                            <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Nuevo Socio
+                        </button>
+                    </div>
+                </section>
+
+                <!-- TABLA -->
+                <section class="table-card">
+                    <div class="overflow-x-auto" style="max-height: calc(100vh - 420px);">
+                        <table class="min-w-full">
+                            <thead class="sticky top-0 z-10">
+                                <tr>
+                                    <th class="th-cell text-left">Socio</th>
+                                    <th class="th-cell text-left">Genero</th>
+                                    <th class="th-cell text-left">Telefono</th>
+                                    <th class="th-cell text-left">Membresia</th>
+                                    <th class="th-cell text-center">Contrato</th>
+                                    <th class="th-cell text-center">Vigencia</th>
+                                    <th class="th-cell text-center">Biometrico</th>
+                                    <th class="th-cell text-center">Estado</th>
+                                    <th class="th-cell text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-socios-body" class="divide-y divide-gray-800/30"></tbody>
+                        </table>
+                    </div>
+                    <div id="paginacion" class="flex items-center justify-between p-4 border-t border-gray-800/30">
+                        <span id="paginacion-info" class="text-xs text-gray-500"></span>
+                        <div id="paginacion-btns" class="flex gap-1"></div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- ==========================================
+         MODAL: REGISTRO / EDICION DE SOCIO
+         ========================================== -->
+    <div id="modal-socio" class="fixed inset-0 hidden z-50 modal-overlay overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen pt-8 px-4 pb-20">
+            <div class="modal-card w-full max-w-3xl my-4">
+                <!-- Header -->
+                <div class="modal-header">
+                    <h2 id="modal-titulo" class="text-xl font-bold flex items-center gap-2">
+                        <i data-lucide="user-plus" class="w-6 h-6" style="color: var(--color-rojo-principal);"></i>
+                        <span>Registro de Nuevo Socio</span>
+                    </h2>
+                    <button id="btn-cerrar-modal" class="text-gray-400 hover:text-white transition">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <form id="form-socio">
+                    <div class="p-6 space-y-6 max-h-[70vh] overflow-y-auto modal-body">
+
+                        <!-- SECCION 1: INFORMACION PERSONAL -->
+                        <div>
+                            <div class="section-label">
+                                <i data-lucide="user" class="w-4 h-4"></i>
+                                <span>Informacion Personal</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="field-label">Nombre Completo <span class="text-red-500">*</span></label>
+                                    <input type="text" id="nombre-socio" required placeholder="Ej. Juan Perez" class="input-field w-full px-4 py-3 text-sm">
+                                </div>
+                                <div>
+                                    <label class="field-label">Correo Electronico</label>
+                                    <input type="email" id="correo-socio" placeholder="juan@ejemplo.com" class="input-field w-full px-4 py-3 text-sm">
+                                </div>
+                                <div>
+                                    <label class="field-label">Numero de Telefono</label>
+                                    <input type="tel" id="telefono-socio" placeholder="+52 555 123 4567" class="input-field w-full px-4 py-3 text-sm">
+                                </div>
+                                <div>
+                                    <label class="field-label">Genero <span class="text-red-500">*</span></label>
+                                    <div class="flex items-center gap-6 h-[46px]">
+                                        <label class="radio-label">
+                                            <input type="radio" name="genero" value="M" required class="radio-input">
+                                            <span class="radio-dot"></span>
+                                            <span>Masculino</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="genero" value="F" class="radio-input">
+                                            <span class="radio-dot"></span>
+                                            <span>Femenino</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="genero" value="O" class="radio-input">
+                                            <span class="radio-dot"></span>
+                                            <span>Otro</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECCION 2: CONTRATO + BIOMETRICO (side by side) -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Detalles del Contrato -->
+                            <div>
+                                <div class="section-label" style="color: var(--color-rojo-principal);">
+                                    <i data-lucide="file-signature" class="w-4 h-4"></i>
+                                    <span>Detalles del Contrato</span>
+                                </div>
+                                <div class="contrato-box">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <span class="text-sm font-medium text-gray-300">Contrato Firmado?</span>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="firmo-contrato">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div id="campos-contrato" class="grid grid-cols-2 gap-3 opacity-40 pointer-events-none transition-all duration-300">
+                                        <div>
+                                            <label class="field-label text-xs">Inicio de Contrato</label>
+                                            <input type="date" id="contrato-inicio" class="input-field w-full px-3 py-2.5 text-sm">
+                                        </div>
+                                        <div>
+                                            <label class="field-label text-xs">Fin de Contrato</label>
+                                            <input type="date" id="contrato-fin" class="input-field w-full px-3 py-2.5 text-sm">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Acceso Biometrico Dual -->
+                            <div>
+                                <div class="section-label" style="color: var(--color-azul-acento);">
+                                    <i data-lucide="scan-eye" class="w-4 h-4"></i>
+                                    <span>Acceso Biometrico Dual</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <button type="button" id="btn-captura-rostro" class="biometric-card">
+                                        <div class="biometric-icon">
+                                            <i data-lucide="scan-face" class="w-8 h-8"></i>
+                                        </div>
+                                        <span class="biometric-label">Captura de Rostro</span>
+                                        <span id="estado-rostro" class="biometric-status">Sin captura</span>
+                                    </button>
+                                    <button type="button" id="btn-captura-huella" class="biometric-card">
+                                        <div class="biometric-icon">
+                                            <i data-lucide="fingerprint" class="w-8 h-8"></i>
+                                        </div>
+                                        <span class="biometric-label">Captura de Huella</span>
+                                        <span id="estado-huella" class="biometric-status">Sin captura</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SECCION 3: MEMBRESIA -->
+                        <div>
+                            <div class="section-label" style="color: var(--color-rojo-principal);">
+                                <i data-lucide="award" class="w-4 h-4"></i>
+                                <span>Asignacion de Membresia</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="field-label">Plan de Membresia</label>
+                                    <select id="membresia" class="input-field w-full px-4 py-3 text-sm">
+                                        <option value="">Selecciona un plan</option>
+                                        <option value="diaria">Diaria - $50/dia</option>
+                                        <option value="semanal">Semanal - $300/sem</option>
+                                        <option value="mensual">Mensual - $1,200/mes</option>
+                                        <option value="trimestral">Trimestral - $3,200</option>
+                                        <option value="anual">Anual - $10,000</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="field-label">Fecha de Inicio</label>
+                                    <input type="date" id="fecha-inicio-membresia" class="input-field w-full px-4 py-3 text-sm">
+                                </div>
+                                <div>
+                                    <label class="field-label">Fecha de Vencimiento</label>
+                                    <input type="date" id="fecha-fin-membresia" class="input-field w-full px-4 py-3 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Footer con botones -->
+                    <div class="modal-footer">
+                        <button type="button" id="btn-cancelar" class="btn-ghost px-6 py-2.5 text-sm">Cancelar</button>
+                        <button type="submit" class="btn-principal px-6 py-2.5 text-sm rounded-lg">
+                            <i data-lucide="save" class="w-4 h-4 mr-2"></i> Guardar Registro
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: CAPTURA FACIAL
+         ========================================== -->
+    <div id="modal-captura-facial" class="fixed inset-0 hidden z-50 modal-overlay overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4 py-6">
+            <div class="modal-card w-full max-w-2xl">
+                <div class="modal-header">
+                    <h2 class="text-xl font-bold flex items-center gap-2">
+                        <i data-lucide="scan-face" class="w-6 h-6" style="color: var(--color-azul-acento);"></i>
+                        <span>Captura Facial para Acceso</span>
+                    </h2>
+                    <button id="btn-cerrar-facial" class="text-gray-400 hover:text-white transition">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="p-6">
+                    <!-- Video -->
+                    <div class="camera-container mb-4">
+                        <video id="video-captura-facial" autoplay playsinline class="w-full h-full object-cover"></video>
+                        <canvas id="canvas-captura-facial" class="hidden"></canvas>
+                        <div class="camera-overlay">
+                            <div class="camera-circle"></div>
+                        </div>
+                        <div class="camera-status">
+                            <p class="text-sm font-medium text-white">Posiciona tu rostro en el circulo</p>
+                            <p id="mensaje-deteccion" class="text-xs text-gray-400 mt-1">Esperando deteccion...</p>
+                        </div>
+                    </div>
+                    <!-- Instrucciones -->
+                    <div class="info-box mb-4">
+                        <p class="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-2">
+                            <i data-lucide="info" class="w-4 h-4 text-blue-400"></i> Instrucciones
+                        </p>
+                        <ul class="text-xs text-gray-500 space-y-1">
+                            <li>Asegurate de tener buena iluminacion</li>
+                            <li>Mira directamente a la camara</li>
+                            <li>Manten una expresion neutral</li>
+                        </ul>
+                    </div>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" id="btn-cancelar-captura" class="btn-ghost px-5 py-2 text-sm">Cancelar</button>
+                        <button type="button" id="btn-confirmar-captura" disabled class="btn-principal px-5 py-2 text-sm rounded-lg opacity-50 cursor-not-allowed">
+                            <i data-lucide="check" class="w-4 h-4 mr-2"></i> Confirmar Captura
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: CAPTURA HUELLA
+         ========================================== -->
+    <div id="modal-captura-huella" class="fixed inset-0 hidden z-50 modal-overlay overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4 py-6">
+            <div class="modal-card w-full max-w-md">
+                <div class="modal-header">
+                    <h2 class="text-xl font-bold flex items-center gap-2">
+                        <i data-lucide="fingerprint" class="w-6 h-6" style="color: var(--color-azul-acento);"></i>
+                        <span>Captura de Huella Dactilar</span>
+                    </h2>
+                    <button id="btn-cerrar-huella" class="text-gray-400 hover:text-white transition">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="p-6 text-center">
+                    <div class="fingerprint-scanner mx-auto mb-6">
+                        <div class="fingerprint-pulse"></div>
+                        <i data-lucide="fingerprint" class="w-16 h-16" style="color: var(--color-azul-acento);"></i>
+                    </div>
+                    <p id="huella-estado" class="text-sm text-gray-400 mb-2">Coloca tu dedo en el lector</p>
+                    <p id="huella-progreso" class="text-xs text-gray-500 mb-6">Esperando lector biometrico...</p>
+                    <div class="info-box mb-6 text-left">
+                        <p class="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-2">
+                            <i data-lucide="info" class="w-4 h-4 text-blue-400"></i> Instrucciones
+                        </p>
+                        <ul class="text-xs text-gray-500 space-y-1">
+                            <li>Conecta el lector de huellas USB</li>
+                            <li>Coloca tu dedo indice en el sensor</li>
+                            <li>Manten el dedo firme por 3 segundos</li>
+                        </ul>
+                    </div>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" id="btn-cancelar-huella" class="btn-ghost px-5 py-2 text-sm">Cancelar</button>
+                        <button type="button" id="btn-simular-huella" class="btn-principal px-5 py-2 text-sm rounded-lg">
+                            <i data-lucide="scan" class="w-4 h-4 mr-2"></i> Simular Captura
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: VER DETALLE SOCIO
+         ========================================== -->
+    <div id="modal-detalle" class="fixed inset-0 hidden z-50 modal-overlay overflow-y-auto">
+        <div class="flex items-start justify-center min-h-screen pt-8 px-4 pb-20">
+            <div class="modal-card w-full max-w-lg my-4">
+                <div class="modal-header">
+                    <h2 class="text-lg font-bold flex items-center gap-2" style="color: var(--color-azul-acento);">
+                        <i data-lucide="user" class="w-5 h-5"></i> Detalle del Socio
+                    </h2>
+                    <button id="btn-cerrar-detalle" class="text-gray-400 hover:text-white transition">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="p-6">
+                    <div id="detalle-contenido"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/js/socios.js"></script>
+</body>
+
+</html>

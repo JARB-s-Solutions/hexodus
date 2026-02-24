@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexodus | Dashboard Principal</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/images/icon.ico" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/images/icon.png" />
+    <link rel="stylesheet" href="/assets/css/dashboard.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body class="bg-gray-900 text-white">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar fixed z-30 inset-y-0 left-0 w-64 transform -translate-x-full md:translate-x-0 transition duration-200 ease-in-out p-4 flex flex-col justify-between overflow-y-auto">
+        <div class="space-y-6">
+            <div class="flex items-center space-x-3 mb-8">
+                <img src="/assets/images/icon.png" alt="Logo Hexodus" class="h-10 w-10 icon-alerta-rojo" />
+                <span class="text-xl font-bold tracking-widest uppercase" style="color: var(--color-rojo-principal);">Hexodus</span>
+            </div>
+
+            <nav class="space-y-2">
+                <a href="/dashboard" class="nav-link nav-activo flex items-center p-3 rounded-lg text-sm font-medium">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5 mr-3"></i>Dashboard
+                </a>
+                <a href="/socios.html" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                    <i data-lucide="users" class="w-5 h-5 mr-3"></i>Socios
+                </a>
+                <a href="/ventas" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                    <i data-lucide="shopping-cart" class="w-5 h-5 mr-3"></i>Ventas
+                </a>
+                <a href="/inventario" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                    <i data-lucide="package" class="w-5 h-5 mr-3"></i>Inventario
+                </a>
+                <a href="/membresias" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                    <i data-lucide="credit-card" class="w-5 h-5 mr-3"></i>Membresias
+                </a>
+                <a href="/reportes" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                    <i data-lucide="file-text" class="w-5 h-5 mr-3"></i>Reportes
+                </a>
+                <a href="/usuarios" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                    <i data-lucide="lock" class="w-5 h-5 mr-3"></i>Usuarios
+                </a>
+                <a href="/perfil" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                    <i data-lucide="user" class="w-5 h-5 mr-3"></i>Perfil
+                </a>
+            </nav>
+        </div>
+
+        <div class="pb-4 border-t border-gray-800 pt-4">
+            <a href="/settings" class="nav-link flex items-center p-3 rounded-lg text-sm font-medium text-gray-400">
+                <i data-lucide="settings" class="w-5 h-5 mr-3"></i>Configuracion
+            </a>
+        </div>
+    </aside>
+
+    <div id="backdrop" class="fixed inset-0 bg-black opacity-50 z-20 hidden md:hidden"></div>
+
+    <button id="menu-toggle" class="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg" style="background-color: var(--color-tarjeta-fondo);">
+        <i data-lucide="menu" class="w-6 h-6" style="color: var(--color-azul-acento);"></i>
+    </button>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="flex-1 md:ml-64 p-4 md:p-8 space-y-6 overflow-y-auto h-screen">
+
+        <!-- ENCABEZADO -->
+        <header class="encabezado-dashboard flex items-center justify-between p-4 rounded-xl sticky top-0 z-10">
+            <div>
+                <h2 class="text-lg font-semibold">Bienvenido, <span id="userNameDisplay" style="color: var(--color-rojo-principal);">Usuario</span></h2>
+                <p id="fecha-hora" class="text-xs" style="color: var(--color-texto-gris);">--/--/---- | --:-- --</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button class="p-2 rounded-full hover:bg-gray-800 transition duration-200 relative">
+                    <i data-lucide="bell" class="w-5 h-5" style="color: var(--color-azul-acento);"></i>
+                    <span class="absolute top-1 right-1 h-2 w-2 rounded-full" style="background-color: var(--color-rojo-principal);"></span>
+                </button>
+                <button id="logoutBtn" class="p-2 rounded-full hover:bg-gray-800 transition duration-200" title="Cerrar sesion">
+                    <i data-lucide="log-out" class="w-5 h-5" style="color: var(--color-rojo-principal);"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- FILA 1: KPIs FINANCIEROS -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Ventas -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-label">Ventas</span>
+                    <div class="kpi-icon kpi-icon--blue">
+                        <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <p id="kpiVentas" class="kpi-value">$14,200.00</p>
+                <div id="kpiVentasTrend" class="kpi-trend"></div>
+            </div>
+
+            <!-- Gastos -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-label">Gastos</span>
+                    <div class="kpi-icon kpi-icon--red">
+                        <i data-lucide="receipt" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <p id="kpiGastos" class="kpi-value">$6,350.00</p>
+                <div id="kpiGastosTrend" class="kpi-trend"></div>
+            </div>
+
+            <!-- Utilidad -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-label">Utilidad</span>
+                    <div class="kpi-icon kpi-icon--green">
+                        <i data-lucide="trending-up" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <p id="kpiUtilidad" class="kpi-value kpi-value--green">$7,850.00</p>
+                <div id="kpiUtilidadTrend" class="kpi-trend"></div>
+            </div>
+
+            <!-- Saldo Neto -->
+            <div class="kpi-card kpi-card--accent">
+                <div class="kpi-card-header">
+                    <span class="kpi-label">Saldo Neto</span>
+                    <div class="kpi-icon kpi-icon--blue">
+                        <i data-lucide="wallet" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <p id="kpiSaldoNeto" class="kpi-value kpi-value--blue">$7,850.00</p>
+                <div id="kpiSaldoNetoTrend" class="kpi-trend"></div>
+            </div>
+        </section>
+
+        <!-- FILA 2: TENDENCIA + ASISTENCIA + PERIODO -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <!-- Indicador de tendencia -->
+            <div id="indicadorTendencia" class="lg:col-span-5 tendencia-card tendencia-mejoro">
+                <div class="tendencia-icon tendencia-icon--green">
+                    <i data-lucide="trending-up" class="w-5 h-5"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-semibold text-green-400">El negocio mejoro</p>
+                    <p class="text-xs" style="color: var(--color-texto-gris);">La utilidad subio un 21.8% comparado con el periodo anterior.</p>
+                </div>
+                <select id="periodoSelector" class="periodo-select">
+                    <option value="hoy">Hoy</option>
+                    <option value="semana" selected>Semana</option>
+                    <option value="mes">Mes</option>
+                </select>
+            </div>
+
+            <!-- Asistencia Hoy -->
+            <div class="lg:col-span-4 asistencia-card">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="kpi-label">Asistencia Hoy</span>
+                    <i data-lucide="scan-line" class="w-5 h-5 icon-alerta-azul"></i>
+                </div>
+                <div class="flex items-end gap-5">
+                    <div>
+                        <p id="kpiAsistenciaHoy" class="text-3xl font-bold" style="color: var(--color-azul-acento);">73</p>
+                        <span class="text-xs" style="color: var(--color-texto-gris);">personas</span>
+                    </div>
+                    <div class="flex-1 pl-4" style="border-left: 1px solid rgba(255,255,255,0.08);">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xs" style="color: var(--color-texto-gris);">Ayer</span>
+                            <span id="kpiAsistenciaAyer" class="text-sm font-bold">68</span>
+                        </div>
+                        <div id="kpiAsistenciaTrend" class="flex items-center gap-1"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Asistencia por genero - mini donut -->
+            <div class="lg:col-span-3 genero-card">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="kpi-label">Por Genero</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="genero-chart-wrapper">
+                        <canvas id="graficoGenero"></canvas>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background-color: var(--color-azul-acento);"></span>
+                            <span class="text-xs" style="color: var(--color-texto-gris);">Hombres</span>
+                            <span id="generoHombres" class="text-xs font-bold">45</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background-color: var(--color-rojo-principal);"></span>
+                            <span class="text-xs" style="color: var(--color-texto-gris);">Mujeres</span>
+                            <span id="generoMujeres" class="text-xs font-bold">28</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FILA 3: GRAFICAS PRINCIPALES -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!-- Ventas vs Periodo Anterior -->
+            <div class="chart-card lg:col-span-2">
+                <div class="chart-card-header">
+                    <h3 class="chart-title">Ventas vs. Periodo Anterior</h3>
+                </div>
+                <div class="chart-body">
+                    <canvas id="graficoVentas"></canvas>
+                </div>
+            </div>
+
+            <!-- Horas Pico -->
+            <div class="chart-card">
+                <div class="chart-card-header">
+                    <h3 class="chart-title">Horas Pico</h3>
+                    <span class="text-xs" style="color: var(--color-texto-gris);">Hoy</span>
+                </div>
+                <div class="chart-body chart-body--sm">
+                    <canvas id="graficoHorasPico"></canvas>
+                </div>
+                <div id="horaPicoInfo" class="hora-pico-footer">
+                    <i data-lucide="flame" class="w-4 h-4" style="color: var(--color-rojo-principal);"></i>
+                    <span class="text-xs" style="color: var(--color-texto-gris);">Pico maximo: <strong class="text-white">18:00 - 19:00</strong> con <strong style="color: var(--color-rojo-principal);">32</strong> personas</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- FILA 4: STOCK + INGRESOS POR DIA -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <!-- Ingresos diarios (linea) -->
+            <div class="chart-card lg:col-span-5">
+                <div class="chart-card-header">
+                    <h3 class="chart-title">Ingresos Diarios</h3>
+                    <span class="text-xs" style="color: var(--color-texto-gris);">Ultimos 7 dias</span>
+                </div>
+                <div class="chart-body">
+                    <canvas id="graficoIngresos"></canvas>
+                </div>
+            </div>
+
+            <!-- Stock critico -->
+            <div class="chart-card lg:col-span-4">
+                <div class="chart-card-header">
+                    <h3 class="chart-title">Stock Critico</h3>
+                    <span class="stock-badge">5 productos</span>
+                </div>
+                <div class="stock-list">
+                    <div class="stock-item">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium">Whey Protein 2kg</p>
+                            <div class="stock-bar-track">
+                                <div class="stock-bar stock-bar--danger" style="width: 8%;"></div>
+                            </div>
+                        </div>
+                        <div class="stock-qty stock-qty--danger">2</div>
+                    </div>
+                    <div class="stock-item">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium">Botella de Agua 600ml</p>
+                            <div class="stock-bar-track">
+                                <div class="stock-bar stock-bar--danger" style="width: 12%;"></div>
+                            </div>
+                        </div>
+                        <div class="stock-qty stock-qty--danger">3</div>
+                    </div>
+                    <div class="stock-item">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium">Toallas Gym</p>
+                            <div class="stock-bar-track">
+                                <div class="stock-bar stock-bar--warning" style="width: 20%;"></div>
+                            </div>
+                        </div>
+                        <div class="stock-qty stock-qty--warning">5</div>
+                    </div>
+                    <div class="stock-item">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium">Guantes Training</p>
+                            <div class="stock-bar-track">
+                                <div class="stock-bar stock-bar--warning" style="width: 28%;"></div>
+                            </div>
+                        </div>
+                        <div class="stock-qty stock-qty--warning">7</div>
+                    </div>
+                    <div class="stock-item">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium">Barras Energeticas</p>
+                            <div class="stock-bar-track">
+                                <div class="stock-bar stock-bar--warning" style="width: 32%;"></div>
+                            </div>
+                        </div>
+                        <div class="stock-qty stock-qty--warning">8</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alertas -->
+            <div class="chart-card lg:col-span-3">
+                <div class="chart-card-header">
+                    <h3 class="chart-title" style="color: var(--color-rojo-principal);">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 inline mr-1 icon-alerta-rojo"></i>
+                        Alertas
+                    </h3>
+                </div>
+                <div class="alertas-list">
+                    <div class="alerta-item">
+                        <div class="alerta-dot alerta-dot--red"></div>
+                        <div>
+                            <p class="text-sm font-medium">12 membresias vencen esta semana</p>
+                            <span class="text-xs" style="color: var(--color-texto-gris);">Notificacion enviada</span>
+                        </div>
+                    </div>
+                    <div class="alerta-item">
+                        <div class="alerta-dot alerta-dot--yellow"></div>
+                        <div>
+                            <p class="text-sm font-medium">5 productos con stock bajo</p>
+                            <span class="text-xs" style="color: var(--color-texto-gris);">Requieren reabastecimiento</span>
+                        </div>
+                    </div>
+                    <div class="alerta-item">
+                        <div class="alerta-dot alerta-dot--blue"></div>
+                        <div>
+                            <p class="text-sm font-medium">3 pagos pendientes</p>
+                            <span class="text-xs" style="color: var(--color-texto-gris);">Vencimiento hoy</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="/assets/js/dashboard.js"></script>
+</body>
+
+</html>
