@@ -65,8 +65,13 @@ export async function apiGet<T>(
   options: FetchOptions = {}
 ): Promise<T> {
   const token = localStorage.getItem('auth_token')
+  const url = `${API_BASE_URL}${endpoint}`
   
-  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+  console.log('🌐 GET Request:')
+  console.log('  URL:', url)
+  console.log('  Token:', token ? `Bearer ${token.substring(0, 20)}...` : 'NO TOKEN')
+  
+  const response = await fetchWithTimeout(url, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -76,8 +81,11 @@ export async function apiGet<T>(
     ...options,
   })
 
+  console.log('  Status:', response.status, response.statusText)
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
+    console.error('❌ GET Error:', error)
     throw new ApiError(
       response.status,
       error.error || error.message || 'Error en la petición',
@@ -85,7 +93,9 @@ export async function apiGet<T>(
     )
   }
 
-  return response.json()
+  const data = await response.json()
+  console.log('  Response data:', data)
+  return data
 }
 
 /**
@@ -97,8 +107,14 @@ export async function apiPost<T>(
   options: FetchOptions = {}
 ): Promise<T> {
   const token = localStorage.getItem('auth_token')
+  const url = `${API_BASE_URL}${endpoint}`
   
-  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+  console.log('📤 POST Request:')
+  console.log('  URL:', url)
+  console.log('  Token:', token ? `Bearer ${token.substring(0, 20)}...` : 'NO TOKEN')
+  console.log('  Body:', JSON.stringify(data, null, 2))
+  
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -109,8 +125,11 @@ export async function apiPost<T>(
     ...options,
   })
 
+  console.log('  Status:', response.status, response.statusText)
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
+    console.error('❌ POST Error:', error)
     throw new ApiError(
       response.status,
       error.error || error.message || 'Error en la petición',
@@ -118,7 +137,9 @@ export async function apiPost<T>(
     )
   }
 
-  return response.json()
+  const responseData = await response.json()
+  console.log('  Response data:', responseData)
+  return responseData
 }
 
 /**
@@ -130,8 +151,14 @@ export async function apiPut<T>(
   options: FetchOptions = {}
 ): Promise<T> {
   const token = localStorage.getItem('auth_token')
+  const url = `${API_BASE_URL}${endpoint}`
   
-  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+  console.log('✏️  PUT Request:')
+  console.log('  URL:', url)
+  console.log('  Token:', token ? `Bearer ${token.substring(0, 20)}...` : 'NO TOKEN')
+  console.log('  Body:', JSON.stringify(data, null, 2))
+  
+  const response = await fetchWithTimeout(url, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -142,8 +169,11 @@ export async function apiPut<T>(
     ...options,
   })
 
+  console.log('  Status:', response.status, response.statusText)
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
+    console.error('❌ PUT Error:', error)
     throw new ApiError(
       response.status,
       error.error || error.message || 'Error en la petición',
@@ -151,7 +181,9 @@ export async function apiPut<T>(
     )
   }
 
-  return response.json()
+  const responseData = await response.json()
+  console.log('  Response data:', responseData)
+  return responseData
 }
 
 /**

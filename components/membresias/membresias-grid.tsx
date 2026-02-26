@@ -4,7 +4,8 @@ import { useState, useMemo } from "react"
 import {
   Eye, Pencil, Trash2, ToggleLeft, ToggleRight,
   Calendar, ChevronsLeft, ChevronLeft, ChevronRight,
-  ChevronsRight, CreditCard, Tag,
+  ChevronsRight, CreditCard, Tag, Sparkles, Gift, Zap,
+  CalendarDays, Award,
 } from "lucide-react"
 import type { Membresia } from "@/lib/types/membresias"
 
@@ -17,7 +18,31 @@ interface MembresiasGridProps {
 }
 
 function getDuracionTexto(cantidad: number, unidad: string): string {
-  return `${cantidad} ${unidad}`
+  const textos: Record<string, string> = {
+    'dia': cantidad === 1 ? '1 Día' : `${cantidad} Días`,
+    'semana': cantidad === 1 ? '1 Semana' : `${cantidad} Semanas`,
+    'mes': cantidad === 1 ? '1 Mes' : `${cantidad} Meses`,
+    'año': cantidad === 1 ? '1 Año' : `${cantidad} Años`,
+  }
+  return textos[unidad] || `${cantidad} ${unidad}`
+}
+
+function getCategoria(cantidad: number, unidad: string): string {
+  const textos: Record<string, string> = {
+    'dia': 'Diaria',
+    'semana': 'Semanal',
+    'mes': 'Mensual',
+    'año': 'Anual',
+  }
+  return textos[unidad] || 'Personalizada'
+}
+
+function getIconoTipo(cantidad: number, unidad: string) {
+  if (unidad === 'dia') return Zap
+  if (unidad === 'semana') return CalendarDays
+  if (unidad === 'mes') return Calendar
+  if (unidad === 'año') return Award
+  return CreditCard
 }
 
 function getDescuento(membresia: Membresia): number | null {
@@ -183,81 +208,164 @@ function MembresiaCard({
   onEliminar,
 }: MembresiaCardProps) {
   const descuento = getDescuento(m)
+  const categoria = getCategoria(m.duracionCantidad, m.duracionUnidad)
+  const IconoTipo = getIconoTipo(m.duracionCantidad, m.duracionUnidad)
 
   return (
     <div
-      className="group relative flex flex-col rounded-xl border border-border/50 overflow-hidden transition-all duration-300 hover:border-accent/50 animate-fade-in-up"
+      className="group relative flex flex-col rounded-xl border border-border/50 overflow-hidden transition-all duration-300 hover:border-accent/50 hover:shadow-xl animate-fade-in-up"
       style={{
-        background: "linear-gradient(135deg, var(--card) 0%, #252529 100%)",
-        boxShadow: "0 4px 15px rgba(0,0,0,0.25)",
+        background: m.esOferta 
+          ? "linear-gradient(135deg, #2A1F1F 0%, #252529 100%)"
+          : "linear-gradient(135deg, var(--card) 0%, #252529 100%)",
+        boxShadow: m.esOferta 
+          ? "0 4px 20px rgba(255,59,59,0.15)"
+          : "0 4px 15px rgba(0,0,0,0.25)",
       }}
     >
       {/* Top accent bar */}
       <div
         className="h-[3px] w-full"
         style={{
-          background: m.estado === 'activo'
+          background: m.esOferta
+            ? "linear-gradient(90deg, #FF3B3B, #FF6B6B, #FF3B3B)"
+            : m.estado === 'activo'
             ? "linear-gradient(90deg, var(--accent), rgba(0,191,255,0.3))"
             : "linear-gradient(90deg, var(--muted-foreground), rgba(160,160,160,0.3))",
-          boxShadow: m.estado === 'activo' ? "0 0 8px rgba(0,191,255,0.4)" : "none",
+          boxShadow: m.esOferta 
+            ? "0 0 12px rgba(255,59,59,0.5)" 
+            : m.estado === 'activo' 
+            ? "0 0 8px rgba(0,191,255,0.4)" 
+            : "none",
         }}
       />
 
-      {/* Offer badge */}
+      {/* Badge de Oferta en la esquina */}
       {m.esOferta && descuento !== null && (
-        <div className="absolute top-4 right-4 z-10">
-          <span
-            className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full text-primary-foreground"
+        <div className="absolute top-3 right-3 z-10">
+          <div 
+            className="relative px-3 py-1.5 rounded-xl text-white overflow-hidden"
             style={{
               background: "linear-gradient(135deg, #FF3B3B, #FF6B6B)",
-              boxShadow: "0 4px 12px rgba(255,59,59,0.35)",
+              boxShadow: "0 6px 20px rgba(255,59,59,0.45)",
             }}
           >
-            -{descuento}% OFF
-          </span>
+            {/* Efecto de brillo animado */}
+            <div 
+              className="absolute inset-0 opacity-30"
+              style={{
+                background: "linear-gradient(45deg, transparent, rgba(255,255,255,0.3), transparent)",
+                animation: "shimmer 2s infinite",
+              }}
+            />
+            <div className="relative flex items-center gap-1.5">
+              <Gift className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-black uppercase tracking-wider">
+                -{descuento}% OFF
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Header */}
       <div className="px-5 pt-5 pb-4 border-b border-border/30">
-        <div className="flex items-center gap-2 mb-3">
+        {/* Badges superiores */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          {/* Badge Estado */}
           <span
-            className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${
+            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full flex items-center gap-1 ${
               m.estado === 'activo'
-                ? "bg-success/15 text-success border border-success/30"
-                : "bg-muted text-muted-foreground border border-border"
+                ? "bg-success/20 text-success border border-success/40"
+                : "bg-muted/50 text-muted-foreground border border-border"
             }`}
           >
-            {m.estado === 'activo' ? "Activa" : "Inactiva"}
+            {m.estado === 'activo' ? "✅ Activa" : "❌ Inactiva"}
           </span>
-        </div>
 
-        <h3 className="text-base font-bold text-foreground mb-2 leading-tight">{m.nombre}</h3>
-
-        <div className="flex items-baseline gap-2">
-          <span
-            className="text-2xl font-extrabold text-accent"
-            style={{ textShadow: "0 0 12px rgba(0,191,255,0.25)" }}
-          >
-            ${(m.esOferta && m.precioOferta ? m.precioOferta : m.precioBase).toLocaleString()}
-          </span>
-          {m.esOferta && m.precioOferta && (
-            <span className="text-sm text-muted-foreground line-through">
-              ${m.precioBase.toLocaleString()}
+          {/* Badge Categoría u Oferta */}
+          {m.esOferta && m.precioOferta ? (
+            <span 
+              className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full flex items-center gap-1"
+              style={{ 
+                background: "linear-gradient(135deg, #FF3B3B, #FF6B6B)",
+                color: "#FFFFFF",
+                border: "1px solid rgba(255,59,59,0.5)"
+              }}
+            >
+              <Gift className="h-3 w-3" />
+              OFERTA
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-accent/15 text-accent border border-accent/30 flex items-center gap-1">
+              <IconoTipo className="h-3 w-3" />
+              {categoria}
             </span>
           )}
         </div>
 
+        {/* Nombre de la membresía */}
+        <h3 className="text-base font-bold text-foreground mb-3 leading-tight line-clamp-2 min-h-[2.5rem]">
+          {m.nombre}
+        </h3>
+
+        {/* Sección de Precio */}
+        <div className="space-y-1.5">
+          {m.esOferta && m.precioOferta ? (
+            /* Mostrar Precio Promocional */
+            <>
+              <div className="flex items-baseline gap-2">
+                <span
+                  className="text-3xl font-extrabold"
+                  style={{ 
+                    color: "#FF3B3B",
+                    textShadow: "0 0 12px rgba(255,59,59,0.35)" 
+                  }}
+                >
+                  ${m.precioOferta.toLocaleString()}
+                </span>
+                <span className="text-sm text-muted-foreground line-through opacity-60">
+                  ${m.precioBase.toLocaleString()}
+                </span>
+              </div>
+              {descuento !== null && (
+                <div className="flex items-center gap-2">
+                  <span 
+                    className="text-xs font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary inline-block"
+                  >
+                    AHORRAS ${(m.precioBase - m.precioOferta).toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </>
+          ) : (
+            /* Mostrar Precio Normal */
+            <div className="flex items-baseline gap-2">
+              <span
+                className="text-3xl font-extrabold text-accent"
+                style={{ textShadow: "0 0 12px rgba(0,191,255,0.25)" }}
+              >
+                ${m.precioBase.toLocaleString()}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Fecha de vencimiento de oferta */}
         {m.esOferta && m.fechaFinOferta && (
-          <p className="text-[11px] text-warning mt-1.5 flex items-center gap-1">
-            <Tag className="h-3 w-3" />
-            Válida hasta{" "}
-            {new Date(m.fechaFinOferta).toLocaleDateString("es-MX", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })}
-          </p>
+          <div 
+            className="mt-2.5 p-2 rounded-lg flex items-center gap-2 text-xs"
+            style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.2)" }}
+          >
+            <Tag className="h-3.5 w-3.5 text-warning flex-shrink-0" />
+            <span className="text-warning font-semibold">
+              Válida hasta {new Date(m.fechaFinOferta).toLocaleDateString("es-MX", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+            </span>
+          </div>
         )}
       </div>
 
@@ -265,7 +373,7 @@ function MembresiaCard({
       <div className="px-5 py-4 flex-1 flex flex-col gap-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar className="h-4 w-4 flex-shrink-0 text-accent/70" />
-          <span>{getDuracionTexto(m.duracionCantidad, m.duracionUnidad)}</span>
+          <span className="font-medium">{getDuracionTexto(m.duracionCantidad, m.duracionUnidad)}</span>
         </div>
 
         {m.descripcion && (
@@ -276,7 +384,10 @@ function MembresiaCard({
       </div>
 
       {/* Footer actions */}
-      <div className="px-4 py-3 border-t border-border/30 bg-background/20 flex items-center justify-end gap-1">
+      <div 
+        className="px-4 py-3 border-t border-border/30 flex items-center justify-end gap-1"
+        style={{ background: "rgba(0,0,0,0.15)" }}
+      >
         <button
           onClick={() => onVerDetalle(m)}
           className="p-2 rounded-lg text-muted-foreground/60 hover:text-accent hover:bg-accent/10 transition-all group-hover:text-muted-foreground"

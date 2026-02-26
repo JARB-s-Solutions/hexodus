@@ -47,52 +47,107 @@ export interface Membresia {
 
 /**
  * Función helper para convertir de API a Frontend
+ * Acepta tanto snake_case (GET) como camelCase (POST/PUT)
  */
-export function mapMembresiaFromAPI(api: MembresiaAPI): Membresia {
+export function mapMembresiaFromAPI(api: any): Membresia {
   console.log('Mapeando membresía desde API:', api)
+  
+  // Convertir duración de días a unidad apropiada
+  const duracionDias = api.duracion_dias || api.duracionDias || 0
+  let duracionCantidad = duracionDias
+  let duracionUnidad = 'dia'
+  
+  // Si viene etiqueta_tipo del backend, usarla para determinar la unidad
+  if (api.etiqueta_tipo) {
+    const tipo = api.etiqueta_tipo.toLowerCase()
+    if (tipo === 'diaria' || tipo === 'dia') {
+      duracionUnidad = 'dia'
+      duracionCantidad = duracionDias
+    } else if (tipo === 'semanal' || tipo === 'semana') {
+      duracionUnidad = 'semana'
+      duracionCantidad = Math.round(duracionDias / 7)
+    } else if (tipo === 'mensual' || tipo === 'mes') {
+      duracionUnidad = 'mes'
+      duracionCantidad = Math.round(duracionDias / 30)
+    } else if (tipo === 'anual' || tipo === 'año') {
+      duracionUnidad = 'año'
+      duracionCantidad = Math.round(duracionDias / 365)
+    }
+  } else {
+    // Fallback: intentar deducir de duracion_dias
+    if (duracionDias === 1) {
+      duracionUnidad = 'dia'
+      duracionCantidad = 1
+    } else if (duracionDias === 7) {
+      duracionUnidad = 'semana'
+      duracionCantidad = 1
+    } else if (duracionDias === 30 || duracionDias === 31) {
+      duracionUnidad = 'mes'
+      duracionCantidad = 1
+    } else if (duracionDias === 365 || duracionDias === 366) {
+      duracionUnidad = 'año'
+      duracionCantidad = 1
+    } else if (duracionDias % 30 === 0) {
+      duracionUnidad = 'mes'
+      duracionCantidad = duracionDias / 30
+    } else if (duracionDias % 7 === 0) {
+      duracionUnidad = 'semana'
+      duracionCantidad = duracionDias / 7
+    } else {
+      duracionUnidad = 'dia'
+      duracionCantidad = duracionDias
+    }
+  }
+  
+  // Detectar si es oferta válida
+  const esOferta = api.es_oferta_valida || api.es_oferta || api.esOferta || false
+  
+  // Detectar formato y mapear apropiadamente
   const mapped = {
-    id: api.plan_id,
+    id: api.plan_id || api.id,
     nombre: api.nombre,
     descripcion: api.descripcion || '',
-    precioBase: api.precio_base || 0,
-    duracionCantidad: api.duracion_dias,
-    duracionUnidad: 'dias',
-    esOferta: api.es_oferta || false,
-    precioOferta: api.precio_oferta,
-    fechaFinOferta: api.fecha_fin_oferta,
-    estado: api.status,
-    createdAt: api.created_at,
-    updatedAt: api.updated_at,
+    precioBase: parseFloat(api.precio_base || api.precioBase || 0),
+    duracionCantidad,
+    duracionUnidad,
+    esOferta,
+    precioOferta: api.precio_oferta ? parseFloat(api.precio_oferta) : (api.precioOferta ? parseFloat(api.precioOferta) : undefined),
+    fechaFinOferta: api.fecha_fin_oferta || api.fechaFinOferta,
+    estado: api.status || 'activo',
+    createdAt: api.created_at || api.createdAt,
+    updatedAt: api.updated_at || api.updatedAt,
   }
   console.log('Membresía mapeada:', mapped)
   return mapped
 }
 
 /**
- * Datos para crear una nueva membresía
+ * Datos para crear una nueva membresía (camelCase como espera el backend)
  */
 export interface CreateMembresia {
   nombre: string
   descripcion?: string
-  precio_base: number
-  duracion_dias: number
-  es_oferta?: boolean
-  precio_oferta?: number
-  fecha_fin_oferta?: string
+  precioBase: number
+  duracionCantidad: number
+  duracionUnidad: string
+  esOferta?: boolean
+  precioOferta?: number
+  fechaFinOferta?: string
 }
 
 /**
- * Datos para actualizar una membresía existente
+ * Datos para actualizar una membresía existente (camelCase como espera el backend)
  * Campos obligatorios deben estar presentes
  */
 export interface UpdateMembresia {
   nombre: string
   descripcion?: string
-  precio_base: number
-  duracion_dias: number
-  es_oferta?: boolean
-  precio_oferta?: number
-  fecha_fin_oferta?: string
+  precioBase: number
+  duracionCantidad: number
+  duracionUnidad: string
+  esOferta?: boolean
+  precioOferta?: number
+  fechaFinOferta?: string
 }
 
 /**
@@ -118,7 +173,8 @@ export interface GetMembresiasResponse {
  * Respuesta al crear o actualizar una membresía
  */
 export interface MembresiaResponse {
-  membresia: MembresiaAPI
+  membresia?: MembresiaAPI // Formato snake_case (antiguo)
+  data?: any // Formato camelCase (nuevo) - puede ser cualquiera
   message?: string
 }
 
@@ -127,5 +183,6 @@ export interface MembresiaResponse {
  */
 export interface UpdateStatusResponse {
   message: string
-  membresia?: MembresiaAPI
+  membresia?: MembresiaAPI // Formato snake_case (antiguo)
+  data?: any // Formato camelCase (nuevo)
 }

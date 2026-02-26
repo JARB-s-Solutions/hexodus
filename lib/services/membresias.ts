@@ -26,26 +26,34 @@ export class MembresiasService {
    */
   static async getAll(): Promise<Membresia[]> {
     try {
+      console.log('🔄 Obteniendo todas las membresías...')
       const response = await apiGet<any>(this.BASE_PATH)
-      console.log('API Response:', response)
+      console.log('✅ API Response completa:', JSON.stringify(response, null, 2))
       
-      // La API puede devolver directamente un array o un objeto con propiedad membresias
+      // La API puede devolver directamente un array o un objeto con propiedad membresias o data
       let membresiasAPI: MembresiaAPI[] = []
       
       if (Array.isArray(response)) {
+        console.log('📦 Response es un array directo')
         membresiasAPI = response
       } else if (response.membresias) {
+        console.log('📦 Response tiene propiedad "membresias"')
         membresiasAPI = response.membresias
       } else if (response.data) {
+        console.log('📦 Response tiene propiedad "data"')
         membresiasAPI = response.data
+      } else {
+        console.warn('⚠️  Response no tiene formato esperado:', response)
       }
       
-      console.log('Membresias API:', membresiasAPI)
+      console.log(`✅ Total de membresías obtenidas: ${membresiasAPI.length}`)
       
       // Convertir de API format a Frontend format
-      return membresiasAPI.map(mapMembresiaFromAPI)
+      const mapped = membresiasAPI.map(mapMembresiaFromAPI)
+      console.log('✅ Membresías mapeadas:', mapped)
+      return mapped
     } catch (error) {
-      console.error('Error en getAll membresias:', error)
+      console.error('❌ Error en getAll membresias:', error)
       throw error
     }
   }
@@ -55,7 +63,8 @@ export class MembresiasService {
    */
   static async getById(id: number): Promise<Membresia> {
     const response = await apiGet<MembresiaResponse>(`${this.BASE_PATH}/${id}`)
-    return mapMembresiaFromAPI(response.membresia)
+    const membresiaData = response.membresia || response.data
+    return mapMembresiaFromAPI(membresiaData)
   }
 
   /**
@@ -92,20 +101,41 @@ export class MembresiasService {
    * Crear una nueva membresía
    */
   static async create(data: CreateMembresia): Promise<Membresia> {
-    console.log('Creating membresia with data:', data)
-    const response = await apiPost<MembresiaResponse>(this.BASE_PATH, data)
-    console.log('Create response:', response)
-    return mapMembresiaFromAPI(response.membresia)
+    try {
+      console.log('🆕 Creando nueva membresía...')
+      console.log('📤 Payload a enviar:', JSON.stringify(data, null, 2))
+      
+      const response = await apiPost<MembresiaResponse>(this.BASE_PATH, data)
+      console.log('✅ Respuesta de creación:', JSON.stringify(response, null, 2))
+      
+      // La respuesta puede venir como response.membresia (snake_case) o response.data (camelCase)
+      const membresiaData = response.membresia || response.data
+      return mapMembresiaFromAPI(membresiaData)
+    } catch (error) {
+      console.error('❌ Error al crear membresía:', error)
+      throw error
+    }
   }
 
   /**
    * Actualizar una membresía existente
    */
   static async update(id: number, data: UpdateMembresia): Promise<Membresia> {
-    console.log('Update service - ID:', id, 'Data:', data)
-    const response = await apiPut<MembresiaResponse>(`${this.BASE_PATH}/${id}`, data)
-    console.log('Update response:', response)
-    return mapMembresiaFromAPI(response.membresia)
+    try {
+      console.log('✏️  Actualizando membresía...')
+      console.log('🔑 ID:', id, '(tipo:', typeof id, ')')
+      console.log('📤 Payload a enviar:', JSON.stringify(data, null, 2))
+      
+      const response = await apiPut<MembresiaResponse>(`${this.BASE_PATH}/${id}`, data)
+      console.log('✅ Respuesta de actualización:', JSON.stringify(response, null, 2))
+      
+      // La respuesta puede venir como response.membresia (snake_case) o response.data (camelCase)
+      const membresiaData = response.membresia || response.data
+      return mapMembresiaFromAPI(membresiaData)
+    } catch (error) {
+      console.error('❌ Error al actualizar membresía:', error)
+      throw error
+    }
   }
 
   /**
@@ -117,7 +147,8 @@ export class MembresiasService {
       `${this.BASE_PATH}/${id}/status`,
       { status: estado }
     )
-    return response.membresia ? mapMembresiaFromAPI(response.membresia) : null
+    const membresiaData = response.membresia || response.data
+    return membresiaData ? mapMembresiaFromAPI(membresiaData) : null
   }
 
   /**

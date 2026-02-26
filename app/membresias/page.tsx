@@ -8,6 +8,7 @@ import { MembresiasToolbar } from "@/components/membresias/membresias-toolbar"
 import { MembresiasGrid } from "@/components/membresias/membresias-grid"
 import { MembresiaModal } from "@/components/membresias/membresia-modal"
 import { DetalleMembresiaMoal } from "@/components/membresias/detalle-membresia-modal"
+import { EliminarMembresiaMdal } from "@/components/membresias/eliminar-membresia-modal"
 import { MembresiasService } from "@/lib/services/membresias"
 import { toast } from "@/hooks/use-toast"
 import type { Membresia } from "@/lib/types/membresias"
@@ -28,6 +29,7 @@ export default function MembresiasPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editandoMembresia, setEditandoMembresia] = useState<Membresia | null>(null)
   const [detalleMembresia, setDetalleMembresia] = useState<Membresia | null>(null)
+  const [membresiaAEliminar, setMembresiaAEliminar] = useState<Membresia | null>(null)
 
   // Cargar membresías al montar el componente
   useEffect(() => {
@@ -98,49 +100,33 @@ export default function MembresiasPage() {
   const handleGuardar = useCallback(
     async (data: MembresiaFormData) => {
       try {
-        console.log('Datos del formulario:', data)
+        console.log('📝 Datos del formulario:', data)
         
-        // Convertir duración a días
-        const convertirADias = (cantidad: number, unidad: string): number => {
-          const multiplicadores: Record<string, number> = {
-            'dias': 1,
-            'dia': 1,
-            'semana': 7,
-            'semanas': 7,
-            'meses': 30,
-            'mes': 30,
-            'años': 365,
-            'año': 365,
-          }
-          return cantidad * (multiplicadores[unidad.toLowerCase()] || 1)
-        }
-        
-        const duracionDias = convertirADias(data.duracion.cantidad, data.duracion.unidad)
-        
-        // Construir payload sin undefined en campos obligatorios
+        // Construir payload con camelCase como espera el backend
         const payload: any = {
           nombre: data.nombre.trim(),
-          precio_base: data.precio,
-          duracion_dias: duracionDias,
+          precioBase: data.precio,
+          duracionCantidad: data.duracion.cantidad,
+          duracionUnidad: data.duracion.unidad,
         }
         
-        // Solo agregar descripcion si existe
+        // Agregar descripción si existe (opcional)
         if (data.descripcion && data.descripcion.trim()) {
           payload.descripcion = data.descripcion.trim()
         }
         
         // Agregar campos de oferta si aplica
         if (data.esOferta && data.precioOriginal) {
-          payload.es_oferta = true
-          payload.precio_oferta = data.precioOriginal
+          payload.esOferta = true
+          payload.precioOferta = data.precioOriginal
           if (data.fechaVencimientoOferta) {
-            payload.fecha_fin_oferta = data.fechaVencimientoOferta
+            payload.fechaFinOferta = data.fechaVencimientoOferta
           }
         } else {
-          payload.es_oferta = false
+          payload.esOferta = false
         }
         
-        console.log('Payload a enviar:', payload)
+        console.log('📤 Payload a enviar:', payload)
         
         if (editandoMembresia) {
           // Actualizar membresía existente
@@ -204,29 +190,33 @@ export default function MembresiasPage() {
     }
   }, [])
 
-  const handleEliminar = useCallback(async (m: Membresia) => {
-    if (confirm(`¿Eliminar la membresía "${m.nombre}"? Esta acción no se puede deshacer.`)) {
-      try {
-        await MembresiasService.delete(m.id)
-        
-        // Actualizar localmente
-        setMembresias((prev) => prev.filter((item) => item.id !== m.id))
-        
-        toast({
-          variant: 'success',
-          title: 'Eliminada',
-          description: 'La membresía se eliminó correctamente',
-        })
-      } catch (error) {
-        console.error('Error al eliminar membresía:', error)
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'No se pudo eliminar la membresía',
-        })
-      }
-    }
+  const handleEliminar = useCallback((m: Membresia) => {
+    setMembresiaAEliminar(m)
   }, [])
+
+  const confirmarEliminar = useCallback(async () => {
+    if (!membresiaAEliminar) return
+
+    try {
+      await MembresiasService.delete(membresiaAEliminar.id)
+      
+      // Actualizar localmente
+      setMembresias((prev) => prev.filter((item) => item.id !== membresiaAEliminar.id))
+      
+      toast({
+        variant: 'success',
+        title: 'Eliminada',
+        description: 'La membresía se eliminó correctamente',
+      })
+    } catch (error) {
+      console.error('Error al eliminar membresía:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'No se pudo eliminar la membresía',
+      })
+    }
+  }, [membresiaAEliminar])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -281,6 +271,14 @@ export default function MembresiasPage() {
         open={!!detalleMembresia}
         onClose={() => setDetalleMembresia(null)}
         membresia={detalleMembresia}
+        onEditar={handleEditar}
+      />
+
+      <EliminarMembresiaMdal
+        open={!!membresiaAEliminar}
+        onClose={() => setMembresiaAEliminar(null)}
+        membresia={membresiaAEliminar}
+        onConfirmar={confirmarEliminar}
       />
     </div>
   )
