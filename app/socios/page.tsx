@@ -1,26 +1,31 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { SociosHeader } from "@/components/socios/socios-header"
 import { KpiSocios } from "@/components/socios/kpi-socios"
 import { SociosToolbar } from "@/components/socios/socios-toolbar"
 import { SociosTable } from "@/components/socios/socios-table"
-import { SocioModal, type SocioFormData } from "@/components/socios/socio-modal"
+import { SocioModal } from "@/components/socios/socio-modal"
 import { DetalleSocioModal } from "@/components/socios/detalle-socio-modal"
+import { SociosService } from "@/lib/services/socios"
+import { toast } from "@/hooks/use-toast"
+import type { Socio } from "@/lib/types/socios"
 import {
   generateSocios,
-  type Socio,
   type TipoMembresia,
   type Genero,
   getVigenciaMembresia,
   getEstadoContrato,
+  type Socio as SocioMock,
 } from "@/lib/socios-data"
 
-const initialSocios = generateSocios(345)
+// TODO: Eliminar esto una vez que el backend esté listo
+const useMockData = false // Cambiar a false para usar API real
 
 export default function SociosPage() {
-  const [socios, setSocios] = useState<Socio[]>(initialSocios)
+  const [socios, setSocios] = useState<(Socio | SocioMock)[]>(useMockData ? generateSocios(345) : [])
+  const [cargando, setCargando] = useState(!useMockData)
 
   // Filters
   const [busqueda, setBusqueda] = useState("")
@@ -34,8 +39,72 @@ export default function SociosPage() {
 
   // Modals
   const [modalOpen, setModalOpen] = useState(false)
-  const [editandoSocio, setEditandoSocio] = useState<Socio | null>(null)
-  const [detalleSocio, setDetalleSocio] = useState<Socio | null>(null)
+  const [editandoSocio, setEditandoSocio] = useState<Socio | SocioMock | null>(null)
+  const [detalleSocio, setDetalleSocio] = useState<Socio | SocioMock | null>(null)
+
+  // ===== Cargar socios desde la API =====
+  const cargarSocios = useCallback(async () => {
+    if (useMockData) return // No cargar si usamos mock data
+    
+    setCargando(true)
+    try {
+      const { socios: data, stats } = await SociosService.getAll()
+      console.log('📊 Socios cargados:', data.length, 'Stats:', stats)
+      setSocios(data)
+      
+      // Opcional: Podrías usar stats para mostrar en los KPIs reales del backend
+      // Por ahora solo cargamos los socios
+    } catch (error: any) {
+      console.error("Error cargando socios:", error)
+      toast({
+        title: "Error al cargar socios",
+        description: error.message || "No se pudieron cargar los socios",
+        variant: "destructive",
+      })
+    } finally {
+      setCargando(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    cargarSocios()
+  }, [])
+
+  // ===== Helper para acceder a campos de forma uniforme =====
+  const isSocioAPI = (s: Socio | SocioMock): s is Socio => {
+    // El Socio de API tiene 'fechaVencimientoMembresia', el mock tiene 'fechaFin'
+    return 'fechaVencimientoMembresia' in s
+  }
+
+  const getSocioField = (s: Socio | SocioMock, field: string): any => {
+    if (isSocioAPI(s)) {
+      // Es del tipo API
+      switch (field) {
+        case 'nombre': return s.nombre
+        case 'correo': return s.correo
+        case 'telefono': return s.telefono
+        case 'membresia': return s.nombrePlan // TODO: mapear a TipoMembresia si es necesario
+        case 'fechaFin': return s.fechaVencimientoMembresia
+        case 'genero': {
+          // Mapear Genero API a Genero Mock
+          const generoMap: Record<string, Genero> = {
+            'Masculino': 'M',
+            'Femenino': 'F',
+            'Otro': 'O'
+          }
+          return generoMap[s.genero] || 'O'
+        }
+        case 'firmoContrato': return s.firmoContrato
+        case 'estadoSocio': return s.estadoSocio
+        case 'contratoInicio': return s.inicioContrato
+        case 'contratoFin': return s.finContrato
+        default: return (s as any)[field]
+      }
+    } else {
+      // Es del tipo Mock (SocioMock)
+      return (s as any)[field]
+    }
+  }
 
   // Filtered data
   const sociosFiltrados = useMemo(() => {
@@ -45,48 +114,83 @@ export default function SociosPage() {
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase()
       filtered = filtered.filter(
-        (s) =>
-          s.nombre.toLowerCase().includes(q) ||
-          s.correo.toLowerCase().includes(q) ||
-          s.telefono.includes(q) ||
-          String(s.id).includes(q)
+        (s) => {
+          const nombre = getSocioField(s, 'nombre')
+          const correo = getSocioField(s, 'correo')
+          const telefono = getSocioField(s, 'telefono')
+          const id = 'id' in s ? s.id : 0
+          
+          return (
+            nombre.toLowerCase().includes(q) ||
+            (correo && correo.toLowerCase().includes(q)) ||
+            (telefono && telefono.includes(q)) ||
+            String(id).includes(q)
+          )
+        }
       )
     }
 
     // Vigencia membresia
     if (vigenciaFiltro !== "todos") {
-      filtered = filtered.filter((s) => getVigenciaMembresia(s.fechaFin) === vigenciaFiltro)
+      filtered = filtered.filter((s) => {
+        const fechaFin = getSocioField(s, 'fechaFin')
+        return getVigenciaMembresia(fechaFin) === vigenciaFiltro
+      })
     }
 
     // Tipo membresia
     if (membresiaFiltro !== "todos") {
-      filtered = filtered.filter((s) => s.membresia === membresiaFiltro)
+      filtered = filtered.filter((s) => getSocioField(s, 'membresia') === membresiaFiltro)
     }
 
     // Genero
     if (generoFiltro !== "todos") {
-      filtered = filtered.filter((s) => s.genero === generoFiltro)
+      filtered = filtered.filter((s) => getSocioField(s, 'genero') === generoFiltro)
     }
 
     // Contrato firma
     if (contratoFirmaFiltro !== "todos") {
       if (contratoFirmaFiltro === "firmado") {
-        filtered = filtered.filter((s) => s.firmoContrato)
+        filtered = filtered.filter((s) => getSocioField(s, 'firmoContrato'))
       } else if (contratoFirmaFiltro === "pendiente") {
-        filtered = filtered.filter((s) => !s.firmoContrato)
+        filtered = filtered.filter((s) => !getSocioField(s, 'firmoContrato'))
       }
     }
 
     // Contrato vigencia
     if (contratoVigenciaFiltro !== "todos") {
-      filtered = filtered.filter((s) => getEstadoContrato(s) === contratoVigenciaFiltro)
+      filtered = filtered.filter((s) => {
+        // Crear un objeto compatible con la función getEstadoContrato
+        if (isSocioAPI(s)) {
+          const mockForCheck: SocioMock = {
+            id: s.id,
+            nombre: s.nombre,
+            correo: s.correo,
+            telefono: s.telefono,
+            genero: getSocioField(s, 'genero') as Genero,
+            membresia: 'mensual' as TipoMembresia, // no importa para el check de contrato
+            fechaInicio: s.fechaInicioMembresia,
+            fechaFin: s.fechaVencimientoMembresia,
+            estadoSocio: s.estadoSocio as any,
+            firmoContrato: s.firmoContrato,
+            contratoInicio: s.inicioContrato || null,
+            contratoFin: s.finContrato || null,
+            fechaRegistro: s.createdAt || '',
+            bioRostro: !!s.faceEncoding,
+            bioHuella: !!s.fingerprintTemplate,
+          }
+          return getEstadoContrato(mockForCheck) === contratoVigenciaFiltro
+        }
+        return getEstadoContrato(s as SocioMock) === contratoVigenciaFiltro
+      })
     }
 
     // Date range (vencimiento)
     if (fechaDesde || fechaHasta) {
       filtered = filtered.filter((s) => {
-        if (!s.fechaFin) return false
-        const venc = new Date(s.fechaFin)
+        const fechaFin = getSocioField(s, 'fechaFin')
+        if (!fechaFin) return false
+        const venc = new Date(fechaFin)
         if (fechaDesde && fechaHasta) {
           return venc >= new Date(fechaDesde) && venc <= new Date(fechaHasta)
         }
@@ -126,40 +230,34 @@ export default function SociosPage() {
     setModalOpen(true)
   }, [])
 
-  const handleEditar = useCallback((s: Socio) => {
-    setEditandoSocio(s)
-    setModalOpen(true)
+  const handleEditar = useCallback((s: Socio | SocioMock) => {
+    // TODO: Implementar edición con el nuevo modal
+    toast({
+      title: "Función en desarrollo",
+      description: "La edición de socios estará disponible próximamente",
+    })
+    // setEditandoSocio(s)
+    // setModalOpen(true)
   }, [])
 
-  const handleGuardar = useCallback(
-    (data: SocioFormData) => {
-      if (editandoSocio) {
-        setSocios((prev) =>
-          prev.map((s) =>
-            s.id === editandoSocio.id
-              ? { ...s, ...data, estadoSocio: s.estadoSocio, fechaRegistro: s.fechaRegistro }
-              : s
-          )
-        )
-      } else {
-        const maxId = socios.length > 0 ? Math.max(...socios.map((s) => s.id)) : 0
-        const nuevo: Socio = {
-          id: maxId + 1,
-          ...data,
-          estadoSocio: "activo",
-          fechaRegistro: new Date().toISOString().split("T")[0],
-        }
-        setSocios((prev) => [nuevo, ...prev])
-      }
-      setModalOpen(false)
-      setEditandoSocio(null)
-    },
-    [editandoSocio, socios]
-  )
+  const handleSuccess = useCallback(() => {
+    // Recargar socios después de crear/editar exitosamente
+    cargarSocios()
+    setModalOpen(false)
+    setEditandoSocio(null)
+  }, [cargarSocios])
 
-  const handleEliminar = useCallback((s: Socio) => {
-    if (confirm(`Eliminar a ${s.nombre}? Esta accion no se puede deshacer.`)) {
-      setSocios((prev) => prev.filter((x) => x.id !== s.id))
+  const handleEliminar = useCallback((s: Socio | SocioMock) => {
+    if (confirm(`Eliminar a ${getSocioField(s, 'nombre')}? Esta accion no se puede deshacer.`)) {
+      if (useMockData) {
+        setSocios((prev) => prev.filter((x) => x.id !== s.id))
+      } else {
+        // TODO: Llamar a SociosService.delete(s.id)
+        toast({
+          title: "Función en desarrollo",
+          description: "La eliminación desde la API estará disponible próximamente",
+        })
+      }
     }
   }, [])
 
@@ -172,7 +270,8 @@ export default function SociosPage() {
 
         <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6 space-y-5">
           {/* KPIs */}
-          <KpiSocios socios={socios} />
+          {/* TODO: Actualizar KpiSocios para aceptar ambos tipos de Socio */}
+          <KpiSocios socios={socios as any} />
 
           {/* Toolbar: search + filters inline */}
           <SociosToolbar
@@ -199,8 +298,9 @@ export default function SociosPage() {
           />
 
           {/* Table - full width */}
+          {/* TODO: Actualizar SociosTable para aceptar ambos tipos de Socio */}
           <SociosTable
-            socios={sociosFiltrados}
+            socios={sociosFiltrados as any}
             onVerDetalle={setDetalleSocio}
             onEditar={handleEditar}
             onEliminar={handleEliminar}
@@ -216,12 +316,12 @@ export default function SociosPage() {
           setModalOpen(false)
           setEditandoSocio(null)
         }}
-        onGuardar={handleGuardar}
-        socio={editandoSocio}
+        onSuccess={handleSuccess}
+        socio={editandoSocio as Socio | null}
       />
 
       <DetalleSocioModal
-        socio={detalleSocio}
+        socio={detalleSocio as any}
         open={!!detalleSocio}
         onClose={() => setDetalleSocio(null)}
       />

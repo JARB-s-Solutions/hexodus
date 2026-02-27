@@ -9,13 +9,21 @@ interface KpiSociosProps {
 }
 
 export function KpiSocios({ socios }: KpiSociosProps) {
+  // Helper para obtener fecha de vencimiento de forma uniforme (API vs Mock)
+  const getFechaFin = (s: any): string => {
+    if ('fechaVencimientoMembresia' in s) {
+      return s.fechaVencimientoMembresia
+    }
+    return s.fechaFin || ''
+  }
+
   const total = socios.length
   const activos = socios.filter((s) => {
-    const vig = getVigenciaMembresia(s.fechaFin)
+    const vig = getVigenciaMembresia(getFechaFin(s))
     return vig === "vigente" || vig === "por_vencer"
   }).length
-  const vencidos = socios.filter((s) => getVigenciaMembresia(s.fechaFin) === "vencida").length
-  const porVencer = socios.filter((s) => getVigenciaMembresia(s.fechaFin) === "por_vencer").length
+  const vencidos = socios.filter((s) => getVigenciaMembresia(getFechaFin(s)) === "vencida").length
+  const porVencer = socios.filter((s) => getVigenciaMembresia(getFechaFin(s)) === "por_vencer").length
 
   const kpis = [
     {

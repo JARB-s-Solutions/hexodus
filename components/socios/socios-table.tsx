@@ -27,12 +27,53 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: Soci
   const [sortKey, setSortKey] = useState<SortKey>("id")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
 
+  // Helper para acceder a campos de forma uniforme (API vs Mock)
+  const getSocioField = (s: any, field: string): any => {
+    // Detectar si es del tipo API (tiene fechaVencimientoMembresia)
+    const isAPIType = 'fechaVencimientoMembresia' in s
+    
+    if (isAPIType) {
+      switch (field) {
+        case 'nombre': return s.nombre // Ya está mapeado en camelCase
+        case 'correo': return s.correo
+        case 'telefono': return s.telefono
+        case 'membresia': return s.nombrePlan || 'N/A'
+        case 'fechaFin': return s.fechaVencimientoMembresia
+        case 'fechaInicio': return s.fechaInicioMembresia
+        case 'genero': {
+          // Convertir género de API ("Masculino"/"Femenino"/"Otro") a formato Mock ("M"/"F"/"O")
+          if (s.genero === 'Masculino') return 'M'
+          if (s.genero === 'Femenino') return 'F'
+          return 'O'
+        }
+        case 'firmoContrato': return s.firmoContrato
+        case 'estadoSocio': return s.estadoSocio
+        case 'contratoInicio': return s.inicioContrato
+        case 'contratoFin': return s.finContrato
+        case 'bioRostro': return !!s.faceEncoding
+        case 'bioHuella': return !!s.fingerprintTemplate
+        default: return s[field]
+      }
+    } else {
+      // Es del tipo Mock, acceso directo
+      return s[field]
+    }
+  }
+
   const sorted = useMemo(() => {
     return [...socios].sort((a, b) => {
       let cmp = 0
       if (sortKey === "id") cmp = a.id - b.id
-      else if (sortKey === "nombre") cmp = a.nombre.localeCompare(b.nombre)
-      else if (sortKey === "vencimiento") cmp = new Date(a.fechaFin).getTime() - new Date(b.fechaFin).getTime()
+      else if (sortKey === "nombre") {
+        const nombreA = getSocioField(a, 'nombre') || ''
+        const nombreB = getSocioField(b, 'nombre') || ''
+        cmp = nombreA.localeCompare(nombreB)
+      }
+      else if (sortKey === "vencimiento") {
+        const fechaA = getSocioField(a, 'fechaFin')
+        const fechaB = getSocioField(b, 'fechaFin')
+        cmp = new Date(fechaA || 0).getTime() - new Date(fechaB || 0).getTime()
+      }
       return sortDir === "asc" ? cmp : -cmp
     })
   }, [socios, sortKey, sortDir])
@@ -179,10 +220,30 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: Soci
               </tr>
             ) : (
               paginated.map((s) => {
-                const iniciales = getInicialesSocio(s.nombre)
-                const vigencia = getVigenciaMembresia(s.fechaFin)
-                const contrato = getEstadoContrato(s)
-                const fechaVenc = new Date(s.fechaFin)
+                const nombre = getSocioField(s, 'nombre') || ''
+                const correo = getSocioField(s, 'correo') || ''
+                const telefono = getSocioField(s, 'telefono') || ''
+                const genero = getSocioField(s, 'genero') || 'M'
+                const membresia = getSocioField(s, 'membresia') || ''
+                const fechaFin = getSocioField(s, 'fechaFin') || ''
+                const fechaInicio = getSocioField(s, 'fechaInicio') || ''
+                const firmoContrato = getSocioField(s, 'firmoContrato') || false
+                const bioRostro = getSocioField(s, 'bioRostro') || false
+                const bioHuella = getSocioField(s, 'bioHuella') || false
+                const estadoSocio = getSocioField(s, 'estadoSocio') || 'activo'
+                
+                const iniciales = getInicialesSocio(nombre)
+                const vigencia = getVigenciaMembresia(fechaFin)
+                
+                // Crear objeto compatible para getEstadoContrato
+                const socioForCheck: any = {
+                  ...s,
+                  firmoContrato,
+                  contratoInicio: getSocioField(s, 'contratoInicio'),
+                  contratoFin: getSocioField(s, 'contratoFin'),
+                }
+                const contrato = getEstadoContrato(socioForCheck)
+                const fechaVenc = new Date(fechaFin)
                 const diffDias = Math.ceil((fechaVenc.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 
                 return (
@@ -206,22 +267,24 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: Soci
                     </td>
                     {/* Nombre */}
                     <td className="px-4 py-3">
-                      <div className="text-sm font-semibold text-foreground">{s.nombre}</div>
-                      <div className="text-xs text-muted-foreground">{s.correo}</div>
+                      <div className="text-sm font-semibold text-foreground">{nombre}</div>
+                      <div className="text-xs text-muted-foreground">{correo}</div>
                     </td>
                     {/* Genero */}
                     <td className="px-4 py-3 text-center">
-                      <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${generoColors[s.genero]}`}>
-                        {s.genero === "M" ? "Masculino" : s.genero === "F" ? "Femenino" : "Otro"}
+                      <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${generoColors[genero as 'M' | 'F' | 'O'] || generoColors['O']}`}>
+                        {genero === "M" ? "Masculino" : genero === "F" ? "Femenino" : "Otro"}
                       </span>
                     </td>
                     {/* Contacto */}
                     <td className="px-4 py-3 text-sm text-muted-foreground">
-                      <div>{s.telefono}</div>
+                      <div>{telefono}</div>
                     </td>
                     {/* Membresia */}
                     <td className="px-4 py-3 text-sm font-medium text-foreground">
-                      {membresiaLabels[s.membresia]}
+                      {typeof membresia === 'string' && membresiaLabels[membresia as keyof typeof membresiaLabels] 
+                        ? membresiaLabels[membresia as keyof typeof membresiaLabels]
+                        : membresia || 'N/A'}
                     </td>
                     {/* Vencimiento */}
                     <td className="px-4 py-3">
