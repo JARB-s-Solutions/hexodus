@@ -3,118 +3,288 @@
 import { useState, useEffect } from "react"
 import {
   X, UserPlus, Pencil, User, FileSignature, ScanEye, Award,
-  ScanFace, Fingerprint, Save,
+  ScanFace, Fingerprint, Save, ArrowRight, CreditCard,
 } from "lucide-react"
-import type { Socio, TipoMembresia, Genero } from "@/lib/socios-data"
-
-export interface SocioFormData {
-  nombre: string
-  genero: Genero
-  correo: string
-  telefono: string
-  membresia: TipoMembresia
-  fechaInicio: string
-  fechaFin: string
-  firmoContrato: boolean
-  contratoInicio: string | null
-  contratoFin: string | null
-  bioRostro: boolean
-  bioHuella: boolean
-}
+import { SociosService } from "@/lib/services/socios"
+import { MembresiasService } from "@/lib/services/membresias"
+import { CheckoutSocioModal } from "./checkout-socio-modal"
+import { toast } from "@/hooks/use-toast"
+import type { Socio, CreateSocioRequest, CotizacionResponse } from "@/lib/types/socios"
+import type { Membresia } from "@/lib/types/membresias"
 
 interface SocioModalProps {
   open: boolean
   onClose: () => void
-  onGuardar: (data: SocioFormData) => void
-  socio: Socio | null
+  onSuccess: () => void // Cambio: onSuccess para refrescar lista después de crear
+  socio: Socio | null // Para editar (próximamente)
 }
 
-export function SocioModal({ open, onClose, onGuardar, socio }: SocioModalProps) {
+export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps) {
+  // ===== Estado del formulario =====
   const [nombre, setNombre] = useState("")
-  const [genero, setGenero] = useState<Genero>("M")
+  const [genero, setGenero] = useState<"Masculino" | "Femenino" | "Otro">("Masculino")
   const [correo, setCorreo] = useState("")
   const [telefono, setTelefono] = useState("")
-  const [membresia, setMembresia] = useState<TipoMembresia | "">("")
+  const [direccion, setDireccion] = useState("")
+  
+  // Membresía
+  const [membresias, setMembresias] = useState<Membresia[]>([])
+  const [membresiaId, setMembresiaId] = useState<number | null>(null)
   const [fechaInicio, setFechaInicio] = useState("")
-  const [fechaFin, setFechaFin] = useState("")
+  
+  // Contrato
   const [firmoContrato, setFirmoContrato] = useState(false)
   const [contratoInicio, setContratoInicio] = useState("")
   const [contratoFin, setContratoFin] = useState("")
+  
+  // Biometría
+  const [fotoPerfilUrl, setFotoPerfilUrl] = useState("")
+  const [faceEncoding, setFaceEncoding] = useState<number[]>([])
+  const [fingerprintTemplate, setFingerprintTemplate] = useState("")
   const [bioRostro, setBioRostro] = useState(false)
   const [bioHuella, setBioHuella] = useState(false)
-
-  // Biometric modal states
+  
+  // Modales biométricos
   const [showFacialModal, setShowFacialModal] = useState(false)
   const [showHuellaModal, setShowHuellaModal] = useState(false)
   const [facialDetected, setFacialDetected] = useState(false)
   const [huellaCapturing, setHuellaCapturing] = useState(false)
+  
+  // ===== Estado del flujo de registro =====
+  const [loading, setLoading] = useState(false)
+  const [cotizacion, setCotizacion] = useState<CotizacionResponse | null>(null)
+  const [showCheckout, setShowCheckout] = useState(false)
+  const [datosTemporales, setDatosTemporales] = useState<CreateSocioRequest | null>(null)
 
+  // ===== Cargar membresías disponibles =====
+  useEffect(() => {
+    const cargarMembresias = async () => {
+      try {
+        const planes = await MembresiasService.getAll()
+        setMembresias(planes.filter(p => p.estado === "activo"))
+      } catch (error) {
+        console.error("Error cargando membresías:", error)
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los planes de membresía",
+          variant: "destructive",
+        })
+      }
+    }
+    
+    if (open) {
+      cargarMembresias()
+    }
+  }, [open])
+
+  // ===== Resetear formulario cuando cambia socio o se abre =====
   useEffect(() => {
     if (socio) {
-      setNombre(socio.nombre)
+      // Modo edición (próximamente)
+      setNombre(socio.nombreCompleto)
       setGenero(socio.genero)
-      setCorreo(socio.correo)
-      setTelefono(socio.telefono)
-      setMembresia(socio.membresia)
-      setFechaInicio(socio.fechaInicio)
-      setFechaFin(socio.fechaFin)
-      setFirmoContrato(socio.firmoContrato)
-      setContratoInicio(socio.contratoInicio || "")
-      setContratoFin(socio.contratoFin || "")
-      setBioRostro(socio.bioRostro)
-      setBioHuella(socio.bioHuella)
+      setCorreo(socio.correoElectronico)
+      setTelefono(socio.numeroTelefono)
+      setDireccion(socio.direccion || "")
+      // ... más campos
     } else {
+      // Modo creación: resetear todo
       setNombre("")
-      setGenero("M")
+      setGenero("Masculino")
       setCorreo("")
       setTelefono("")
-      setMembresia("")
+      setDireccion("")
+      setMembresiaId(null)
       setFechaInicio("")
-      setFechaFin("")
       setFirmoContrato(false)
       setContratoInicio("")
       setContratoFin("")
       setBioRostro(false)
       setBioHuella(false)
+      setFotoPerfilUrl("")
+      setFaceEncoding([])
+      setFingerprintTemplate("")
+      setCotizacion(null)
+      setShowCheckout(false)
+      setDatosTemporales(null)
     }
     setFacialDetected(false)
   }, [socio, open])
 
   if (!open) return null
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ===== STEP 1: Validar y continuar a cotización =====
+  const handleContinuar = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nombre.trim()) return
+    
+    // Validaciones
+    if (!nombre.trim()) {
+      toast({ title: "Error", description: "El nombre es obligatorio", variant: "destructive" })
+      return
+    }
+    if (!membresiaId) {
+      toast({ title: "Error", description: "Selecciona un plan de membresía", variant: "destructive" })
+      return
+    }
+    if (!fechaInicio) {
+      toast({ title: "Error", description: "Selecciona la fecha de inicio", variant: "destructive" })
+      return
+    }
 
-    onGuardar({
-      nombre: nombre.trim(),
-      genero,
-      correo: correo.trim(),
-      telefono: telefono.trim(),
-      membresia: (membresia || "mensual") as TipoMembresia,
-      fechaInicio,
-      fechaFin,
-      firmoContrato,
-      contratoInicio: firmoContrato ? contratoInicio || null : null,
-      contratoFin: firmoContrato ? contratoFin || null : null,
-      bioRostro,
-      bioHuella,
-    })
+    // Construir datos del request (STEP 1 completo)
+    const datosCompletos: CreateSocioRequest = {
+      personal: {
+        nombre_completo: nombre.trim(),
+        correo_electronico: correo.trim() || undefined,
+        numero_telefono: telefono.trim() || undefined,
+        genero,
+        direccion: direccion.trim() || undefined,
+      },
+      detalles_contrato: {
+        contrato_firmado: firmoContrato,
+        inicio_contrato: firmoContrato && contratoInicio ? contratoInicio : undefined,
+        fin_contrato: firmoContrato && contratoFin ? contratoFin : undefined,
+      },
+      biometria: {
+        foto_perfil_url: fotoPerfilUrl || undefined,
+        face_encoding: faceEncoding.length > 0 ? faceEncoding : undefined,
+        fingerprint_template: fingerprintTemplate || undefined,
+      },
+      membresia: {
+        plan_id: membresiaId,
+        fecha_inicio: fechaInicio,
+        estado_pago: "sin_pagar", // Se actualizará en STEP 4
+      },
+    }
+
+    setDatosTemporales(datosCompletos)
+
+    // STEP 2: Llamar cotizador
+    setLoading(true)
+    try {
+      const cotizacionData = {
+        plan_id: membresiaId,
+        fecha_inicio: fechaInicio,
+      }
+      
+      const resultado = await SociosService.cotizar(cotizacionData)
+      setCotizacion(resultado)
+      
+      // STEP 3: Abrir modal de checkout
+      setShowCheckout(true)
+    } catch (error: any) {
+      console.error("Error al cotizar:", error)
+      toast({
+        title: "Error al cotizar",
+        description: error.message || "No se pudo calcular el precio",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const inputClass =
-    "w-full h-[52px] px-4 text-sm bg-[#1C1F2B]/90 border border-muted-foreground/30 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none transition-all"
+  // ===== STEP 4: Confirmar pago y registrar socio =====
+  const handleConfirmarPago = async (metodoPagoId: number) => {
+    if (!datosTemporales || !cotizacion) return
+    
+    setLoading(true)
+    try {
+      const datosFinales: CreateSocioRequest = {
+        ...datosTemporales,
+        membresia: {
+          ...datosTemporales.membresia,
+          estado_pago: "pagado",
+          metodo_pago_id: metodoPagoId,
+        },
+      }
+      
+      await SociosService.create(datosFinales)
+      
+      toast({
+        title: "¡Socio registrado!",
+        description: `${nombre} ha sido inscrito exitosamente y el pago fue registrado.`,
+      })
+      
+      // STEP 5: Limpiar y cerrar
+      setShowCheckout(false)
+      setCotizacion(null)
+      setDatosTemporales(null)
+      onClose()
+      onSuccess() // Refrescar lista de socios
+    } catch (error: any) {
+      console.error("Error al registrar socio:", error)
+      toast({
+        title: "Error al registrar",
+        description: error.message || "No se pudo completar el registro",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
+  // ===== STEP 4 (alternativo): Inscribir sin pago =====
+  const handleInscribirSinPago = async () => {
+    if (!datosTemporales || !cotizacion) return
+    
+    setLoading(true)
+    try {
+      const datosFinales: CreateSocioRequest = {
+        ...datosTemporales,
+        membresia: {
+          ...datosTemporales.membresia,
+          estado_pago: "sin_pagar",
+          // No se envía metodo_pago_id
+        },
+      }
+      
+      await SociosService.create(datosFinales)
+      
+      toast({
+        title: "¡Socio inscrito!",
+        description: `${nombre} ha sido inscrito. El pago queda pendiente.`,
+      })
+      
+      // STEP 5: Limpiar y cerrar
+      setShowCheckout(false)
+      setCotizacion(null)
+      setDatosTemporales(null)
+      onClose()
+      onSuccess()
+    } catch (error: any) {
+      console.error("Error al inscribir socio:", error)
+      toast({
+        title: "Error al inscribir",
+        description: error.message || "No se pudo completar la inscripción",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ===== Handlers de biometría =====
   const handleCapturarRostro = () => {
     setShowFacialModal(true)
     setFacialDetected(false)
-    // Simulate detection after 2s
+    // TODO: Integrar captura real con webcam + upload a Cloudinary
+    // Por ahora: simulación
     setTimeout(() => setFacialDetected(true), 2000)
   }
 
   const handleConfirmarRostro = () => {
+    // TODO: Aquí se subiría la foto a Cloudinary y se generaría face_encoding
+    // Por ahora: simulación
     setBioRostro(true)
+    setFotoPerfilUrl("https://via.placeholder.com/150") // Mock
+    setFaceEncoding([0.1, 0.2, 0.3, 0.4, 0.5]) // Mock encoding
     setShowFacialModal(false)
+    
+    toast({
+      title: "Rostro capturado",
+      description: "El reconocimiento facial ha sido configurado correctamente",
+    })
   }
 
   const handleCapturarHuella = () => {
@@ -124,11 +294,23 @@ export function SocioModal({ open, onClose, onGuardar, socio }: SocioModalProps)
   const handleSimularHuella = () => {
     setHuellaCapturing(true)
     setTimeout(() => {
+      // TODO: Integrar con dispositivo de huellas real
+      // Por ahora: simulación
       setBioHuella(true)
+      setFingerprintTemplate("MOCK_FINGERPRINT_TEMPLATE_" + Date.now())
       setHuellaCapturing(false)
       setShowHuellaModal(false)
+      
+      toast({
+        title: "Huella capturada",
+        description: "La huella dactilar ha sido registrada correctamente",
+      })
     }, 2000)
   }
+
+  // ===== Estilos =====
+  const inputClass =
+    "w-full h-[52px] px-4 text-sm bg-[#1C1F2B]/90 border border-muted-foreground/30 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none transition-all"
 
   return (
     <>
@@ -167,7 +349,7 @@ export function SocioModal({ open, onClose, onGuardar, socio }: SocioModalProps)
           </div>
 
           {/* Form Body */}
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleContinuar}>
             <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
 
               {/* Section: Personal Info */}
@@ -223,7 +405,7 @@ export function SocioModal({ open, onClose, onGuardar, socio }: SocioModalProps)
                         Genero <span className="text-primary">*</span>
                       </label>
                       <div className="flex items-center gap-6 h-[52px]">
-                        {(["M", "F", "O"] as Genero[]).map((g) => (
+                        {(["Masculino", "Femenino", "Otro"] as const).map((g) => (
                           <label key={g} className="inline-flex items-center gap-2 text-sm text-foreground/80 cursor-pointer">
                             <input
                               type="radio"
@@ -234,11 +416,23 @@ export function SocioModal({ open, onClose, onGuardar, socio }: SocioModalProps)
                               className="appearance-none w-4 h-4 rounded-full border-2 border-muted-foreground/50 checked:border-accent relative
                                 after:content-[''] after:absolute after:inset-[3px] after:rounded-full after:bg-transparent checked:after:bg-accent"
                             />
-                            <span>{g === "M" ? "Masculino" : g === "F" ? "Femenino" : "Otro"}</span>
+                            <span>{g}</span>
                           </label>
                         ))}
                       </div>
                     </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                      Direccion (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={direccion}
+                      onChange={(e) => setDireccion(e.target.value)}
+                      placeholder="Calle, Numero, Colonia, CP"
+                      className={inputClass}
+                    />
                   </div>
                 </div>
               </div>
@@ -354,41 +548,45 @@ export function SocioModal({ open, onClose, onGuardar, socio }: SocioModalProps)
                   className="p-4 rounded-2xl"
                   style={{ background: "rgba(21,25,38,0.72)", border: "1px solid rgba(255,255,255,0.07)" }}
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Plan de Membresia</label>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Plan de Membresia <span className="text-primary">*</span>
+                      </label>
                       <select
-                        value={membresia}
-                        onChange={(e) => setMembresia(e.target.value as TipoMembresia)}
+                        value={membresiaId || ""}
+                        onChange={(e) => setMembresiaId(e.target.value ? Number(e.target.value) : null)}
+                        required
                         className={inputClass}
                       >
                         <option value="">Selecciona un plan</option>
-                        <option value="diaria">Diaria - $50/dia</option>
-                        <option value="semanal">Semanal - $300/sem</option>
-                        <option value="mensual">Mensual - $1,200/mes</option>
-                        <option value="trimestral">Trimestral - $3,200</option>
-                        <option value="anual">Anual - $10,000</option>
+                        {membresias.map((m) => {
+                          const precioMostrar = m.esOferta && m.precioOferta ? m.precioOferta : m.precioBase
+                          return (
+                            <option key={m.id} value={m.id}>
+                              {m.nombre} - ${precioMostrar.toLocaleString()} ({m.duracionCantidad} {m.duracionUnidad})
+                              {m.esOferta && m.precioOferta && ` - ¡OFERTA!`}
+                            </option>
+                          )
+                        })}
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de Inicio</label>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Fecha de Inicio <span className="text-primary">*</span>
+                      </label>
                       <input
                         type="date"
                         value={fechaInicio}
                         onChange={(e) => setFechaInicio(e.target.value)}
-                        className={inputClass}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de Vencimiento</label>
-                      <input
-                        type="date"
-                        value={fechaFin}
-                        onChange={(e) => setFechaFin(e.target.value)}
+                        required
                         className={inputClass}
                       />
                     </div>
                   </div>
+                  <p className="text-xs text-muted-foreground/70 mt-2">
+                    💡 La fecha de vencimiento se calculará automáticamente según el plan seleccionado
+                  </p>
                 </div>
               </div>
             </div>
@@ -407,10 +605,20 @@ export function SocioModal({ open, onClose, onGuardar, socio }: SocioModalProps)
               </button>
               <button
                 type="submit"
-                className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-xl text-primary-foreground bg-primary hover:bg-primary/90 transition-all glow-primary glow-primary-hover"
+                disabled={loading}
+                className="flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-xl text-primary-foreground bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transition-all glow-primary glow-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Save className="h-4 w-4" />
-                {socio ? "Guardar Cambios" : "Guardar Registro"}
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                    Calculando...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="h-4 w-4" />
+                    Continuar a Cotización
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -546,6 +754,18 @@ export function SocioModal({ open, onClose, onGuardar, socio }: SocioModalProps)
             </div>
           </div>
         </div>
+      )}
+
+      {/* Checkout Modal (STEP 3) */}
+      {showCheckout && cotizacion && (
+        <CheckoutSocioModal
+          open={showCheckout}
+          onClose={() => setShowCheckout(false)}
+          cotizacion={cotizacion}
+          onConfirmarPago={handleConfirmarPago}
+          onInscribirSinPago={handleInscribirSinPago}
+          loading={loading}
+        />
       )}
     </>
   )
