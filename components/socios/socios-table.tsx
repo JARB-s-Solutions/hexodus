@@ -7,9 +7,10 @@ import {
 } from "lucide-react"
 import type { Socio } from "@/lib/socios-data"
 import {
-  getVigenciaMembresia, getEstadoContrato, getInicialesSocio,
+  getVigenciaMembresia, getEstadoContrato,
   membresiaLabels,
 } from "@/lib/socios-data"
+import { getIniciales } from "@/lib/utils"
 
 interface SociosTableProps {
   socios: Socio[]
@@ -106,7 +107,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: Soci
   }
 
   const contratoLabels = {
-    activo: "Activo",
+    activo: "Firmado",
     por_vencer: "Por vencer",
     vencido: "Vencido",
     sin_contrato: "Pendiente",
@@ -227,22 +228,32 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: Soci
                 const membresia = getSocioField(s, 'membresia') || ''
                 const fechaFin = getSocioField(s, 'fechaFin') || ''
                 const fechaInicio = getSocioField(s, 'fechaInicio') || ''
-                const firmoContrato = getSocioField(s, 'firmoContrato') || false
+                const firmoContrato = getSocioField(s, 'firmoContrato')
                 const bioRostro = getSocioField(s, 'bioRostro') || false
                 const bioHuella = getSocioField(s, 'bioHuella') || false
                 const estadoSocio = getSocioField(s, 'estadoSocio') || 'activo'
                 
-                const iniciales = getInicialesSocio(nombre)
+                const iniciales = getIniciales(nombre)
                 const vigencia = getVigenciaMembresia(fechaFin)
                 
-                // Crear objeto compatible para getEstadoContrato
-                const socioForCheck: any = {
-                  ...s,
-                  firmoContrato,
-                  contratoInicio: getSocioField(s, 'contratoInicio'),
-                  contratoFin: getSocioField(s, 'contratoFin'),
+                // Para el estado del contrato, usar valor directo de firmoContrato
+                // true = "activo" (Firmado), false = "sin_contrato" (Pendiente)
+                let contrato: EstadoContrato
+                if (firmoContrato === true) {
+                  contrato = "activo" // Firmado
+                } else if (firmoContrato === false) {
+                  contrato = "sin_contrato" // Pendiente
+                } else {
+                  // Si viene del sistema antiguo con fechas de contrato, usar la lógica completa
+                  const socioForCheck: any = {
+                    ...s,
+                    firmoContrato: firmoContrato || false,
+                    contratoInicio: getSocioField(s, 'contratoInicio'),
+                    contratoFin: getSocioField(s, 'contratoFin'),
+                  }
+                  contrato = getEstadoContrato(socioForCheck)
                 }
-                const contrato = getEstadoContrato(socioForCheck)
+                
                 const fechaVenc = new Date(fechaFin)
                 const diffDias = Math.ceil((fechaVenc.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 
