@@ -40,7 +40,7 @@ export default function SociosPage() {
   // Modals
   const [modalOpen, setModalOpen] = useState(false)
   const [editandoSocio, setEditandoSocio] = useState<Socio | SocioMock | null>(null)
-  const [detalleSocio, setDetalleSocio] = useState<Socio | SocioMock | null>(null)
+  const [detalleSocioId, setDetalleSocioId] = useState<number | null>(null)
 
   // ===== Cargar socios desde la API =====
   const cargarSocios = useCallback(async () => {
@@ -301,7 +301,7 @@ export default function SociosPage() {
           {/* TODO: Actualizar SociosTable para aceptar ambos tipos de Socio */}
           <SociosTable
             socios={sociosFiltrados as any}
-            onVerDetalle={setDetalleSocio}
+            onVerDetalle={(socio) => setDetalleSocioId(socio.id)}
             onEditar={handleEditar}
             onEliminar={handleEliminar}
           />
@@ -321,9 +321,9 @@ export default function SociosPage() {
       />
 
       <DetalleSocioModal
-        socio={detalleSocio as any}
-        open={!!detalleSocio}
-        onClose={() => setDetalleSocio(null)}
+        socioId={detalleSocioId}
+        open={!!detalleSocioId}
+        onClose={() => setDetalleSocioId(null)}
       />
     </div>
   )
