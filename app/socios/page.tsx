@@ -231,13 +231,9 @@ export default function SociosPage() {
   }, [])
 
   const handleEditar = useCallback((s: Socio | SocioMock) => {
-    // TODO: Implementar edición con el nuevo modal
-    toast({
-      title: "Función en desarrollo",
-      description: "La edición de socios estará disponible próximamente",
-    })
-    // setEditandoSocio(s)
-    // setModalOpen(true)
+    console.log('📝 Editando socio:', s)
+    setEditandoSocio(s as Socio)
+    setModalOpen(true)
   }, [])
 
   const handleSuccess = useCallback(() => {

@@ -51,13 +51,31 @@ export class SociosService {
     console.log(`🔄 GET /api/socios/${id} - Obteniendo socio`)
     
     const response = await apiGet<SocioResponse>(`/socios/${id}`)
-    console.log('✅ Socio obtenido:', response)
+    console.log('✅ Respuesta API cruda:', response)
+    console.log('📋 Datos del socio (response.data):', response.data)
+    console.log('🏷️ Campo plan_id en API:', {
+      plan_id: response.data.plan_id,
+      tipo: typeof response.data.plan_id,
+      membresia: response.data.membresia
+    })
     
     if (!response.data) {
       throw new Error('No se encontró el socio')
     }
     
-    return mapSocioFromAPI(response.data)
+    const socioMapeado = mapSocioFromAPI(response.data)
+    console.log('🔄 Socio después de mapear:', socioMapeado)
+    console.log('📅 Fechas contrato mapeadas:', {
+      inicioContrato: socioMapeado.inicioContrato,
+      finContrato: socioMapeado.finContrato
+    })
+    console.log('🆔 Plan ID mapeado:', {
+      planId: socioMapeado.planId,
+      tipo: typeof socioMapeado.planId,
+      esCero: socioMapeado.planId === 0
+    })
+    
+    return socioMapeado
   }
 
   /**
@@ -104,10 +122,12 @@ export class SociosService {
     console.log('📤 Datos a actualizar:', data)
     
     const response = await apiPut<SocioResponse>(`/socios/${id}`, data)
-    console.log('✅ Socio actualizado:', response)
+    console.log('✅ Respuesta del servidor:', response)
     
+    // Si el backend devuelve solo { message: "..." } sin data, recargar el socio
     if (!response.data) {
-      throw new Error('No se pudo actualizar el socio')
+      console.log('⚠️ No hay data en response, recargando socio...')
+      return await this.getById(id)
     }
     
     return mapSocioFromAPI(response.data)
