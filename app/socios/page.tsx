@@ -8,6 +8,7 @@ import { SociosToolbar } from "@/components/socios/socios-toolbar"
 import { SociosTable } from "@/components/socios/socios-table"
 import { SocioModal } from "@/components/socios/socio-modal"
 import { DetalleSocioModal } from "@/components/socios/detalle-socio-modal"
+import { EliminarSocioModal } from "@/components/socios/eliminar-socio-modal"
 import { SociosService } from "@/lib/services/socios"
 import { toast } from "@/hooks/use-toast"
 import type { Socio } from "@/lib/types/socios"
@@ -41,6 +42,8 @@ export default function SociosPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editandoSocio, setEditandoSocio] = useState<Socio | SocioMock | null>(null)
   const [detalleSocioId, setDetalleSocioId] = useState<number | null>(null)
+  const [modalEliminarOpen, setModalEliminarOpen] = useState(false)
+  const [socioAEliminar, setSocioAEliminar] = useState<Socio | SocioMock | null>(null)
 
   // ===== Cargar socios desde la API =====
   const cargarSocios = useCallback(async () => {
@@ -244,18 +247,41 @@ export default function SociosPage() {
   }, [cargarSocios])
 
   const handleEliminar = useCallback((s: Socio | SocioMock) => {
-    if (confirm(`Eliminar a ${getSocioField(s, 'nombre')}? Esta accion no se puede deshacer.`)) {
-      if (useMockData) {
-        setSocios((prev) => prev.filter((x) => x.id !== s.id))
-      } else {
-        // TODO: Llamar a SociosService.delete(s.id)
-        toast({
-          title: "Función en desarrollo",
-          description: "La eliminación desde la API estará disponible próximamente",
-        })
-      }
-    }
+    setSocioAEliminar(s)
+    setModalEliminarOpen(true)
   }, [])
+
+  const handleConfirmarEliminacion = useCallback(async () => {
+    if (!socioAEliminar) return
+
+    try {
+      if (useMockData) {
+        setSocios((prev) => prev.filter((x) => x.id !== socioAEliminar.id))
+        toast({
+          title: "Socio eliminado",
+          description: `${getSocioField(socioAEliminar, 'nombre')} ha sido eliminado exitosamente`,
+        })
+      } else {
+        await SociosService.delete(socioAEliminar.id)
+        toast({
+          title: "Socio eliminado",
+          description: `${getSocioField(socioAEliminar, 'nombre')} ha sido eliminado exitosamente`,
+        })
+        // Recargar lista
+        cargarSocios()
+      }
+    } catch (error: any) {
+      console.error('Error eliminando socio:', error)
+      toast({
+        title: "Error al eliminar",
+        description: error.message || "No se pudo eliminar el socio",
+        variant: "destructive",
+      })
+    } finally {
+      setModalEliminarOpen(false)
+      setSocioAEliminar(null)
+    }
+  }, [socioAEliminar, useMockData, cargarSocios, getSocioField])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -320,6 +346,16 @@ export default function SociosPage() {
         socioId={detalleSocioId}
         open={!!detalleSocioId}
         onClose={() => setDetalleSocioId(null)}
+      />
+
+      <EliminarSocioModal
+        open={modalEliminarOpen}
+        onClose={() => {
+          setModalEliminarOpen(false)
+          setSocioAEliminar(null)
+        }}
+        socio={socioAEliminar as Socio | null}
+        onConfirmar={handleConfirmarEliminacion}
       />
     </div>
   )
