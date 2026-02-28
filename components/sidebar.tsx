@@ -16,6 +16,7 @@ import {
   X,
   LogOut,
   User,
+  ScanFace,
 } from "lucide-react"
 import { AuthService } from "@/lib/auth"
 import type { User as UserType } from "@/lib/types/auth"
@@ -34,6 +35,7 @@ const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard", id: "dashboard" },
   { label: "Gestion de Membresias", icon: CreditCard, href: "/membresias", id: "membresias" },
   { label: "Gestion de Socios", icon: Users, href: "/socios", id: "socios" },
+  { label: "Control de Asistencia", icon: ScanFace, href: "/asistencia", id: "asistencia" },
   { label: "Gestion de Ventas", icon: ShoppingCart, href: "/", id: "ventas" },
   { label: "Inventario y Productos", icon: Package, href: "/inventario", id: "inventario" },
   { label: "Control de Movimientos", icon: TrendingUp, href: "/movimientos", id: "movimientos" },
