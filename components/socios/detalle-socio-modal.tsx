@@ -50,14 +50,19 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
 
   if (!open) return null
 
-  // Formatear fechas
+  // Formatear fechas SIN problema de zona horaria
   const formatFecha = (fecha: string | undefined) => {
     if (!fecha) return "-"
-    return new Date(fecha).toLocaleDateString("es-MX", { 
-      day: "2-digit", 
-      month: "long", 
-      year: "numeric" 
-    })
+    
+    // Extraer solo la parte de la fecha (YYYY-MM-DD) ignorando la hora y zona horaria
+    const fechaSolo = fecha.split('T')[0]
+    const [year, month, day] = fechaSolo.split('-').map(Number)
+    
+    // Crear fecha usando los componentes directamente (sin conversión de zona horaria)
+    const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", 
+                   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    
+    return `${day} de ${meses[month - 1]} de ${year}`
   }
 
   return (
