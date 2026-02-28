@@ -25,7 +25,6 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   const [genero, setGenero] = useState<"Masculino" | "Femenino" | "Otro">("Masculino")
   const [correo, setCorreo] = useState("")
   const [telefono, setTelefono] = useState("")
-  const [direccion, setDireccion] = useState("")
   
   // Membresía
   const [membresias, setMembresias] = useState<Membresia[]>([])
@@ -85,7 +84,6 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       setGenero(socio.genero)
       setCorreo(socio.correoElectronico)
       setTelefono(socio.numeroTelefono)
-      setDireccion(socio.direccion || "")
       // ... más campos
     } else {
       // Modo creación: resetear todo
@@ -93,7 +91,6 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       setGenero("Masculino")
       setCorreo("")
       setTelefono("")
-      setDireccion("")
       setMembresiaId(null)
       setFechaInicio("")
       setFirmoContrato(false)
@@ -138,7 +135,6 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
         correo_electronico: correo.trim() || undefined,
         numero_telefono: telefono.trim() || undefined,
         genero,
-        direccion: direccion.trim() || undefined,
       },
       detalles_contrato: {
         contrato_firmado: firmoContrato,
@@ -421,18 +417,6 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
                         ))}
                       </div>
                     </div>
-                  </div>
-                  <div className="mt-4">
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                      Direccion (Opcional)
-                    </label>
-                    <input
-                      type="text"
-                      value={direccion}
-                      onChange={(e) => setDireccion(e.target.value)}
-                      placeholder="Calle, Numero, Colonia, CP"
-                      className={inputClass}
-                    />
                   </div>
                 </div>
               </div>
