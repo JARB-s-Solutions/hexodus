@@ -177,6 +177,7 @@ export interface SocioAPI {
   genero: Genero
   telefono: string
   membresia: string
+  plan_id?: number // ID del plan de membresía
   vigencia_membresia: string
   fecha_inicio_membresia: string
   fecha_fin_membresia: string
@@ -250,7 +251,7 @@ export function mapSocioFromAPI(api: SocioAPI): Socio {
     firmoContrato: api.firmo_contrato,
     inicioContrato: api.fecha_inicio_contrato,
     finContrato: api.fecha_fin_contrato,
-    planId: 0, // No viene en detalle
+    planId: api.plan_id || 0, // Ahora sí viene del API
     nombrePlan: api.membresia,
     fechaInicioMembresia: api.fecha_inicio_membresia,
     fechaVencimientoMembresia: api.fecha_fin_membresia,
