@@ -25,7 +25,6 @@ export interface DatosPersonales {
   correo_electronico?: string
   numero_telefono?: string
   genero: Genero
-  direccion?: string
 }
 
 /**
@@ -149,7 +148,7 @@ export interface SocioListItemAPI {
   membresia: string // Nombre del plan
   vencimiento: string // ISO date
   vigencia: string // "Activa" | "Vencida" | etc.
-  estado_contrato: string // "vigente" | "vencido" | "sin_firma"
+  estado_contrato: boolean // true = firmado, false = pendiente
 }
 
 /**
@@ -168,33 +167,26 @@ export interface GetSociosResponse {
 }
 
 /**
- * Socio completo (desde la API)
+ * Socio completo (desde la API - GET /api/socios/:id)
  */
 export interface SocioAPI {
-  socio_id: number
   codigo_socio: string
-  uuid_socio?: string
   nombre_completo: string
-  correo_electronico: string
-  numero_telefono: string
-  genero: Genero
-  direccion: string
+  correo: string
   foto_perfil_url?: string
-  face_encoding?: number[]
-  face_encoding_updated_at?: string
-  fingerprint_template?: string
-  fingerprint_updated_at?: string
-  contrato_firmado: boolean
-  inicio_contrato?: string
-  fin_contrato?: string
-  plan_id: number
-  nombre_plan?: string
+  genero: Genero
+  telefono: string
+  membresia: string
+  vigencia_membresia: string
   fecha_inicio_membresia: string
-  fecha_vencimiento_membresia: string
-  estado_pago: EstadoPago
-  estado_socio: EstadoSocio
-  created_at?: string
-  updated_at?: string
+  fecha_fin_membresia: string
+  firmo_contrato: boolean
+  estado_contrato: string
+  fecha_inicio_contrato?: string
+  fecha_fin_contrato?: string
+  biometrico_rostro: boolean
+  biometrico_huella: boolean
+  fecha_registro: string
 }
 
 /**
@@ -208,7 +200,7 @@ export interface Socio {
   correo: string
   telefono: string
   genero: Genero
-  direccion: string
+  direccion?: string
   fotoPerfil?: string
   faceEncoding?: number[]
   faceEncodingUpdatedAt?: string
@@ -225,6 +217,12 @@ export interface Socio {
   estadoSocio: EstadoSocio
   createdAt?: string
   updatedAt?: string
+  // Campos adicionales del detalle
+  vigenciaMembresia?: string
+  estadoContrato?: string
+  bioRostro?: boolean
+  bioHuella?: boolean
+  fechaRegistro?: string
 }
 
 /**
@@ -242,30 +240,28 @@ export interface MetodoPago {
  */
 export function mapSocioFromAPI(api: SocioAPI): Socio {
   return {
-    id: api.socio_id,
+    id: 0, // No viene en la respuesta de detalle
     codigoSocio: api.codigo_socio,
-    uuidSocio: api.uuid_socio,
     nombre: api.nombre_completo,
-    correo: api.correo_electronico,
-    telefono: api.numero_telefono,
+    correo: api.correo,
+    telefono: api.telefono,
     genero: api.genero,
-    direccion: api.direccion,
     fotoPerfil: api.foto_perfil_url,
-    faceEncoding: api.face_encoding,
-    faceEncodingUpdatedAt: api.face_encoding_updated_at,
-    fingerprintTemplate: api.fingerprint_template,
-    fingerprintUpdatedAt: api.fingerprint_updated_at,
-    firmoContrato: api.contrato_firmado,
-    inicioContrato: api.inicio_contrato,
-    finContrato: api.fin_contrato,
-    planId: api.plan_id,
-    nombrePlan: api.nombre_plan,
+    firmoContrato: api.firmo_contrato,
+    inicioContrato: api.fecha_inicio_contrato,
+    finContrato: api.fecha_fin_contrato,
+    planId: 0, // No viene en detalle
+    nombrePlan: api.membresia,
     fechaInicioMembresia: api.fecha_inicio_membresia,
-    fechaVencimientoMembresia: api.fecha_vencimiento_membresia,
-    estadoPago: api.estado_pago,
-    estadoSocio: api.estado_socio,
-    createdAt: api.created_at,
-    updatedAt: api.updated_at,
+    fechaVencimientoMembresia: api.fecha_fin_membresia,
+    estadoPago: 'pagado' as EstadoPago, // Asumimos pagado
+    estadoSocio: 'activo' as EstadoSocio, // Calculado según vigencia
+    // Campos adicionales del detalle
+    vigenciaMembresia: api.vigencia_membresia,
+    estadoContrato: api.estado_contrato,
+    bioRostro: api.biometrico_rostro,
+    bioHuella: api.biometrico_huella,
+    fechaRegistro: api.fecha_registro,
   }
 }
 
@@ -294,7 +290,7 @@ export function mapSocioListItemFromAPI(api: SocioListItemAPI): Socio {
     fechaVencimientoMembresia: api.vencimiento,
     fechaInicioMembresia: '', // No viene en la lista
     estadoSocio: estadoSocio,
-    firmoContrato: api.estado_contrato === 'vigente',
+    firmoContrato: api.estado_contrato, // true = firmado, false = pendiente
     planId: 0, // No viene en la lista
     estadoPago: 'pagado', // Asumimos pagado si está activo
   }
