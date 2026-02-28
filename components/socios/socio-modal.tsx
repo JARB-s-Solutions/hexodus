@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import {
   X, UserPlus, Pencil, User, FileSignature, ScanEye, Award,
-  ScanFace, Fingerprint, Save, ArrowRight, CreditCard,
+  ScanFace, Fingerprint, Save, ArrowRight, CreditCard, Calendar,
 } from "lucide-react"
 import { SociosService } from "@/lib/services/socios"
 import { MembresiasService } from "@/lib/services/membresias"
@@ -29,7 +29,10 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   // Membresía
   const [membresias, setMembresias] = useState<Membresia[]>([])
   const [membresiaId, setMembresiaId] = useState<number | null>(null)
+  const [nombrePlanOriginal, setNombrePlanOriginal] = useState<string | null>(null) // Para buscar plan cuando se carguen las membresías
   const [fechaInicio, setFechaInicio] = useState("")
+  const [fechaVencimiento, setFechaVencimiento] = useState("") // Para preservar fecha de vencimiento
+  const [editarMembresia, setEditarMembresia] = useState(false) // Toggle para habilitar edición de membresía
   
   // Contrato
   const [firmoContrato, setFirmoContrato] = useState(false)
@@ -51,9 +54,27 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   
   // ===== Estado del flujo de registro =====
   const [loading, setLoading] = useState(false)
+  const [loadingSocioData, setLoadingSocioData] = useState(false) // Nuevo: carga de datos completos
   const [cotizacion, setCotizacion] = useState<CotizacionResponse | null>(null)
   const [showCheckout, setShowCheckout] = useState(false)
   const [datosTemporales, setDatosTemporales] = useState<CreateSocioRequest | null>(null)
+
+  // ===== Función para formatear fechas sin problemas de zona horaria =====
+  const formatFecha = (fecha: string | undefined) => {
+    if (!fecha) return "-"
+    
+    // Extraer solo la parte de la fecha (YYYY-MM-DD) ignorando hora y zona horaria
+    const fechaSolo = fecha.split('T')[0]
+    const [year, month, day] = fechaSolo.split('-').map(Number)
+    
+    // Crear fecha usando componentes directamente (sin conversión de zona horaria)
+    const meses = [
+      "enero", "febrero", "marzo", "abril", "mayo", "junio",
+      "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+    ]
+    
+    return `${day} de ${meses[month - 1]} de ${year}`
+  }
 
   // ===== Cargar membresías disponibles =====
   useEffect(() => {
@@ -78,21 +99,118 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
 
   // ===== Resetear formulario cuando cambia socio o se abre =====
   useEffect(() => {
-    if (socio) {
-      // Modo edición (próximamente)
-      setNombre(socio.nombreCompleto)
-      setGenero(socio.genero)
-      setCorreo(socio.correoElectronico)
-      setTelefono(socio.numeroTelefono)
-      // ... más campos
-    } else {
+    if (socio && open) {
+      // Modo edición: cargar datos COMPLETOS del socio desde API
+      console.log('📋 Modo EDICIÓN - Obteniendo datos completos del socio:', socio.id)
+      
+      const cargarDatosCompletos = async () => {
+        setLoadingSocioData(true)
+        try {
+          const socioCompleto = await SociosService.getById(socio.id)
+          console.log('✅ Datos completos obtenidos:', socioCompleto)
+          console.log('📅 Fechas del contrato:', {
+            inicioContrato: socioCompleto.inicioContrato,
+            finContrato: socioCompleto.finContrato,
+            firmoContrato: socioCompleto.firmoContrato
+          })
+          
+          // Datos personales
+          setNombre(socioCompleto.nombre || "")
+          setGenero(socioCompleto.genero || "Masculino")
+          setCorreo(socioCompleto.correo || "")
+          setTelefono(socioCompleto.telefono || "")
+          
+          // Membresía
+          console.log('📛 Membresía del socio:', {
+            planId: socioCompleto.planId,
+            nombrePlan: socioCompleto.nombrePlan,
+            fechaInicio: socioCompleto.fechaInicioMembresia,
+            fechaVencimiento: socioCompleto.fechaVencimientoMembresia
+          })
+          
+          // Guardar el nombre del plan y el ID (se buscará después cuando se carguen las membresías)
+          setNombrePlanOriginal(socioCompleto.nombrePlan || null)
+          setMembresiaId(socioCompleto.planId || null)
+          
+          // Formatear fecha de inicio de membresía (YYYY-MM-DD)
+          if (socioCompleto.fechaInicioMembresia) {
+            const fechaInicioMem = socioCompleto.fechaInicioMembresia.split('T')[0]
+            console.log('📅 Fecha inicio membresía formateada:', fechaInicioMem)
+            setFechaInicio(fechaInicioMem)
+          } else {
+            setFechaInicio("")
+          }
+          
+          // Guardar fecha de vencimiento (no formatear, solo para display)
+          setFechaVencimiento(socioCompleto.fechaVencimientoMembresia || "")
+          setEditarMembresia(false) // Por defecto NO editable
+          
+          // Contrato - Convertir fechas al formato YYYY-MM-DD si es necesario
+          setFirmoContrato(socioCompleto.firmoContrato || false)
+          
+          // Procesar fecha de inicio del contrato
+          if (socioCompleto.inicioContrato) {
+            const fechaInicio = new Date(socioCompleto.inicioContrato)
+            if (!isNaN(fechaInicio.getTime())) {
+              const fechaFormateada = fechaInicio.toISOString().split('T')[0]
+              console.log('📅 Fecha inicio formateada:', fechaFormateada)
+              setContratoInicio(fechaFormateada)
+            } else {
+              console.warn('⚠️ Fecha inicio inválida:', socioCompleto.inicioContrato)
+              setContratoInicio("")
+            }
+          } else {
+            setContratoInicio("")
+          }
+          
+          // Procesar fecha de fin del contrato
+          if (socioCompleto.finContrato) {
+            const fechaFin = new Date(socioCompleto.finContrato)
+            if (!isNaN(fechaFin.getTime())) {
+              const fechaFormateada = fechaFin.toISOString().split('T')[0]
+              console.log('📅 Fecha fin formateada:', fechaFormateada)
+              setContratoFin(fechaFormateada)
+            } else {
+              console.warn('⚠️ Fecha fin inválida:', socioCompleto.finContrato)
+              setContratoFin("")
+            }
+          } else {
+            setContratoFin("")
+          }
+          
+          // Biometría
+          setFotoPerfilUrl(socioCompleto.fotoPerfil || "")
+          setBioRostro(socioCompleto.bioRostro || false)
+          setBioHuella(socioCompleto.bioHuella || false)
+          setFaceEncoding(socioCompleto.faceEncoding || [])
+          setFingerprintTemplate(socioCompleto.fingerprintTemplate || "")
+        } catch (error: any) {
+          console.error('❌ Error cargando datos del socio:', error)
+          toast({
+            title: "Error",
+            description: "No se pudieron cargar los datos del socio",
+            variant: "destructive",
+          })
+        } finally {
+          setLoadingSocioData(false)
+        }
+      }
+      
+      cargarDatosCompletos()
+    } else if (open) {
       // Modo creación: resetear todo
+      console.log('✨ Modo CREACIÓN - Formulario limpio')
+      
+      setLoadingSocioData(false)
       setNombre("")
       setGenero("Masculino")
       setCorreo("")
       setTelefono("")
       setMembresiaId(null)
+      setNombrePlanOriginal(null)
       setFechaInicio("")
+      setFechaVencimiento("")
+      setEditarMembresia(false)
       setFirmoContrato(false)
       setContratoInicio("")
       setContratoFin("")
@@ -108,17 +226,58 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
     setFacialDetected(false)
   }, [socio, open])
 
+  // ===== Buscar plan cuando las membresías se carguen =====
+  useEffect(() => {
+    // Solo ejecutar si no hay membresiaId pero hay nombre de plan original
+    if (membresias.length > 0 && (!membresiaId || membresiaId === 0) && nombrePlanOriginal) {
+      console.log('🔍 Buscando plan después de cargar membresías...')
+      console.log('   Plan del socio:', nombrePlanOriginal)
+      console.log('   Membresías disponibles:', membresias.length, membresias.map(m => m.nombre))
+      
+      const planEncontrado = membresias.find(m => 
+        m.nombre.toLowerCase() === nombrePlanOriginal.toLowerCase()
+      )
+      
+      if (planEncontrado) {
+        console.log('✅ Plan encontrado:', planEncontrado.nombre, 'ID:', planEncontrado.id)
+        setMembresiaId(planEncontrado.id)
+      } else {
+        console.warn('❌ No se encontró el plan:', nombrePlanOriginal)
+        console.warn('   Planes disponibles:', membresias.map(m => m.nombre))
+      }
+    }
+  }, [membresias, membresiaId, nombrePlanOriginal])
+
   if (!open) return null
 
-  // ===== STEP 1: Validar y continuar a cotización =====
+  // ===== STEP 1: Validar y continuar =====
   const handleContinuar = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validaciones
+    // Validaciones comunes
     if (!nombre.trim()) {
       toast({ title: "Error", description: "El nombre es obligatorio", variant: "destructive" })
       return
     }
+
+    // Si es modo edición, actualizar directamente sin cotizar
+    if (socio) {
+      // Solo validar membresía si el toggle está activado
+      if (editarMembresia) {
+        if (!membresiaId) {
+          toast({ title: "Error", description: "Selecciona un plan de membresía", variant: "destructive" })
+          return
+        }
+        if (!fechaInicio) {
+          toast({ title: "Error", description: "Selecciona la fecha de inicio", variant: "destructive" })
+          return
+        }
+      }
+      await handleActualizarSocio()
+      return
+    }
+
+    // ===== MODO CREACIÓN: Validar membresía (siempre requerida) =====
     if (!membresiaId) {
       toast({ title: "Error", description: "Selecciona un plan de membresía", variant: "destructive" })
       return
@@ -128,7 +287,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       return
     }
 
-    // Construir datos del request (STEP 1 completo)
+    // Modo creación: continuar con el flujo de cotización
     const datosCompletos: CreateSocioRequest = {
       personal: {
         nombre_completo: nombre.trim(),
@@ -149,7 +308,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       membresia: {
         plan_id: membresiaId,
         fecha_inicio: fechaInicio,
-        estado_pago: "sin_pagar", // Se actualizará en STEP 4
+        estado_pago: "sin_pagar",
       },
     }
 
@@ -173,6 +332,72 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       toast({
         title: "Error al cotizar",
         description: error.message || "No se pudo calcular el precio",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ===== NUEVA FUNCIÓN: Actualizar socio existente =====
+  const handleActualizarSocio = async () => {
+    if (!socio) return
+    
+    setLoading(true)
+    try {
+      console.log('✏️ Actualizando socio ID:', socio.id)
+      console.log('🔄 Editar membresía:', editarMembresia)
+      
+      // Construir solo los campos modificados
+      const datosActualizados: Partial<CreateSocioRequest> = {
+        personal: {
+          nombre_completo: nombre.trim(),
+          correo_electronico: correo.trim() || undefined,
+          numero_telefono: telefono.trim() || undefined,
+          genero,
+        },
+        detalles_contrato: {
+          contrato_firmado: firmoContrato,
+          inicio_contrato: firmoContrato && contratoInicio ? contratoInicio : undefined,
+          fin_contrato: firmoContrato && contratoFin ? contratoFin : undefined,
+        },
+        biometria: {
+          foto_perfil_url: fotoPerfilUrl || undefined,
+          face_encoding: faceEncoding.length > 0 ? faceEncoding : undefined,
+          fingerprint_template: fingerprintTemplate || undefined,
+        },
+      }
+      
+      // SOLO incluir membresía si el toggle está activado
+      if (editarMembresia && membresiaId) {
+        console.log('📝 Incluyendo membresía en actualización:', {
+          plan_id: membresiaId,
+          fecha_inicio: fechaInicio,
+          // Nota: fechaVencimiento se preserva automáticamente por el backend
+        })
+        datosActualizados.membresia = {
+          plan_id: membresiaId,
+          fecha_inicio: fechaInicio,
+          estado_pago: socio.estadoPago || 'pagado', // Preservar estado de pago
+        }
+      } else {
+        console.log('⏭️ Membresía NO incluida en actualización (preservando existente)')
+      }
+      
+      await SociosService.update(socio.id, datosActualizados)
+      
+      toast({
+        title: "✅ Socio actualizado",
+        description: `Los datos de ${nombre} han sido actualizados correctamente.`,
+      })
+      
+      onClose()
+      onSuccess() // Refrescar lista
+    } catch (error: any) {
+      console.error("❌ Error al actualizar socio:", error)
+      toast({
+        title: "Error al actualizar",
+        description: error.message || "No se pudo actualizar el socio",
         variant: "destructive",
       })
     } finally {
@@ -348,12 +573,20 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
           <form onSubmit={handleContinuar}>
             <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
 
-              {/* Section: Personal Info */}
-              <div>
-                <div className="flex items-center gap-2 mb-3 text-primary text-xs font-extrabold uppercase tracking-widest">
-                  <User className="h-4 w-4" />
-                  <span>Informacion Personal</span>
+              {/* Mostrar spinner mientras se cargan datos del socio */}
+              {loadingSocioData ? (
+                <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                  <p className="text-sm text-muted-foreground">Cargando datos del socio...</p>
                 </div>
+              ) : (
+                <>
+                  {/* Section: Personal Info */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3 text-primary text-xs font-extrabold uppercase tracking-widest">
+                      <User className="h-4 w-4" />
+                      <span>Informacion Personal</span>
+                    </div>
                 <div
                   className="p-4 rounded-2xl space-y-4"
                   style={{ background: "rgba(21,25,38,0.72)", border: "1px solid rgba(255,255,255,0.07)" }}
@@ -532,47 +765,148 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
                   className="p-4 rounded-2xl"
                   style={{ background: "rgba(21,25,38,0.72)", border: "1px solid rgba(255,255,255,0.07)" }}
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                        Plan de Membresia <span className="text-primary">*</span>
-                      </label>
-                      <select
-                        value={membresiaId || ""}
-                        onChange={(e) => setMembresiaId(e.target.value ? Number(e.target.value) : null)}
-                        required
-                        className={inputClass}
-                      >
-                        <option value="">Selecciona un plan</option>
-                        {membresias.map((m) => {
-                          const precioMostrar = m.esOferta && m.precioOferta ? m.precioOferta : m.precioBase
-                          return (
-                            <option key={m.id} value={m.id}>
-                              {m.nombre} - ${precioMostrar.toLocaleString()} ({m.duracionCantidad} {m.duracionUnidad})
-                              {m.esOferta && m.precioOferta && ` - ¡OFERTA!`}
-                            </option>
-                          )
-                        })}
-                      </select>
+                  {socio ? (
+                    // Modo edición: Toggle para habilitar edición de membresía
+                    <div className="space-y-4">
+                      {/* Toggle para editar membresía */}
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-500/5 border border-yellow-500/20">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-foreground">Editar Membresía</p>
+                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-yellow-500/20 text-yellow-400">
+                              Especial
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Activa esta opción solo para casos especiales. Las fechas de membresía se preservarán.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setEditarMembresia(!editarMembresia)}
+                          className={`relative w-12 h-6 rounded-full transition-colors ${
+                            editarMembresia ? "bg-yellow-500" : "bg-muted"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                              editarMembresia ? "translate-x-6" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Campos de membresía */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                            Plan de Membresía {editarMembresia && <span className="text-primary">*</span>}
+                          </label>
+                          {editarMembresia ? (
+                            <select
+                              value={membresiaId || ""}
+                              onChange={(e) => setMembresiaId(e.target.value ? Number(e.target.value) : null)}
+                              required={editarMembresia}
+                              className={inputClass}
+                            >
+                              <option value="">Selecciona un plan</option>
+                              {membresias.map((m) => {
+                                const precioMostrar = m.esOferta && m.precioOferta ? m.precioOferta : m.precioBase
+                                return (
+                                  <option key={m.id} value={m.id}>
+                                    {m.nombre} - ${precioMostrar.toLocaleString()} ({m.duracionCantidad} {m.duracionUnidad})
+                                    {m.esOferta && m.precioOferta && ` - ¡OFERTA!`}
+                                  </option>
+                                )
+                              })}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={membresias.find(m => m.id === membresiaId)?.nombre || "Sin plan"}
+                              disabled
+                              className={`${inputClass} opacity-60 cursor-not-allowed`}
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                            Fecha de Inicio {editarMembresia && <span className="text-primary">*</span>}
+                          </label>
+                          <input
+                            type="date"
+                            value={fechaInicio}
+                            onChange={(e) => setFechaInicio(e.target.value)}
+                            disabled={!editarMembresia}
+                            required={editarMembresia}
+                            className={`${inputClass} ${!editarMembresia ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Información sobre vencimiento */}
+                      {fechaVencimiento && (
+                        <div className="text-xs text-muted-foreground/70 bg-muted/20 p-3 rounded-lg">
+                          <p className="flex items-center gap-2">
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>
+                              Vencimiento actual: <strong>{formatFecha(fechaVencimiento)}</strong>
+                            </span>
+                          </p>
+                          {editarMembresia && (
+                            <p className="mt-1 text-yellow-400/80">
+                              ⚠️ El vencimiento se recalculará según el plan y fecha de inicio seleccionados.
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                        Fecha de Inicio <span className="text-primary">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={fechaInicio}
-                        onChange={(e) => setFechaInicio(e.target.value)}
-                        required
-                        className={inputClass}
-                      />
+                  ) : (
+                    // Modo creación: Campos editables y requeridos
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                          Plan de Membresia <span className="text-primary">*</span>
+                        </label>
+                        <select
+                          value={membresiaId || ""}
+                          onChange={(e) => setMembresiaId(e.target.value ? Number(e.target.value) : null)}
+                          required
+                          className={inputClass}
+                        >
+                          <option value="">Selecciona un plan</option>
+                          {membresias.map((m) => {
+                            const precioMostrar = m.esOferta && m.precioOferta ? m.precioOferta : m.precioBase
+                            return (
+                              <option key={m.id} value={m.id}>
+                                {m.nombre} - ${precioMostrar.toLocaleString()} ({m.duracionCantidad} {m.duracionUnidad})
+                                {m.esOferta && m.precioOferta && ` - ¡OFERTA!`}
+                              </option>
+                            )
+                          })}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                          Fecha de Inicio <span className="text-primary">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={fechaInicio}
+                          onChange={(e) => setFechaInicio(e.target.value)}
+                          required
+                          className={inputClass}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <p className="text-xs text-muted-foreground/70 mt-2">
                     💡 La fecha de vencimiento se calculará automáticamente según el plan seleccionado
                   </p>
                 </div>
               </div>
+              </>
+              )}
             </div>
 
             {/* Footer */}
@@ -595,7 +929,12 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
                 {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                    Calculando...
+                    {socio ? "Actualizando..." : "Calculando..."}
+                  </>
+                ) : socio ? (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Guardar Cambios
                   </>
                 ) : (
                   <>
