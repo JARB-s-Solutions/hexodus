@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import Script from "next/script"
 import {
   ScanFace,
   Volume2,
@@ -14,6 +15,13 @@ import {
 } from "lucide-react"
 import type { ConfigRegistro, Socio, EstadoMembresia } from "@/lib/asistencia-data"
 import { DEFAULT_CONFIG } from "@/lib/asistencia-data"
+
+// Declare face-api on window
+declare global {
+  interface Window {
+    faceapi: typeof import("face-api.js") | undefined
+  }
+}
 
 // ============================================================================
 // TYPES
@@ -38,7 +46,8 @@ export default function EscaneoPage() {
   const [resultado, setResultado] = useState<ResultadoEscaneo | null>(null)
   const [countdown, setCountdown] = useState(0)
   const [audioDesbloqueado, setAudioDesbloqueado] = useState(false)
-  const [modelosCargados, setModelosCargados] = useState(false)
+  const [faceapiReady, setFaceapiReady] = useState(false)
+  const [statusMsg, setStatusMsg] = useState("Cargando libreria...")
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -46,21 +55,47 @@ export default function EscaneoPage() {
   const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const faceapiRef = useRef<typeof import("face-api.js") | null>(null)
-  const audioRef = useRef<{ success: HTMLAudioElement | null; warning: HTMLAudioElement | null; error: HTMLAudioElement | null }>({
-    success: null,
-    warning: null,
-    error: null,
-  })
   const estadoRef = useRef(estado)
   estadoRef.current = estado
+  const configRef = useRef(config)
+  configRef.current = config
+  const audioSuccessRef = useRef<HTMLAudioElement | null>(null)
+  const audioLoadedRef = useRef(false)
+
+  // Initialize audio on mount
+  useEffect(() => {
+    // Pre-load success audio
+    const audio = new Audio('/sounds/success.wav')
+    audio.volume = 0.7
+    audio.preload = 'auto'
+    
+    audio.addEventListener('canplaythrough', () => {
+      console.log('[Audio] success.wav loaded and ready')
+      audioLoadedRef.current = true
+    })
+    
+    audio.addEventListener('error', (e) => {
+      console.error('[Audio] Error loading success.wav:', e)
+    })
+    
+    audioSuccessRef.current = audio
+    
+    return () => {
+      if (audioSuccessRef.current) {
+        audioSuccessRef.current.pause()
+        audioSuccessRef.current = null
+      }
+    }
+  }, [])
 
   // Load config from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem("config_registro_cliente")
       if (saved) setConfig(JSON.parse(saved))
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, [])
 
   // Listen for config messages from admin window
@@ -68,35 +103,12 @@ export default function EscaneoPage() {
     function handleMessage(event: MessageEvent) {
       if (event.data?.tipo === "configuracion") {
         setConfig(event.data.config)
+        configRef.current = event.data.config
         localStorage.setItem("config_registro_cliente", JSON.stringify(event.data.config))
       }
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [])
-
-  // Load face-api.js models
-  useEffect(() => {
-    async function loadModels() {
-      try {
-        const faceapi = await import("face-api.js")
-        faceapiRef.current = faceapi
-
-        const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/"
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        ])
-
-        setModelosCargados(true)
-        setEstado("listo")
-      } catch (err) {
-        console.error("[v0] Error loading face-api models:", err)
-        setEstado("error")
-      }
-    }
-    loadModels()
   }, [])
 
   // Cleanup on unmount
@@ -112,19 +124,72 @@ export default function EscaneoPage() {
   }, [])
 
   // ============================================================================
+  // FACE-API LOADING (via CDN script tag)
+  // ============================================================================
+
+  const handleFaceapiScriptLoad = useCallback(async () => {
+    console.log("[v0] face-api.js script loaded from CDN")
+    setStatusMsg("Cargando modelos de reconocimiento...")
+
+    try {
+      const faceapi = window.faceapi
+      if (!faceapi) {
+        console.error("[v0] faceapi not available on window after script load")
+        setEstado("error")
+        return
+      }
+
+      const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/"
+      console.log("[v0] Loading models from:", MODEL_URL)
+
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+      ])
+
+      console.log("[v0] All face-api models loaded successfully")
+      setFaceapiReady(true)
+      setEstado("listo")
+    } catch (err) {
+      console.error("[v0] Error loading face-api models:", err)
+      setStatusMsg("Error al cargar modelos")
+      setEstado("error")
+    }
+  }, [])
+
+  // ============================================================================
   // CAMERA
   // ============================================================================
 
   const activarCamara = useCallback(async () => {
+    console.log("[v0] Activating camera...")
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
         audio: false,
       })
       streamRef.current = stream
+      console.log("[v0] Camera stream obtained")
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream
+
+        // Wait for video metadata to load
+        await new Promise<void>((resolve) => {
+          const video = videoRef.current!
+          if (video.readyState >= 2) {
+            resolve()
+            return
+          }
+          video.onloadeddata = () => {
+            console.log("[v0] Video loaded data")
+            resolve()
+          }
+        })
+
         await videoRef.current.play()
+        console.log("[v0] Video playing, dimensions:", videoRef.current.videoWidth, "x", videoRef.current.videoHeight)
       }
     } catch (err) {
       console.error("[v0] Camera error:", err)
@@ -137,16 +202,20 @@ export default function EscaneoPage() {
   // ============================================================================
 
   const iniciarEscaneo = useCallback(() => {
-    if (scanIntervalRef.current) return
+    if (scanIntervalRef.current) {
+      console.log("[v0] Scan already running, skipping")
+      return
+    }
+
+    console.log("[v0] Starting face scan interval...")
     setEstado("escaneando")
 
     scanIntervalRef.current = setInterval(async () => {
-      if (!faceapiRef.current || !videoRef.current || !streamRef.current) return
+      const faceapi = window.faceapi
+      if (!faceapi || !videoRef.current || !streamRef.current) return
       if (estadoRef.current === "resultado") return
 
-      const faceapi = faceapiRef.current
       const video = videoRef.current
-
       if (video.readyState < 2 || video.videoWidth === 0) return
 
       try {
@@ -155,18 +224,20 @@ export default function EscaneoPage() {
           .withFaceLandmarks()
           .withFaceDescriptor()
 
-        // Draw on canvas
-        if (canvasRef.current && config.mostrarDeteccion && detection) {
+        // Draw on canvas if enabled
+        if (canvasRef.current && configRef.current.mostrarDeteccion && detection) {
           const canvas = canvasRef.current
           canvas.width = video.videoWidth
           canvas.height = video.videoHeight
           const ctx = canvas.getContext("2d")
           if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
-          faceapi.draw.drawDetections(canvas, detection)
-          faceapi.draw.drawFaceLandmarks(canvas, detection)
+          const resized = faceapi.resizeResults(detection, { width: canvas.width, height: canvas.height })
+          faceapi.draw.drawDetections(canvas, resized)
+          faceapi.draw.drawFaceLandmarks(canvas, resized)
         }
 
         if (detection) {
+          console.log("[v0] Face detected! Processing...")
           // Stop scanning during processing
           if (scanIntervalRef.current) {
             clearInterval(scanIntervalRef.current)
@@ -178,7 +249,7 @@ export default function EscaneoPage() {
         console.error("[v0] Detection error:", err)
       }
     }, 1500)
-  }, [config.mostrarDeteccion])
+  }, [])
 
   // ============================================================================
   // SEARCH & MATCH
@@ -186,18 +257,23 @@ export default function EscaneoPage() {
 
   const buscarSocio = useCallback(
     async (descriptor: Float32Array) => {
-      const faceapi = faceapiRef.current
+      const faceapi = window.faceapi
       if (!faceapi) return
 
-      // Get socios from localStorage
+      // Get socios from localStorage (real system)
       let socios: Socio[] = []
       try {
-        const raw = localStorage.getItem("hexodus_socios")
+        // Try hexodus_socios first (actual system key), then socios
+        const raw = localStorage.getItem("hexodus_socios") || localStorage.getItem("socios")
         if (raw) {
           const parsed = JSON.parse(raw)
           socios = parsed.filter((s: Socio) => s.faceDescriptor && s.faceDescriptor.length > 0)
         }
-      } catch {}
+      } catch {
+        // ignore
+      }
+
+      console.log("[v0] Socios with face descriptors:", socios.length)
 
       if (socios.length === 0) {
         mostrarResultado({
@@ -218,6 +294,7 @@ export default function EscaneoPage() {
         if (socio.faceDescriptor) {
           const saved = new Float32Array(socio.faceDescriptor)
           const dist = faceapi.euclideanDistance(descriptor, saved)
+          console.log("[v0] Distance to", socio.nombre, ":", dist.toFixed(3))
           if (dist < mejorDistancia) {
             mejorDistancia = dist
             mejorSocio = socio
@@ -225,7 +302,9 @@ export default function EscaneoPage() {
         }
       }
 
-      if (mejorSocio && mejorDistancia < config.umbralConfianza) {
+      console.log("[v0] Best match:", mejorSocio?.nombre, "distance:", mejorDistancia.toFixed(3), "threshold:", configRef.current.umbralConfianza)
+
+      if (mejorSocio && mejorDistancia < configRef.current.umbralConfianza) {
         const confianza = ((1 - mejorDistancia) * 100).toFixed(1)
         procesarAcceso(mejorSocio, confianza)
       } else {
@@ -239,7 +318,7 @@ export default function EscaneoPage() {
         })
       }
     },
-    [config.umbralConfianza]
+    []
   )
 
   const procesarAcceso = useCallback(
@@ -283,7 +362,9 @@ export default function EscaneoPage() {
             }
           }
         }
-      } catch {}
+      } catch {
+        // ignore
+      }
 
       // Check expiration
       const venc = new Date(socio.fechaVencimiento)
@@ -335,11 +416,53 @@ export default function EscaneoPage() {
       setEstado("resultado")
 
       // Play sound
-      const soundType = res.estado === "permitido" ? "success" : res.estado === "proximo_vencer" ? "warning" : "error"
-      reproducirSonido(soundType)
+      console.log('[Audio] Attempting to play sound...', {
+        sonidoHabilitado: configRef.current.sonidoHabilitado,
+        audioDesbloqueado,
+        estado: res.estado,
+        audioLoaded: audioLoadedRef.current
+      })
+
+      if (configRef.current.sonidoHabilitado && audioDesbloqueado) {
+        try {
+          if (res.estado === "permitido" && audioSuccessRef.current && audioLoadedRef.current) {
+            // Play success.wav for successful access
+            console.log('[Audio] Playing success.wav...')
+            audioSuccessRef.current.currentTime = 0
+            audioSuccessRef.current.play()
+              .then(() => {
+                console.log('[Audio] ✅ success.wav played successfully')
+              })
+              .catch(err => {
+                console.error('[Audio] ❌ Could not play success.wav:', err)
+              })
+          } else {
+            // Use Web Audio API for warning/error beeps
+            const audioCtx = new AudioContext()
+            const oscillator = audioCtx.createOscillator()
+            const gainNode = audioCtx.createGain()
+            oscillator.connect(gainNode)
+            gainNode.connect(audioCtx.destination)
+            gainNode.gain.value = 0.3
+
+            if (res.estado === "proximo_vencer") {
+              oscillator.frequency.value = 660 // E - warning
+              oscillator.type = "triangle"
+            } else {
+              oscillator.frequency.value = 330 // E low - error
+              oscillator.type = "square"
+            }
+
+            oscillator.start()
+            oscillator.stop(audioCtx.currentTime + 0.3)
+          }
+        } catch (error) {
+          console.warn('[Audio] Error playing sound:', error)
+        }
+      }
 
       // Start countdown
-      let secs = config.tiempoReset
+      let secs = configRef.current.tiempoReset
       setCountdown(secs)
 
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
@@ -354,15 +477,19 @@ export default function EscaneoPage() {
       // Reset after timeout
       if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current)
       resetTimeoutRef.current = setTimeout(() => {
+        console.log("[v0] Resetting screen after timeout")
         setResultado(null)
         setEstado("escaneando")
         // Restart scanning
-        if (config.deteccionAutomatica) {
-          iniciarEscaneo()
+        if (configRef.current.deteccionAutomatica) {
+          // Need to restart after a small delay
+          setTimeout(() => {
+            iniciarEscaneo()
+          }, 500)
         }
-      }, config.tiempoReset * 1000)
+      }, configRef.current.tiempoReset * 1000)
     },
-    [config.tiempoReset, config.deteccionAutomatica]
+    [audioDesbloqueado, iniciarEscaneo]
   )
 
   // ============================================================================
@@ -387,7 +514,9 @@ export default function EscaneoPage() {
         existing.push(registro)
         if (existing.length > 100) existing.splice(0, existing.length - 100)
         localStorage.setItem("registros_acceso", JSON.stringify(existing))
-      } catch {}
+      } catch {
+        // ignore
+      }
 
       // Notify admin window
       if (window.opener) {
@@ -401,56 +530,71 @@ export default function EscaneoPage() {
   )
 
   // ============================================================================
-  // AUDIO
-  // ============================================================================
-
-  const reproducirSonido = useCallback(
-    (tipo: "success" | "warning" | "error") => {
-      if (!config.sonidoHabilitado || !audioDesbloqueado) return
-      const audio = audioRef.current[tipo]
-      if (audio) {
-        audio.currentTime = 0
-        audio.play().catch(() => {})
-      }
-    },
-    [config.sonidoHabilitado, audioDesbloqueado]
-  )
-
-  // ============================================================================
   // ACTIVATE SYSTEM
   // ============================================================================
 
   const activarSistema = useCallback(async () => {
-    // Unlock audio
-    try {
-      audioRef.current.success = new Audio()
-      audioRef.current.warning = new Audio()
-      audioRef.current.error = new Audio()
+    console.log("[Audio] Activar Sistema clicked")
+    console.log("[Audio] Config sonido habilitado:", configRef.current.sonidoHabilitado)
+    console.log("[Audio] Audio loaded:", audioLoadedRef.current)
 
-      // Just play silence to unlock
-      for (const key of ["success", "warning", "error"] as const) {
-        const a = audioRef.current[key]
-        if (a) {
-          a.volume = 0.5
-          await a.play().catch(() => {})
-          a.pause()
-          a.currentTime = 0
+    // Unlock audio with both AudioContext and HTMLAudioElement
+    try {
+      // 1. Unlock AudioContext (for beeps)
+      const audioCtx = new AudioContext()
+      const oscillator = audioCtx.createOscillator()
+      const gainNode = audioCtx.createGain()
+      oscillator.connect(gainNode)
+      gainNode.connect(audioCtx.destination)
+      gainNode.gain.value = 0 // silent
+      oscillator.start()
+      oscillator.stop(audioCtx.currentTime + 0.01)
+      console.log("[Audio] AudioContext unlocked")
+
+      // 2. Unlock HTMLAudioElement (for success.wav)
+      if (audioSuccessRef.current && audioLoadedRef.current) {
+        console.log("[Audio] Attempting to unlock HTMLAudioElement...")
+        const originalVolume = audioSuccessRef.current.volume
+        audioSuccessRef.current.volume = 0.3 // Audible for testing
+        audioSuccessRef.current.currentTime = 0
+        
+        try {
+          await audioSuccessRef.current.play()
+          console.log("[Audio] ✅ Test sound played successfully")
+          
+          // Pause after 100ms
+          setTimeout(() => {
+            if (audioSuccessRef.current) {
+              audioSuccessRef.current.pause()
+              audioSuccessRef.current.currentTime = 0
+              audioSuccessRef.current.volume = originalVolume
+              console.log("[Audio] HTMLAudioElement unlocked and ready")
+            }
+          }, 100)
+        } catch (err) {
+          console.error("[Audio] ❌ Failed to play test sound:", err)
         }
+      } else {
+        console.warn("[Audio] Audio not ready yet")
       }
+
       setAudioDesbloqueado(true)
-    } catch {}
+      console.log("[Audio] System unlocked")
+    } catch (error) {
+      console.error("[Audio] Error during unlock:", error)
+    }
 
     // Activate camera
     await activarCamara()
 
-    // Start auto-scan
-    if (config.deteccionAutomatica) {
-      // Small delay for camera to stabilize
+    // Start auto-scan after camera stabilizes
+    if (configRef.current.deteccionAutomatica) {
+      console.log("[v0] Starting auto-scan in 1.5s...")
       setTimeout(() => {
         iniciarEscaneo()
-      }, 1000)
+      }, 1500)
     }
-  }, [activarCamara, config.deteccionAutomatica, iniciarEscaneo])
+  }, [activarCamara, iniciarEscaneo])
 
   // ============================================================================
   // RENDER HELPERS
@@ -460,61 +604,61 @@ export default function EscaneoPage() {
     switch (estadoMem) {
       case "permitido":
         return {
-          color: "text-success",
-          border: "border-success",
-          bg: "bg-success/10",
+          color: "text-green-400",
+          border: "border-green-500",
+          bg: "bg-green-500/10",
           glow: "shadow-[0_0_40px_rgba(75,181,67,0.3)]",
-          icon: <CheckCircle className="h-16 w-16 text-success" />,
+          icon: <CheckCircle className="h-16 w-16 text-green-400" />,
           title: "BIENVENIDO",
           message: "Que tengas un excelente entrenamiento!",
         }
       case "proximo_vencer":
         return {
-          color: "text-warning",
-          border: "border-warning",
-          bg: "bg-warning/10",
+          color: "text-yellow-400",
+          border: "border-yellow-500",
+          bg: "bg-yellow-500/10",
           glow: "shadow-[0_0_40px_rgba(255,215,0,0.3)]",
-          icon: <AlertTriangle className="h-16 w-16 text-warning" />,
+          icon: <AlertTriangle className="h-16 w-16 text-yellow-400" />,
           title: "BIENVENIDO",
           message: "",
         }
       case "vencida":
         return {
-          color: "text-destructive",
-          border: "border-destructive",
-          bg: "bg-destructive/10",
+          color: "text-red-500",
+          border: "border-red-500",
+          bg: "bg-red-500/10",
           glow: "shadow-[0_0_40px_rgba(255,0,0,0.3)]",
-          icon: <XCircle className="h-16 w-16 text-destructive" />,
+          icon: <XCircle className="h-16 w-16 text-red-500" />,
           title: "ACCESO DENEGADO",
           message: "Por favor, renueva tu membresia en recepcion",
         }
       case "sin_pago":
         return {
-          color: "text-destructive",
-          border: "border-destructive",
-          bg: "bg-destructive/10",
+          color: "text-red-500",
+          border: "border-red-500",
+          bg: "bg-red-500/10",
           glow: "shadow-[0_0_40px_rgba(255,0,0,0.3)]",
-          icon: <XCircle className="h-16 w-16 text-destructive" />,
+          icon: <XCircle className="h-16 w-16 text-red-500" />,
           title: "ACCESO DENEGADO",
           message: "Membresia sin pagar - Realiza tu pago en recepcion",
         }
       case "sin_membresia":
         return {
-          color: "text-destructive",
-          border: "border-destructive",
-          bg: "bg-destructive/10",
+          color: "text-red-500",
+          border: "border-red-500",
+          bg: "bg-red-500/10",
           glow: "shadow-[0_0_40px_rgba(255,0,0,0.3)]",
-          icon: <XCircle className="h-16 w-16 text-destructive" />,
+          icon: <XCircle className="h-16 w-16 text-red-500" />,
           title: "ACCESO DENEGADO",
           message: "Dirigete a recepcion para adquirir una membresia",
         }
       default:
         return {
-          color: "text-destructive",
-          border: "border-destructive",
-          bg: "bg-destructive/10",
+          color: "text-red-500",
+          border: "border-red-500",
+          bg: "bg-red-500/10",
           glow: "shadow-[0_0_40px_rgba(255,0,0,0.3)]",
-          icon: <XCircle className="h-16 w-16 text-destructive" />,
+          icon: <XCircle className="h-16 w-16 text-red-500" />,
           title: "NO REGISTRADO",
           message: "Por favor, dirigete a recepcion para registrarte",
         }
@@ -526,172 +670,215 @@ export default function EscaneoPage() {
   // ============================================================================
 
   return (
-    <div className="h-screen w-screen bg-background flex flex-col overflow-hidden select-none">
-      {/* Header */}
-      <header className="flex-shrink-0 py-5 text-center border-b border-accent/20" style={{ background: "rgba(0,0,0,0.3)" }}>
-        <div className="flex items-center justify-center gap-3">
-          <div className="h-12 w-12 rounded-lg bg-primary/20 flex items-center justify-center">
-            <ScanFace className="h-7 w-7 text-primary" />
+    <>
+      {/* Load face-api.js from CDN */}
+      <Script
+        src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"
+        strategy="afterInteractive"
+        onLoad={handleFaceapiScriptLoad}
+        onError={() => {
+          console.error("[v0] Failed to load face-api.js script")
+          setStatusMsg("Error al cargar face-api.js")
+          setEstado("error")
+        }}
+      />
+
+      <div className="h-screen w-screen flex flex-col overflow-hidden select-none" style={{ background: "#0a0e1a" }}>
+        {/* Header */}
+        <header className="flex-shrink-0 py-5 text-center border-b border-cyan-900/30" style={{ background: "rgba(0,0,0,0.4)" }}>
+          <div className="flex items-center justify-center gap-3">
+            <div className="h-12 w-12 rounded-lg flex items-center justify-center" style={{ background: "rgba(220,38,38,0.15)" }}>
+              <ScanFace className="h-7 w-7 text-red-500" />
+            </div>
+            <h1 className="text-4xl font-bold tracking-widest text-red-500">HEXODUS</h1>
           </div>
-          <h1 className="text-4xl font-bold tracking-widest text-primary">HEXODUS</h1>
-        </div>
-        <p className="text-muted-foreground mt-1 text-sm">Sistema de Reconocimiento Facial</p>
-      </header>
+          <p className="text-slate-400 mt-1 text-sm">Sistema de Reconocimiento Facial</p>
+          {audioDesbloqueado && (
+            <p className="text-cyan-400/50 text-xs mt-1">Audio listo</p>
+          )}
+        </header>
 
-      {/* Main content */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="relative w-full max-w-[850px] aspect-[4/3]">
-          {/* Video Feed */}
-          <div className="relative w-full h-full rounded-2xl overflow-hidden border-2 border-accent/40 glow-accent bg-card">
-            <video
-              ref={videoRef}
-              className="w-full h-full object-cover"
-              autoPlay
-              muted
-              playsInline
-            />
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 w-full h-full pointer-events-none"
-            />
+        {/* Accent line */}
+        <div className="h-0.5 w-full" style={{ background: "linear-gradient(90deg, transparent, #06b6d4, transparent)" }} />
 
-            {/* Loading State */}
-            {estado === "cargando" && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/90 z-20">
-                <div className="text-center">
-                  <Loader2 className="h-16 w-16 text-accent animate-spin mx-auto mb-4" />
-                  <p className="text-xl font-bold text-accent">Inicializando Sistema...</p>
-                  <p className="text-sm text-muted-foreground mt-2">Cargando modelos de reconocimiento</p>
-                </div>
-              </div>
-            )}
+        {/* Main content */}
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="relative w-full max-w-[850px] aspect-[4/3]">
+            {/* Video Feed Container */}
+            <div
+              className="relative w-full h-full rounded-2xl overflow-hidden border-2 border-cyan-800/40"
+              style={{
+                background: "#111827",
+                boxShadow: "0 0 40px rgba(6,182,212,0.08), inset 0 0 60px rgba(0,0,0,0.5)",
+              }}
+            >
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover"
+                autoPlay
+                muted
+                playsInline
+              />
+              <canvas
+                ref={canvasRef}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+              />
 
-            {/* Activation Button State */}
-            {estado === "listo" && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/95 z-20">
-                <div className="text-center">
-                  <Volume2 className="h-20 w-20 text-accent mx-auto mb-6 animate-pulse" />
-                  <h2 className="text-3xl font-bold text-foreground mb-3">Sistema Listo</h2>
-                  <p className="text-muted-foreground mb-8 text-lg">Presiona el boton para activar el sistema</p>
-                  <button
-                    onClick={activarSistema}
-                    className="flex items-center gap-3 mx-auto px-10 py-5 text-xl font-bold rounded-xl text-primary-foreground transition-all duration-300 hover:scale-105 glow-primary"
-                    style={{ background: "linear-gradient(135deg, var(--primary), var(--accent))" }}
-                  >
-                    <PlayCircle className="h-7 w-7" />
-                    ACTIVAR SISTEMA
-                  </button>
-                  <p className="text-xs text-muted-foreground mt-5">
-                    Esto habilitara el audio y el reconocimiento facial
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Scanning Overlay */}
-            {estado === "escaneando" && (
-              <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                <div className="text-center" style={{ background: "rgba(16,16,20,0.6)", padding: "2rem 3rem", borderRadius: "1rem" }}>
-                  <ScanFace className="h-24 w-24 text-accent mx-auto mb-4 animate-pulse" />
-                  <h2 className="text-2xl font-bold text-accent mb-2">Acercate al Escaner</h2>
-                  <p className="text-muted-foreground">Posiciona tu rostro frente a la camara</p>
-                  <div className="mt-4 flex items-center justify-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-accent animate-pulse" />
-                    <span className="text-muted-foreground text-sm">Esperando...</span>
+              {/* Loading State */}
+              {estado === "cargando" && (
+                <div className="absolute inset-0 flex items-center justify-center z-20" style={{ background: "rgba(10,14,26,0.95)" }}>
+                  <div className="text-center">
+                    <Loader2 className="h-16 w-16 text-cyan-400 animate-spin mx-auto mb-4" />
+                    <p className="text-xl font-bold text-cyan-400">{statusMsg}</p>
+                    <p className="text-sm text-slate-500 mt-2">Esto puede tardar unos segundos</p>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Result Overlay */}
-            {estado === "resultado" && resultado && (
-              <div className="absolute inset-0 flex items-center justify-center z-20 bg-background/80 backdrop-blur-sm animate-fade-in-up">
-                {(() => {
-                  const cfg = getEstadoConfig(resultado.estado)
-                  return (
-                    <div
-                      className={`bg-card border-2 ${cfg.border} rounded-2xl p-8 max-w-md w-full mx-4 text-center ${cfg.glow}`}
+              {/* Activation Button State */}
+              {estado === "listo" && (
+                <div className="absolute inset-0 flex items-center justify-center z-20" style={{ background: "rgba(10,14,26,0.95)" }}>
+                  <div className="text-center">
+                    <Volume2 className="h-20 w-20 text-cyan-400 mx-auto mb-6 animate-pulse" />
+                    <h2 className="text-3xl font-bold text-white mb-3">Sistema Listo</h2>
+                    <p className="text-slate-400 mb-8 text-lg">Presiona el boton para activar el sistema</p>
+                    <button
+                      onClick={activarSistema}
+                      className="flex items-center gap-3 mx-auto px-10 py-5 text-xl font-bold rounded-xl text-white transition-all duration-300 hover:scale-105 cursor-pointer"
+                      style={{
+                        background: "linear-gradient(135deg, #ef4444, #06b6d4)",
+                        boxShadow: "0 0 30px rgba(239,68,68,0.3), 0 0 60px rgba(6,182,212,0.2)",
+                      }}
                     >
-                      {/* Photo */}
-                      <div className="mb-4 flex justify-center">
-                        {resultado.socio?.foto ? (
-                          <img
-                            src={resultado.socio.foto}
-                            alt="Foto socio"
-                            className={`w-28 h-28 rounded-full border-4 ${cfg.border} object-cover`}
-                            style={{ boxShadow: "0 0 30px rgba(0,191,255,0.5)" }}
-                          />
-                        ) : (
-                          <div
-                            className={`w-28 h-28 rounded-full border-4 ${cfg.border} bg-muted flex items-center justify-center`}
-                            style={{ boxShadow: "0 0 30px rgba(0,191,255,0.3)" }}
-                          >
-                            <User className="h-14 w-14 text-muted-foreground" />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Name */}
-                      <h2 className="text-2xl font-bold text-foreground mb-2">
-                        {resultado.socio?.nombre || "Rostro No Registrado"}
-                      </h2>
-
-                      {/* Status badge */}
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg ${cfg.bg} border ${cfg.border} mb-4`}>
-                        {cfg.icon && <span className="[&>svg]:h-5 [&>svg]:w-5">{cfg.icon}</span>}
-                        <span className={`text-lg font-black ${cfg.color}`}>{cfg.title}</span>
-                      </div>
-
-                      {/* Details */}
-                      <div className="space-y-2 text-left mb-4">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Membresia:</span>
-                          <span className="font-semibold text-foreground">{resultado.membresia}</span>
-                        </div>
-                        {resultado.vencimiento && (
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Vencimiento:</span>
-                            <span className="font-semibold text-foreground">{resultado.vencimiento}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Warning for expiring soon */}
-                      {resultado.estado === "proximo_vencer" && (
-                        <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 mb-4">
-                          <p className="text-warning text-sm font-semibold">
-                            Tu membresia vence en {resultado.diasRestantes} dia(s)
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Message */}
-                      <p className="text-muted-foreground text-sm mb-4">{cfg.message}</p>
-
-                      {/* Countdown */}
-                      <div className="flex items-center justify-center gap-2 text-accent text-sm font-medium">
-                        <Clock className="h-4 w-4" />
-                        <span>Siguiente escaneo en: {countdown}s</span>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-            )}
-
-            {/* Error State */}
-            {estado === "error" && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/90 z-20">
-                <div className="text-center">
-                  <AlertTriangle className="h-20 w-20 text-destructive mx-auto mb-4" />
-                  <h2 className="text-2xl font-bold text-destructive mb-2">Error</h2>
-                  <p className="text-muted-foreground">No se pudo inicializar el sistema de reconocimiento</p>
+                      <PlayCircle className="h-7 w-7" />
+                      ACTIVAR SISTEMA
+                    </button>
+                    <p className="text-xs text-slate-500 mt-5">
+                      Esto habilitara el audio y el reconocimiento facial
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Scanning Overlay */}
+              {estado === "escaneando" && (
+                <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                  <div className="text-center" style={{ background: "rgba(10,14,26,0.6)", padding: "2rem 3rem", borderRadius: "1rem" }}>
+                    <ScanFace className="h-24 w-24 text-cyan-400 mx-auto mb-4 animate-pulse" />
+                    <h2 className="text-2xl font-bold text-red-500 mb-2">Acercate al Escaner</h2>
+                    <p className="text-slate-400">Posiciona tu rostro frente a la camara</p>
+                    <div className="mt-4 flex items-center justify-center gap-2">
+                      <div className="h-3 w-3 rounded-full bg-cyan-400 animate-pulse" />
+                      <span className="text-slate-400 text-sm">Esperando...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Result Overlay */}
+              {estado === "resultado" && resultado && (
+                <div className="absolute inset-0 flex items-center justify-center z-20" style={{ background: "rgba(10,14,26,0.85)", backdropFilter: "blur(4px)" }}>
+                  {(() => {
+                    const cfg = getEstadoConfig(resultado.estado)
+                    return (
+                      <div
+                        className={`border-2 ${cfg.border} rounded-2xl p-8 max-w-md w-full mx-4 text-center ${cfg.glow}`}
+                        style={{ background: "#111827" }}
+                      >
+                        {/* Photo */}
+                        <div className="mb-4 flex justify-center">
+                          {resultado.socio?.foto ? (
+                            <img
+                              src={resultado.socio.foto}
+                              alt="Foto socio"
+                              className={`w-28 h-28 rounded-full border-4 ${cfg.border} object-cover`}
+                              crossOrigin="anonymous"
+                              style={{ boxShadow: "0 0 30px rgba(6,182,212,0.5)" }}
+                            />
+                          ) : (
+                            <div
+                              className={`w-28 h-28 rounded-full border-4 ${cfg.border} flex items-center justify-center`}
+                              style={{ background: "#1f2937", boxShadow: "0 0 30px rgba(6,182,212,0.3)" }}
+                            >
+                              <User className="h-14 w-14 text-slate-500" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Name */}
+                        <h2 className="text-2xl font-bold text-white mb-1">
+                          {resultado.socio?.nombre || "Rostro No Registrado"}
+                        </h2>
+                        {resultado.socio?.id && (
+                          <p className="text-sm text-slate-400 mb-3">ID: {resultado.socio.id}</p>
+                        )}
+
+                        {/* Status badge */}
+                        <div className={`inline-flex items-center gap-2 px-5 py-3 rounded-lg ${cfg.bg} border-2 ${cfg.border} mb-4`}>
+                          <span className={`text-2xl font-black ${cfg.color}`}>{cfg.title}</span>
+                        </div>
+
+                        {/* Details */}
+                        <div className="space-y-2 text-left mb-4">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-slate-400">Membresia:</span>
+                            <span className="font-semibold text-white">{resultado.membresia}</span>
+                          </div>
+                          {resultado.vencimiento && (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-slate-400">Vencimiento:</span>
+                              <span className="font-semibold text-white">
+                                {new Date(resultado.vencimiento).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Warning for expiring soon */}
+                        {resultado.estado === "proximo_vencer" && (
+                          <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 mb-4">
+                            <p className="text-yellow-400 text-sm font-semibold">
+                              Tu membresia vence en {resultado.diasRestantes} dia(s)
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Message */}
+                        {cfg.message && (
+                          <p className="text-slate-400 text-sm mb-4">{cfg.message}</p>
+                        )}
+
+                        {/* Countdown */}
+                        <div className="flex items-center justify-center gap-2 text-cyan-400 text-sm font-medium">
+                          <Clock className="h-4 w-4" />
+                          <span>Siguiente escaneo en: {countdown}s</span>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+
+              {/* Error State */}
+              {estado === "error" && (
+                <div className="absolute inset-0 flex items-center justify-center z-20" style={{ background: "rgba(10,14,26,0.95)" }}>
+                  <div className="text-center">
+                    <AlertTriangle className="h-20 w-20 text-red-500 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-red-500 mb-2">Error del Sistema</h2>
+                    <p className="text-slate-400 mb-6">{statusMsg || "No se pudo inicializar el sistema de reconocimiento"}</p>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="px-6 py-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-400 font-medium hover:bg-red-500/30 transition-colors cursor-pointer"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
