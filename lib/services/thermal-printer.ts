@@ -78,6 +78,38 @@ export interface TicketData {
   mensajeFinal?: string
 }
 
+export interface VentaProducto {
+  nombre: string
+  cantidad: number
+  precioUnitario: number
+  subtotal: number
+}
+
+export interface VentaTicketData {
+  // Company info
+  empresaNombre: string
+  empresaDireccion?: string
+  empresaTelefono?: string
+  
+  // Ticket info
+  ticketNumero: string
+  fecha: string
+  hora: string
+  
+  // Customer info
+  clienteNombre: string
+  
+  // Products
+  productos: VentaProducto[]
+  
+  // Payment info
+  total: number
+  metodoPago: string
+  
+  // Footer
+  mensajeFinal?: string
+}
+
 export interface PrinterInfo {
   vendorId: number
   productId: number
@@ -448,6 +480,102 @@ export class ThermalPrinter {
       throw new Error(error.message || 'Error al imprimir el ticket')
     }
   }
+
+  /**
+   * Print venta ticket
+   */
+  async printVentaTicket(data: VentaTicketData): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Impresora no conectada')
+    }
+    
+    try {
+      // Initialize
+      await this.sendCommand(COMMANDS.INIT)
+      
+      // Header
+      await this.sendCommand(COMMANDS.DOUBLE_SIZE, COMMANDS.BOLD_ON)
+      await this.printCentered(data.empresaNombre)
+      await this.sendCommand(COMMANDS.NORMAL, COMMANDS.BOLD_OFF)
+      
+      if (data.empresaDireccion) {
+        await this.printCentered(data.empresaDireccion)
+      }
+      if (data.empresaTelefono) {
+        await this.printCentered(`Tel: ${data.empresaTelefono}`)
+      }
+      
+      await this.printSeparator('=', 32)
+      
+      // Ticket info
+      await this.sendCommand(COMMANDS.BOLD_ON)
+      await this.printCentered('TICKET DE VENTA')
+      await this.sendCommand(COMMANDS.BOLD_OFF)
+      await this.printLine('Ticket', data.ticketNumero)
+      await this.printLine('Fecha', data.fecha)
+      await this.printLine('Hora', data.hora)
+      
+      await this.printSeparator()
+      
+      // Customer info
+      await this.sendCommand(COMMANDS.BOLD_ON)
+      await this.sendText('CLIENTE')
+      await this.sendCommand(COMMANDS.BOLD_OFF, COMMANDS.LINE_FEED)
+      await this.printLine('Nombre', data.clienteNombre)
+      
+      await this.printSeparator()
+      
+      // Products
+      await this.sendCommand(COMMANDS.BOLD_ON)
+      await this.sendText('PRODUCTOS')
+      await this.sendCommand(COMMANDS.BOLD_OFF, COMMANDS.LINE_FEED, COMMANDS.LINE_FEED)
+      
+      for (const producto of data.productos) {
+        // Nombre del producto
+        await this.sendCommand(COMMANDS.ALIGN_LEFT)
+        await this.sendText(producto.nombre)
+        await this.sendCommand(COMMANDS.LINE_FEED)
+        
+        // Cantidad x Precio = Subtotal
+        const linea = `${producto.cantidad} x ${this.formatCurrency(producto.precioUnitario)} = ${this.formatCurrency(producto.subtotal)}`
+        await this.sendText(linea)
+        await this.sendCommand(COMMANDS.LINE_FEED, COMMANDS.LINE_FEED)
+      }
+      
+      await this.printSeparator()
+      
+      // Total
+      await this.sendCommand(COMMANDS.DOUBLE_HEIGHT, COMMANDS.BOLD_ON)
+      await this.printLine('TOTAL', this.formatCurrency(data.total))
+      await this.sendCommand(COMMANDS.NORMAL, COMMANDS.BOLD_OFF)
+      
+      await this.printLine('Metodo Pago', data.metodoPago)
+      
+      await this.printSeparator('=', 32)
+      
+      // Footer message
+      if (data.mensajeFinal) {
+        await this.sendCommand(COMMANDS.LINE_FEED)
+        await this.printCentered(data.mensajeFinal)
+      }
+      
+      await this.printCentered('¡Gracias por su compra!')
+      await this.printCentered('www.hexodus.com')
+      
+      // Feed and cut
+      await this.sendCommand(
+        COMMANDS.LINE_FEED,
+        COMMANDS.LINE_FEED,
+        COMMANDS.LINE_FEED,
+        COMMANDS.CUT_PARTIAL
+      )
+      
+      console.log('✅ Ticket de venta impreso correctamente')
+    } catch (error: any) {
+      console.error('❌ Error imprimiendo ticket de venta:', error)
+      throw new Error(error.message || 'Error al imprimir el ticket de venta')
+    }
+  }
   
   /**
    * Test print
@@ -581,3 +709,46 @@ export function formatTicketData(
     mensajeFinal: '¡Bienvenido al equipo Hexodus!'
   }
 }
+
+/**
+ * Format venta ticket data from DetalleVenta
+ */
+export function formatVentaTicketData(
+  detalleVenta: any,
+  ticketNumero?: string
+): VentaTicketData {
+  const now = new Date()
+  
+  return {
+    empresaNombre: 'HEXODUS GYM',
+    empresaDireccion: 'Av. Principal #123, Ciudad',
+    empresaTelefono: '+52 555 123 4567',
+    
+    ticketNumero: ticketNumero || detalleVenta.idVentaStr || `${now.getTime()}`,
+    fecha: now.toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }),
+    hora: now.toLocaleTimeString('es-MX', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }),
+    
+    clienteNombre: detalleVenta.cliente || 'Cliente General',
+    
+    productos: detalleVenta.productos.map((p: any) => ({
+      nombre: p.nombre,
+      cantidad: p.cantidad,
+      precioUnitario: p.precioUnitario,
+      subtotal: p.subtotal
+    })),
+    
+    total: detalleVenta.total,
+    metodoPago: detalleVenta.metodoPago,
+    
+    mensajeFinal: '¡Vuelve pronto!'
+  }
+}
+
