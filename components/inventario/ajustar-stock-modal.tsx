@@ -2,12 +2,12 @@
 
 import { useState } from "react"
 import { X, PackagePlus } from "lucide-react"
-import type { Producto } from "@/lib/inventario-data"
+import type { ProductoExtendido } from "@/lib/types/productos"
 
 interface AjustarStockModalProps {
   open: boolean
   onClose: () => void
-  producto: Producto | null
+  producto: ProductoExtendido | null
   onAjustar: (productoId: number, cantidad: number) => void
 }
 
