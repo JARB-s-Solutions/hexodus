@@ -392,7 +392,7 @@ export class ThermalPrinter {
       await this.sendText('CLIENTE')
       await this.sendCommand(COMMANDS.BOLD_OFF, COMMANDS.LINE_FEED)
       await this.printLine('Nombre', data.socioNombre)
-      await this.printLine('Codigo', data.socioCodigo)
+      await this.printLine('Clave', data.socioCodigo)
       
       await this.printSeparator()
       
@@ -516,6 +516,28 @@ export async function getConnectedPrinters(): Promise<USBDevice[]> {
 }
 
 /**
+ * Format ISO date string to DD/MM/YYYY
+ */
+function formatFechaISO(fechaISO: string | undefined): string {
+  if (!fechaISO) return 'N/A'
+  
+  try {
+    // Extraer solo la parte de la fecha (YYYY-MM-DD) ignorando hora y zona horaria
+    const fechaSolo = fechaISO.split('T')[0]
+    const [year, month, day] = fechaSolo.split('-').map(Number)
+    
+    // Formatear como DD/MM/YYYY
+    const dayStr = day.toString().padStart(2, '0')
+    const monthStr = month.toString().padStart(2, '0')
+    
+    return `${dayStr}/${monthStr}/${year}`
+  } catch (error) {
+    console.error('Error formateando fecha:', fechaISO, error)
+    return 'N/A'
+  }
+}
+
+/**
  * Format ticket data from socio and membership info
  */
 export function formatTicketData(
@@ -544,12 +566,12 @@ export function formatTicketData(
     }),
     
     socioNombre: socioData.nombre || socioData.personal?.nombre_completo || 'N/A',
-    socioCodigo: socioData.codigoSocio || 'N/A',
+    socioCodigo: socioData.codigoSocio || socioData.codigo || 'N/A',
     
     membresiaNombre: membresiaData.nombre_plan || membresiaData.nombre || 'N/A',
     duracionDias: membresiaData.duracion_dias || membresiaData.duracionDias || 0,
-    fechaInicio: membresiaData.fecha_inicio || new Date().toLocaleDateString('es-MX'),
-    fechaVencimiento: membresiaData.fecha_vencimiento || 'N/A',
+    fechaInicio: formatFechaISO(membresiaData.fecha_inicio),
+    fechaVencimiento: formatFechaISO(membresiaData.fecha_vencimiento),
     
     precioBase: membresiaData.desglose_cobro?.precio_regular || membresiaData.precioBase || 0,
     descuento: membresiaData.desglose_cobro?.ahorro || 0,

@@ -434,7 +434,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       // Guardar datos para impresión
       setDatosSocioCreado({
         nombre: nombre,
-        codigoSocio: response.data?.codigo || "N/A",
+        codigoSocio: response.codigo_socio || "N/A",
         ...datosFinales
       })
       setMetodoPagoNombre(nombreMetodoPago)
