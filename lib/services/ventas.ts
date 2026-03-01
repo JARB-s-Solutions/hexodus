@@ -11,16 +11,55 @@ import type {
 import { mapVentasDataFromAPI as mapperFunction, mapDetalleVentaFromAPI } from '@/lib/types/ventas'
 
 /**
+ * Parámetros opcionales para filtrar ventas
+ */
+export interface GetVentasParams {
+  periodo?: string
+  fecha_inicio?: string
+  fecha_fin?: string
+  page?: number
+  limit?: number
+}
+
+/**
  * Servicio para gestionar ventas
  */
 export class VentasService {
   /**
    * Obtener todas las ventas con estadísticas
    */
-  static async getAll(): Promise<VentasData> {
-    console.log('📊 GET /api/ventas - Obteniendo ventas')
+  static async getAll(params?: GetVentasParams): Promise<VentasData> {
+    // Construir query parameters
+    const queryParams = new URLSearchParams()
     
-    const response = await apiGet<GetVentasResponse>('/ventas')
+    if (params?.periodo) {
+      queryParams.append('periodo', params.periodo)
+    }
+    
+    if (params?.fecha_inicio) {
+      queryParams.append('fecha_inicio', params.fecha_inicio)
+    }
+    
+    if (params?.fecha_fin) {
+      queryParams.append('fecha_fin', params.fecha_fin)
+    }
+    
+    if (params?.page) {
+      queryParams.append('page', params.page.toString())
+    }
+    
+    if (params?.limit) {
+      queryParams.append('limit', params.limit.toString())
+    }
+    
+    const queryString = queryParams.toString()
+    const endpoint = queryString ? `/ventas?${queryString}` : '/ventas'
+    
+    console.log('📊 GET /api/ventas - Obteniendo ventas')
+    console.log('🔍 Parámetros:', params)
+    console.log('🌐 Endpoint:', endpoint)
+    
+    const response = await apiGet<GetVentasResponse>(endpoint)
     console.log('✅ Response del servidor:', response)
     console.log('📈 Dashboard Stats:', response.dashboard_stats)
     console.log('📋 Summary Bar:', response.summary_bar)
