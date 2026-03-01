@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { VentasHeader } from "@/components/ventas/ventas-header"
 import { KpiCards } from "@/components/ventas/kpi-cards"
-import { VentasFilters } from "@/components/ventas/ventas-filters"
+import { VentasToolbar } from "@/components/ventas/ventas-toolbar"
 import { VentasTable } from "@/components/ventas/ventas-table"
 import { VentasAnalytics } from "@/components/ventas/ventas-analytics"
 import { CorteCaja } from "@/components/ventas/corte-caja"
@@ -12,7 +12,7 @@ import { NuevaVentaModal } from "@/components/ventas/nueva-venta-modal"
 import { DetalleVentaModal } from "@/components/ventas/detalle-venta-modal"
 import { ImprimirTicketVentaModal } from "@/components/ventas/imprimir-ticket-venta-modal"
 import { VentasService } from "@/lib/services/ventas"
-import type { Venta, VentasData, DashboardStats, SummaryBar, DetalleVenta } from "@/lib/types/ventas"
+import type { Venta, VentasData, DashboardStats, SummaryBar, DetalleVenta, Pagination } from "@/lib/types/ventas"
 import { formatCurrency, formatDateTime } from "@/lib/types/ventas"
 import { useToast } from "@/hooks/use-toast"
 
@@ -23,6 +23,12 @@ export default function VentasPage() {
   const [ventas, setVentas] = useState<Venta[]>([])
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
   const [summaryBar, setSummaryBar] = useState<SummaryBar | null>(null)
+  const [pagination, setPagination] = useState<Pagination>({
+    currentPage: 1,
+    limit: 10,
+    totalRecords: 0,
+    totalPages: 0,
+  })
   const [loading, setLoading] = useState(true)
 
   // Filters
@@ -46,14 +52,29 @@ export default function VentasPage() {
     cargarVentas()
   }, [])
 
-  async function cargarVentas() {
+  async function cargarVentas(page?: number, limit?: number) {
     try {
       setLoading(true)
-      const data = await VentasService.getAll()
+      const params: any = {
+        page: page || pagination.currentPage,
+        limit: limit || pagination.limit,
+      }
+      
+      // Si hay datos de filtros, incluirlos
+      if (periodo === "personalizado") {
+        params.periodo = "Personalizado"
+        if (fechaInicio) params.fecha_inicio = fechaInicio
+        if (fechaFin) params.fecha_fin = fechaFin
+      }
+      
+      console.log('📊 Cargando ventas con parámetros:', params)
+      const data = await VentasService.getAll(params)
       setVentas(data.ventas)
       setDashboardStats(data.dashboardStats)
       setSummaryBar(data.summaryBar)
+      setPagination(data.pagination)
       console.log('✅ Ventas cargadas:', data.ventas.length)
+      console.log('📄 Paginación:', data.pagination)
     } catch (error: any) {
       console.error('❌ Error al cargar ventas:', error)
       toast({
@@ -66,7 +87,57 @@ export default function VentasPage() {
     }
   }
 
-  // Filtered data
+  async function cargarVentasConFiltros() {
+    try {
+      setLoading(true)
+      
+      const params: any = {
+        page: 1, // Resetear a página 1 al aplicar filtros
+        limit: pagination.limit,
+      }
+      
+      if (periodo === "personalizado") {
+        params.periodo = "Personalizado"
+        if (fechaInicio) params.fecha_inicio = fechaInicio
+        if (fechaFin) params.fecha_fin = fechaFin
+      }
+      
+      console.log('📅 Cargando ventas con filtros:', params)
+      const data = await VentasService.getAll(params)
+      setVentas(data.ventas)
+      setDashboardStats(data.dashboardStats)
+      setSummaryBar(data.summaryBar)
+      setPagination(data.pagination)
+      console.log('✅ Ventas filtradas cargadas:', data.ventas.length)
+      
+      toast({
+        title: "Filtros aplicados",
+        description: `Se encontraron ${data.pagination.totalRecords} ventas en el rango seleccionado`,
+      })
+    } catch (error: any) {
+      console.error('❌ Error al cargar ventas con filtros:', error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudieron cargar las ventas con los filtros",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handlers de paginación
+  const handlePageChange = useCallback((newPage: number) => {
+    console.log('📄 Cambiando a página:', newPage)
+    cargarVentas(newPage, pagination.limit)
+  }, [pagination.limit, periodo, fechaInicio, fechaFin])
+
+  const handleLimitChange = useCallback((newLimit: number) => {
+    console.log('📊 Cambiando límite a:', newLimit)
+    cargarVentas(1, newLimit) // Resetear a página 1 al cambiar límite
+  }, [periodo, fechaInicio, fechaFin])
+
+  // Filtrado local de búsqueda y método de pago (solo para datos actuales de la página)
   const ventasFiltradas = useMemo(() => {
     let filtered = [...ventas]
 
@@ -158,17 +229,34 @@ export default function VentasPage() {
   )
 
   const handleLimpiarFiltros = useCallback(() => {
+    console.log('🧹 Limpiando filtros...')
     setBusqueda("")
     setPeriodo("todo")
     setMetodoPagoFiltro("todos")
     setFechaInicio("")
     setFechaFin("")
-  }, [])
+    // Recargar ventas sin filtros y resetear paginación
+    cargarVentas(1, pagination.limit)
+  }, [pagination.limit])
 
   const handleExportar = useCallback(() => {
     // TODO: Implementar exportación con nuevos tipos
-    console.log('Exportar ventas:', ventasFiltradas)
-  }, [ventasFiltradas])
+    console.log('Exportar ventas:', ventas)
+  }, [ventas])
+
+  const handleAplicarFiltros = useCallback(() => {
+    if (periodo === "personalizado" && fechaInicio && fechaFin) {
+      console.log('🔍 Aplicando filtros personalizados:', { periodo, fechaInicio, fechaFin })
+      cargarVentasConFiltros()
+    }
+  }, [periodo, fechaInicio, fechaFin])
+
+  const handlePrintInvoice = useCallback((detalleVenta: DetalleVenta) => {
+    console.log('📄 Imprimiendo invoice para venta:', detalleVenta.idVentaStr)
+    setDetalleVentaParaImprimir(detalleVenta)
+    setModalImprimirTicket(true)
+    setDetalleVentaId(null) // Cerrar modal de detalle
+  }, [])
 
   if (loading) {
     return (
@@ -191,13 +279,13 @@ export default function VentasPage() {
       <main className="flex-1 flex flex-col min-h-0">
         <VentasHeader />
 
-        <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6 space-y-5">
+        <div className="flex-1 overflow-y-auto px-4 py-3 md:px-6 space-y-3">
           {/* KPIs */}
           <KpiCards data={kpiData} />
 
           {/* Summary Bar */}
           {summaryBar && (
-            <div className="bg-card rounded-lg p-4 border border-border shadow-sm">
+            <div className="bg-card rounded-lg p-3 border border-border shadow-sm">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-4 flex-wrap">
                   <span className="text-sm text-muted-foreground">
@@ -215,70 +303,76 @@ export default function VentasPage() {
           )}
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 bg-card rounded-lg p-1 w-fit" style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
-            {(
-              [
-                { key: "historial", label: "Historial" },
-                { key: "analytics", label: "Analisis" },
-                { key: "caja", label: "Corte de Caja" },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-2 text-xs font-medium rounded-md transition-all duration-200 ${
-                  activeTab === tab.key
-                    ? "bg-primary text-primary-foreground glow-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-1 bg-card rounded-lg p-1" style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
+              {(
+                [
+                  { key: "historial", label: "Historial" },
+                  { key: "analytics", label: "Análisis" },
+                  { key: "caja", label: "Corte de Caja" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                    activeTab === tab.key
+                      ? "bg-primary text-primary-foreground glow-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Content layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
-            {/* Left column: filters */}
-            <div className="lg:col-span-1">
-              <VentasFilters
-                busqueda={busqueda}
-                onBusquedaChange={setBusqueda}
-                periodo={periodo}
-                onPeriodoChange={setPeriodo}
-                metodoPago={metodoPagoFiltro}
-                onMetodoPagoChange={setMetodoPagoFiltro}
-                fechaInicio={fechaInicio}
-                onFechaInicioChange={setFechaInicio}
-                fechaFin={fechaFin}
-                onFechaFinChange={setFechaFin}
-                onLimpiar={handleLimpiarFiltros}
-                onNuevaVenta={() => setModalNuevaVenta(true)}
-              />
-            </div>
+          {/* Content */}
+          <div className="space-y-3">
+            {activeTab === "historial" && (
+              <>
+                {/* Toolbar with Filters */}
+                <VentasToolbar
+                  busqueda={busqueda}
+                  onBusquedaChange={setBusqueda}
+                  periodo={periodo}
+                  onPeriodoChange={setPeriodo}
+                  metodoPago={metodoPagoFiltro}
+                  onMetodoPagoChange={setMetodoPagoFiltro}
+                  fechaInicio={fechaInicio}
+                  onFechaInicioChange={setFechaInicio}
+                  fechaFin={fechaFin}
+                  onFechaFinChange={setFechaFin}
+                  onLimpiar={handleLimpiarFiltros}
+                  onNuevaVenta={() => setModalNuevaVenta(true)}
+                  onAplicarFiltros={handleAplicarFiltros}
+                  onExportar={handleExportar}
+                  totalVentas={pagination.totalRecords}
+                />
 
-            {/* Right column: main content */}
-            <div className="lg:col-span-3">
-              {activeTab === "historial" && (
+                {/* Table */}
                 <VentasTable
                   ventas={ventasFiltradas}
+                  pagination={pagination}
+                  onPageChange={handlePageChange}
+                  onLimitChange={handleLimitChange}
                   onVerDetalle={(venta) => setDetalleVentaId(venta.id)}
                   onExportar={handleExportar}
                 />
-              )}
+              </>
+            )}
 
-              {activeTab === "analytics" && (
-                <div className="bg-card rounded-lg p-6 border border-border">
-                  <p className="text-muted-foreground text-center">Analytics - Próximamente</p>
-                </div>
-              )}
+            {activeTab === "analytics" && (
+              <div className="bg-card rounded-lg p-6 border border-border">
+                <p className="text-muted-foreground text-center">Análisis - Próximamente</p>
+              </div>
+            )}
 
-              {activeTab === "caja" && (
-                <div className="bg-card rounded-lg p-6 border border-border">
-                  <p className="text-muted-foreground text-center">Corte de Caja - Próximamente</p>
-                </div>
-              )}
-            </div>
+            {activeTab === "caja" && (
+              <div className="bg-card rounded-lg p-6 border border-border">
+                <p className="text-muted-foreground text-center">Corte de Caja - Próximamente</p>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -294,6 +388,7 @@ export default function VentasPage() {
         ventaId={detalleVentaId}
         open={!!detalleVentaId}
         onClose={() => setDetalleVentaId(null)}
+        onPrintInvoice={handlePrintInvoice}
       />
 
       <ImprimirTicketVentaModal

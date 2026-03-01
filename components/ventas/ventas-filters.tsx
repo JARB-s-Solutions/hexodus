@@ -1,6 +1,6 @@
 "use client"
 
-import { Search, Filter, XCircle, PlusCircle, Plus } from "lucide-react"
+import { Search, Filter, XCircle, PlusCircle, Plus, CalendarCheck } from "lucide-react"
 import type { MetodoPago } from "@/lib/ventas-data"
 
 interface VentasFiltersProps {
@@ -16,6 +16,7 @@ interface VentasFiltersProps {
   onFechaFinChange: (value: string) => void
   onLimpiar: () => void
   onNuevaVenta: () => void
+  onAplicarFiltros?: () => void
 }
 
 export function VentasFilters({
@@ -31,6 +32,7 @@ export function VentasFilters({
   onFechaFinChange,
   onLimpiar,
   onNuevaVenta,
+  onAplicarFiltros,
 }: VentasFiltersProps) {
   return (
     <div className="space-y-5">
@@ -128,6 +130,17 @@ export function VentasFilters({
                 className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm focus:border-accent focus:ring-0 focus:outline-none transition-colors"
               />
             </div>
+            
+            {/* Apply Custom Filters Button */}
+            {fechaInicio && fechaFin && (
+              <button
+                onClick={onAplicarFiltros}
+                className="w-full py-2.5 bg-accent hover:bg-accent/90 text-accent-foreground rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <CalendarCheck className="h-4 w-4" />
+                Aplicar Filtros de Fecha
+              </button>
+            )}
           </div>
         )}
 

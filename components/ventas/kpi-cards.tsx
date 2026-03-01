@@ -58,11 +58,11 @@ export function KpiCards({ data }: { data: KpiData }) {
   ]
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       {kpis.map((kpi) => (
         <div
           key={kpi.label}
-          className="bg-card rounded-xl p-5 relative overflow-hidden group transition-all duration-300 hover:shadow-lg"
+          className="bg-card rounded-xl p-4 relative overflow-hidden group transition-all duration-300 hover:shadow-lg"
           style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
         >
           {/* Top accent bar on hover */}
