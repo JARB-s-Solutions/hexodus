@@ -6,15 +6,16 @@ import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   ChevronsUpDown,
 } from "lucide-react"
-import type { Producto } from "@/lib/inventario-data"
-import { categoriaInfo, estadoStockInfo, formatPrecio, formatFechaCorta } from "@/lib/inventario-data"
+import type { ProductoExtendido } from "@/lib/types/productos"
+import { categoriaInfo, estadoStockInfo, formatPrecio } from "@/lib/types/productos"
+import { formatFechaCorta } from "@/lib/inventario-data"
 
 interface InventarioTableProps {
-  productos: Producto[]
-  onVerDetalle: (p: Producto) => void
-  onEditar: (p: Producto) => void
-  onAjustarStock: (p: Producto) => void
-  onEliminar: (p: Producto) => void
+  productos: ProductoExtendido[]
+  onVerDetalle: (p: ProductoExtendido) => void
+  onEditar: (p: ProductoExtendido) => void
+  onAjustarStock: (p: ProductoExtendido) => void
+  onEliminar: (p: ProductoExtendido) => void
 }
 
 export function InventarioTable({
@@ -125,9 +126,6 @@ export function InventarioTable({
                 Estado
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Ubicacion
-              </th>
-              <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Acciones
               </th>
             </tr>
@@ -135,7 +133,7 @@ export function InventarioTable({
           <tbody className="divide-y divide-border">
             {productosPagina.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
                   No se encontraron productos con los filtros seleccionados.
                 </td>
               </tr>
@@ -185,12 +183,6 @@ export function InventarioTable({
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${est.bg} ${est.color}`}>
                         {est.nombre}
                       </span>
-                    </td>
-
-                    {/* Location */}
-                    <td className="px-4 py-3 text-center">
-                      <p className="text-sm text-muted-foreground">{p.ubicacion}</p>
-                      <p className="text-xs text-muted-foreground">{formatFechaCorta(p.fechaActualizacion)}</p>
                     </td>
 
                     {/* Actions */}
