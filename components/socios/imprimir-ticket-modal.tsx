@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, Printer, AlertTriangle, CheckCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -28,8 +28,108 @@ export function ImprimirTicketModal({
   const [conectado, setConectado] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exito, setExito] = useState(false)
+  const [autoConectando, setAutoConectando] = useState(false)
 
   const printer = getPrinterInstance()
+
+  // ===== Resetear estados cuando se cierra el modal =====
+  useEffect(() => {
+    if (!open) {
+      // Resetear todos los estados cuando se cierra
+      setConectando(false)
+      setImprimiendo(false)
+      setConectado(false)
+      setError(null)
+      setExito(false)
+      setAutoConectando(false)
+    }
+  }, [open])
+
+  // ===== Auto-conectar y auto-imprimir al abrir modal =====
+  useEffect(() => {
+    if (open && !conectado && !exito && !autoConectando) {
+      // Pequeño delay para asegurar que el modal esté completamente renderizado
+      // y cualquier operación pendiente haya terminado
+      const timer = setTimeout(() => {
+        intentarAutoImpresion()
+      }, 300)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [open])
+
+  const intentarAutoImpresion = async () => {
+    setAutoConectando(true)
+    setError(null)
+    
+    try {
+      console.log('🔄 Intentando conexión automática...')
+      
+      // Verificar si ya está conectado
+      if (printer.isConnected()) {
+        console.log('✅ Impresora ya estaba conectada, imprimiendo directamente...')
+        setConectado(true)
+        await imprimirAutomatico()
+        return
+      }
+      
+      // Intentar conectar a dispositivo guardado
+      const conectadoAuto = await printer.connectToSavedDevice()
+      
+      if (conectadoAuto) {
+        setConectado(true)
+        console.log('✅ Conexión automática exitosa, imprimiendo...')
+        
+        // Auto-imprimir inmediatamente
+        await imprimirAutomatico()
+      } else {
+        console.log('📭 No hay impresora guardada, se requiere conexión manual')
+      }
+    } catch (err: any) {
+      console.error('Error en auto-conexión:', err)
+      // No mostrar error aquí, el usuario puede conectar manualmente
+    } finally {
+      setAutoConectando(false)
+    }
+  }
+
+  const imprimirAutomatico = async () => {
+    setImprimiendo(true)
+    
+    try {
+      const ticketData = formatTicketData(
+        socioData,
+        {
+          nombre_plan: cotizacion.nombre_plan,
+          duracion_dias: cotizacion.duracion_dias,
+          fecha_inicio: cotizacion.fecha_inicio,
+          fecha_vencimiento: cotizacion.fecha_vencimiento,
+          desglose_cobro: cotizacion.desglose_cobro,
+          precioBase: cotizacion.desglose_cobro.precio_regular,
+          total: cotizacion.desglose_cobro.total_a_pagar,
+        },
+        metodoPago,
+        `${Date.now()}`
+      )
+
+      await printer.printTicket(ticketData)
+      
+      setExito(true)
+      setError(null)
+      
+      // Cerrar automáticamente después de 2 segundos
+      setTimeout(() => {
+        handleCerrar()
+      }, 2000)
+      
+    } catch (err: any) {
+      console.error("Error en impresión automática:", err)
+      setError(err.message || "Error al imprimir el ticket")
+      setConectado(false) // Permitir reconectar manualmente
+    } finally {
+      setImprimiendo(false)
+    }
+  }
 
   // ===== Conectar impresora =====
   const handleConectar = async () => {
@@ -102,11 +202,11 @@ export function ImprimirTicketModal({
 
   // ===== Cerrar modal =====
   const handleCerrar = () => {
-    // Desconectar impresora si está conectada
-    if (conectado) {
-      printer.disconnect()
-    }
-    
+    // IMPORTANTE: NO desconectamos la impresora aquí
+    // La conexión USB se mantiene activa entre impresiones para permitir auto-impresión
+    // Esto permite que la próxima vez que se abra el modal, la impresora ya esté
+    // conectada y lista para imprimir automáticamente sin intervención del usuario
+    // La impresora solo se desconecta si hay un error o si el usuario cierra el navegador
     onClose()
   }
 
@@ -172,12 +272,32 @@ export function ImprimirTicketModal({
             </div>
           </div>
 
+          {/* Estado de auto-conectando */}
+          {autoConectando && (
+            <Alert>
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+              <AlertDescription className="text-blue-600">
+                Conectando automáticamente a impresora guardada...
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Estado de la conexión */}
-          {conectado && !exito && (
+          {conectado && !exito && !imprimiendo && (
             <Alert>
               <CheckCircle className="h-4 w-4 text-green-600" />
               <AlertDescription className="text-green-600">
                 Impresora conectada y lista para imprimir
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Estado de imprimiendo */}
+          {imprimiendo && (
+            <Alert>
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+              <AlertDescription className="text-blue-600">
+                Imprimiendo ticket automáticamente...
               </AlertDescription>
             </Alert>
           )}
@@ -201,7 +321,7 @@ export function ImprimirTicketModal({
           )}
 
           {/* Instrucciones */}
-          {!conectado && !error && (
+          {!conectado && !error && !autoConectando && !imprimiendo && !exito && (
             <p className="text-sm text-muted-foreground">
               Conecte su impresora térmica USB y haga clic en "Conectar Impresora"
               para comenzar.
@@ -211,15 +331,29 @@ export function ImprimirTicketModal({
 
         {/* Footer */}
         <div className="flex gap-3 pt-4 border-t">
-          {!conectado && (
+          {/* Botones cuando está auto-conectando o imprimiendo automáticamente */}
+          {(autoConectando || (imprimiendo && !conectado)) && (
+            <Button
+              variant="outline"
+              onClick={handleCerrar}
+              disabled={true}
+              className="w-full"
+            >
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Procesando...
+            </Button>
+          )}
+
+          {/* Botones de conexión manual */}
+          {!conectado && !autoConectando && !imprimiendo && !exito && (
             <>
               <Button
                 variant="outline"
                 onClick={handleCerrar}
-                disabled={conectando || imprimiendo}
+                disabled={conectando}
                 className="flex-1"
               >
-                Omitir e Continuar
+                Omitir y Continuar
               </Button>
               <Button
                 onClick={handleConectar}
