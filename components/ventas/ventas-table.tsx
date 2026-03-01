@@ -11,8 +11,8 @@ import {
   ChevronsRight,
   FileDown,
 } from "lucide-react"
-import type { Venta } from "@/lib/ventas-data"
-import { formatCurrency, getMetodoPagoLabel } from "@/lib/ventas-data"
+import type { Venta } from "@/lib/types/ventas"
+import { formatCurrency, formatDateTime } from "@/lib/types/ventas"
 
 interface VentasTableProps {
   ventas: Venta[]
@@ -21,24 +21,23 @@ interface VentasTableProps {
 }
 
 const metodoPagoStyles: Record<string, string> = {
-  efectivo: "bg-success/20 text-success",
-  tarjeta: "bg-accent/20 text-accent",
-  transferencia: "bg-chart-5/20 text-chart-5",
-  digital: "bg-warning/20 text-warning",
+  "Efectivo": "bg-success/20 text-success",
+  "Tarjeta": "bg-accent/20 text-accent",
+  "Transferencia SPEI": "bg-chart-5/20 text-chart-5",
+  "Digital": "bg-warning/20 text-warning",
 }
 
 export function VentasTable({ ventas, onVerDetalle, onExportar }: VentasTableProps) {
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(10)
-  const [sortField, setSortField] = useState<"id" | "fecha" | "total">("fecha")
+  const [sortField, setSortField] = useState<"idVenta" | "fechaHora" | "total">("fechaHora")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
 
   const sorted = [...ventas].sort((a, b) => {
     let cmp = 0
-    if (sortField === "id") cmp = a.id.localeCompare(b.id)
-    else if (sortField === "fecha") {
-      cmp = a.fecha.localeCompare(b.fecha)
-      if (cmp === 0) cmp = a.hora.localeCompare(b.hora)
+    if (sortField === "idVenta") cmp = a.idVenta.localeCompare(b.idVenta)
+    else if (sortField === "fechaHora") {
+      cmp = a.fechaHora.localeCompare(b.fechaHora)
     } else if (sortField === "total") cmp = a.total - b.total
     return sortDir === "desc" ? -cmp : cmp
   })
@@ -47,7 +46,7 @@ export function VentasTable({ ventas, onVerDetalle, onExportar }: VentasTablePro
   const inicio = (pagina - 1) * porPagina
   const paginados = sorted.slice(inicio, inicio + porPagina)
 
-  function toggleSort(field: "id" | "fecha" | "total") {
+  function toggleSort(field: "idVenta" | "fechaHora" | "total") {
     if (sortField === field) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"))
     } else {
@@ -128,7 +127,7 @@ export function VentasTable({ ventas, onVerDetalle, onExportar }: VentasTablePro
             <tr>
               <th
                 className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
-                onClick={() => toggleSort("id")}
+                onClick={() => toggleSort("idVenta")}
               >
                 <div className="flex items-center gap-1">
                   <span>ID Venta</span>
@@ -152,7 +151,7 @@ export function VentasTable({ ventas, onVerDetalle, onExportar }: VentasTablePro
               </th>
               <th
                 className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
-                onClick={() => toggleSort("fecha")}
+                onClick={() => toggleSort("fechaHora")}
               >
                 <div className="flex items-center gap-1">
                   <span>Fecha / Hora</span>
@@ -175,33 +174,33 @@ export function VentasTable({ ventas, onVerDetalle, onExportar }: VentasTablePro
                 </td>
               </tr>
             ) : (
-              paginados.map((venta, idx) => (
-                <tr
-                  key={venta.id}
-                  className="hover:bg-muted/30 transition-colors animate-fade-in-up"
-                  style={{ animationDelay: `${idx * 30}ms` }}
-                >
-                  <td className="px-4 py-3 text-sm font-mono text-accent">{venta.id}</td>
-                  <td className="px-4 py-3 text-sm text-foreground">{venta.cliente}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {venta.productos.length === 1
-                      ? venta.productos[0].nombre
-                      : `${venta.productos[0].nombre} +${venta.productos.length - 1} mas`}
-                  </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-primary">
-                    {formatCurrency(venta.total)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    <div>{venta.fecha}</div>
-                    <div className="text-xs">{venta.hora}</div>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`inline-block px-2.5 py-1 text-xs font-medium rounded-full ${
-                        metodoPagoStyles[venta.metodoPago] || "bg-muted text-muted-foreground"
+              paginados.map((venta, idx) => {
+                const { fecha, hora } = formatDateTime(venta.fechaHora)
+                return (
+                  <tr
+                    key={venta.id}
+                    className="hover:bg-muted/30 transition-colors animate-fade-in-up"
+                    style={{ animationDelay: `${idx * 30}ms` }}
+                  >
+                    <td className="px-4 py-3 text-sm font-mono text-accent">{venta.idVenta}</td>
+                    <td className="px-4 py-3 text-sm text-foreground">{venta.cliente}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      {venta.productosResumen}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-primary">
+                      {formatCurrency(venta.total)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      <div>{fecha}</div>
+                      <div className="text-xs">{hora}</div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className={`inline-block px-2.5 py-1 text-xs font-medium rounded-full ${
+                          metodoPagoStyles[venta.metodoPago] || "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {getMetodoPagoLabel(venta.metodoPago)}
+                      {venta.metodoPago}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -214,7 +213,8 @@ export function VentasTable({ ventas, onVerDetalle, onExportar }: VentasTablePro
                     </button>
                   </td>
                 </tr>
-              ))
+              )
+            })
             )}
           </tbody>
         </table>
