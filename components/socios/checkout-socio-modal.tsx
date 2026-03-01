@@ -9,7 +9,7 @@ interface CheckoutSocioModalProps {
   open: boolean
   onClose: () => void
   cotizacion: CotizacionResponse['data'] | null
-  onConfirmarPago: (metodoPagoId: number) => void
+  onConfirmarPago: (metodoPagoId: number, nombreMetodoPago: string) => void
   onInscribirSinPago: () => void
   loading?: boolean
 }
@@ -278,7 +278,8 @@ export function CheckoutSocioModal({
           <button
             onClick={() => {
               if (metodoPagoSeleccionado) {
-                onConfirmarPago(metodoPagoSeleccionado)
+                const metodoPago = metodosPago.find(m => m.metodo_pago_id === metodoPagoSeleccionado)
+                onConfirmarPago(metodoPagoSeleccionado, metodoPago?.nombre || "Desconocido")
               }
             }}
             disabled={!metodoPagoSeleccionado || loading}

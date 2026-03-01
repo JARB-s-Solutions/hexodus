@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react"
 import {
   X, UserPlus, Pencil, User, FileSignature, ScanEye, Award,
-  ScanFace, Fingerprint, Save, ArrowRight, CreditCard, Calendar,
+  ScanFace, Fingerprint, Save, ArrowRight, CreditCard, Calendar, Printer,
 } from "lucide-react"
 import { SociosService } from "@/lib/services/socios"
 import { MembresiasService } from "@/lib/services/membresias"
 import { CheckoutSocioModal } from "./checkout-socio-modal"
+import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 import { toast } from "@/hooks/use-toast"
 import type { Socio, CreateSocioRequest, CotizacionResponse } from "@/lib/types/socios"
 import type { Membresia } from "@/lib/types/membresias"
@@ -57,6 +58,9 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   const [loadingSocioData, setLoadingSocioData] = useState(false) // Nuevo: carga de datos completos
   const [cotizacion, setCotizacion] = useState<CotizacionResponse | null>(null)
   const [showCheckout, setShowCheckout] = useState(false)
+  const [showImprimirTicket, setShowImprimirTicket] = useState(false) // Modal de impresión
+  const [datosSocioCreado, setDatosSocioCreado] = useState<any>(null) // Datos del socio recién creado
+  const [metodoPagoNombre, setMetodoPagoNombre] = useState<string>("") // Nombre del método de pago
   const [datosTemporales, setDatosTemporales] = useState<CreateSocioRequest | null>(null)
 
   // ===== Función para formatear fechas sin problemas de zona horaria =====
@@ -406,7 +410,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   }
 
   // ===== STEP 4: Confirmar pago y registrar socio =====
-  const handleConfirmarPago = async (metodoPagoId: number) => {
+  const handleConfirmarPago = async (metodoPagoId: number, nombreMetodoPago: string) => {
     if (!datosTemporales || !cotizacion) return
     
     setLoading(true)
@@ -420,19 +424,25 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
         },
       }
       
-      await SociosService.create(datosFinales)
+      const response = await SociosService.create(datosFinales)
       
       toast({
         title: "¡Socio registrado!",
         description: `${nombre} ha sido inscrito exitosamente y el pago fue registrado.`,
       })
       
-      // STEP 5: Limpiar y cerrar
+      // Guardar datos para impresión
+      setDatosSocioCreado({
+        nombre: nombre,
+        codigoSocio: response.data?.codigo || "N/A",
+        ...datosFinales
+      })
+      setMetodoPagoNombre(nombreMetodoPago)
+      
+      // Cerrar checkout y mostrar modal de impresión
       setShowCheckout(false)
-      setCotizacion(null)
-      setDatosTemporales(null)
-      onClose()
-      onSuccess() // Refrescar lista de socios
+      setShowImprimirTicket(true)
+      
     } catch (error: any) {
       console.error("Error al registrar socio:", error)
       toast({
@@ -443,6 +453,17 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
     } finally {
       setLoading(false)
     }
+  }
+  
+  // ===== Cerrar modal de impresión y limpiar todo =====
+  const handleCerrarImpresion = () => {
+    setShowImprimirTicket(false)
+    setCotizacion(null)
+    setDatosTemporales(null)
+    setDatosSocioCreado(null)
+    setMetodoPagoNombre("")
+    onClose()
+    onSuccess() // Refrescar lista de socios
   }
 
   // ===== STEP 4 (alternativo): Inscribir sin pago =====
@@ -1088,6 +1109,17 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
           onConfirmarPago={handleConfirmarPago}
           onInscribirSinPago={handleInscribirSinPago}
           loading={loading}
+        />
+      )}
+
+      {/* Modal de Impresión de Ticket */}
+      {showImprimirTicket && datosSocioCreado && cotizacion && (
+        <ImprimirTicketModal
+          open={showImprimirTicket}
+          onClose={handleCerrarImpresion}
+          socioData={datosSocioCreado}
+          cotizacion={cotizacion}
+          metodoPago={metodoPagoNombre}
         />
       )}
     </>
