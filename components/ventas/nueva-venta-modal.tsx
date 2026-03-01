@@ -1,76 +1,203 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { X, Search, Plus, Minus, Trash2, User, Package, PlusCircle } from "lucide-react"
-import type { ProductoCatalogo, ProductoVenta, MetodoPago } from "@/lib/ventas-data"
-import { productosCatalogo, formatCurrency } from "@/lib/ventas-data"
+import { useState, useMemo, useEffect } from "react"
+import { X, Search, Plus, Minus, Trash2, User, Package, PlusCircle, Users, ShoppingCart } from "lucide-react"
+import { SociosService } from "@/lib/services/socios"
+import { ProductosService } from "@/lib/services/productos"
+import { MetodosPagoService } from "@/lib/services/socios"
+import type { Socio } from "@/lib/types/socios"
+import type { ProductoExtendido } from "@/lib/types/productos"
+import type { MetodoPago } from "@/lib/types/socios"
+import { formatCurrency } from "@/lib/types/ventas"
+
+interface ProductoSeleccionado {
+  producto: ProductoExtendido
+  cantidad: number
+}
 
 interface NuevaVentaModalProps {
   open: boolean
   onClose: () => void
   onConfirm: (data: {
-    cliente: string
-    metodoPago: MetodoPago
-    productos: ProductoVenta[]
+    socio_id: number | null
+    metodo_pago_id: number
+    productos: { producto_id: number; cantidad: number }[]
   }) => void
 }
 
 export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalProps) {
-  const [cliente, setCliente] = useState("")
-  const [metodoPago, setMetodoPago] = useState<MetodoPago | "">("")
-  const [productoBuscar, setProductoBuscar] = useState("")
-  const [productosSeleccionados, setProductosSeleccionados] = useState<ProductoVenta[]>([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  // Estados principales
+  const [socios, setSocios] = useState<Socio[]>([])
+  const [productos, setProductos] = useState<ProductoExtendido[]>([])
+  const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
+  
+  // Estados del formulario
+  const [socioSeleccionado, setSocioSeleccionado] = useState<Socio | null>(null)
+  const [metodoPagoId, setMetodoPagoId] = useState<number | "">("")
+  const [productosSeleccionados, setProductosSeleccionados] = useState<ProductoSeleccionado[]>([])
+  
+  // Estados de búsqueda
+  const [busquedaSocio, setBusquedaSocio] = useState("")
+  const [busquedaProducto, setBusquedaProducto] = useState("")
+  const [showSociosSuggestions, setShowSociosSuggestions] = useState(false)
+  const [showProductosSuggestions, setShowProductosSuggestions] = useState(false)
 
-  const sugerencias = useMemo(() => {
-    if (!productoBuscar.trim()) return []
-    return productosCatalogo.filter(
-      (p) =>
-        p.nombre.toLowerCase().includes(productoBuscar.toLowerCase()) &&
-        !productosSeleccionados.some((s) => s.id === p.id)
+  // Cargar datos al abrir el modal
+  useEffect(() => {
+    if (open) {
+      cargarDatos()
+    }
+  }, [open])
+
+  async function cargarDatos() {
+    try {
+      console.log('🔄 Cargando datos para modal de venta...')
+      
+      const [sociosData, productosData, metodosPagoData] = await Promise.all([
+        SociosService.getAll(),
+        ProductosService.getAll(),
+        MetodosPagoService.getAll()
+      ])
+      
+      console.log('📦 Datos recibidos:', {
+        sociosRaw: sociosData.socios.length,
+        productosRaw: productosData.productos.length,
+        metodosRaw: metodosPagoData.length
+      })
+      
+      const sociosFiltrados = sociosData.socios.filter(s => s.estadoSocio === 'activo')
+      const productosFiltrados = productosData.productos.filter(p => p.status === 'activo' && p.stockActual > 0)
+      const metodosActivos = metodosPagoData.filter(m => m.activo)
+      
+      setSocios(sociosFiltrados)
+      setProductos(productosFiltrados)
+      setMetodosPago(metodosActivos)
+      
+      console.log('✅ Datos filtrados y guardados:', {
+        socios: sociosFiltrados.length,
+        productos: productosFiltrados.length,
+        metodosPago: metodosActivos.length
+      })
+    } catch (error) {
+      console.error('❌ Error al cargar datos:', error)
+    }
+  }
+
+  // Filtrar socios por búsqueda
+  const sociosFiltrados = useMemo(() => {
+    if (!busquedaSocio.trim()) return []
+    const q = busquedaSocio.toLowerCase()
+    const filtrados = socios.filter(
+      s => s.nombre.toLowerCase().includes(q) || 
+           s.codigoSocio.toLowerCase().includes(q)
+    ).slice(0, 5)
+    
+    console.log('🔍 Búsqueda socio:', { 
+      query: q, 
+      resultados: filtrados.length, 
+      total: socios.length,
+      sociosDisponibles: socios.slice(0, 3).map(s => ({ nombre: s.nombre, codigo: s.codigoSocio }))
+    })
+    return filtrados
+  }, [busquedaSocio, socios])
+
+  // Filtrar productos por búsqueda (excluir ya seleccionados)
+  const productosFiltrados = useMemo(() => {
+    if (!busquedaProducto.trim()) return []
+    const q = busquedaProducto.toLowerCase()
+    const idsSeleccionados = productosSeleccionados.map(p => p.producto.id)
+    return productos.filter(
+      p => !idsSeleccionados.includes(p.id) &&
+           (p.nombre.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q))
+    ).slice(0, 5)
+  }, [busquedaProducto, productos, productosSeleccionados])
+
+  // Calcular total
+  const total = useMemo(() => {
+    return productosSeleccionados.reduce(
+      (sum, item) => sum + (item.producto.precioVenta * item.cantidad),
+      0
     )
-  }, [productoBuscar, productosSeleccionados])
+  }, [productosSeleccionados])
 
-  const total = productosSeleccionados.reduce((sum, p) => sum + p.precio * p.cantidad, 0)
+  function seleccionarSocio(socio: Socio) {
+    setSocioSeleccionado(socio)
+    setBusquedaSocio(socio.nombre)
+    setShowSociosSuggestions(false)
+  }
 
-  function agregarProducto(prod: ProductoCatalogo) {
-    setProductosSeleccionados((prev) => [
+  function limpiarSocio() {
+    setSocioSeleccionado(null)
+    setBusquedaSocio("")
+  }
+
+  function agregarProducto(producto: ProductoExtendido) {
+    setProductosSeleccionados(prev => [
       ...prev,
-      { id: prod.id, nombre: prod.nombre, precio: prod.precio, cantidad: 1 },
+      { producto, cantidad: 1 }
     ])
-    setProductoBuscar("")
-    setShowSuggestions(false)
+    setBusquedaProducto("")
+    setShowProductosSuggestions(false)
   }
 
-  function cambiarCantidad(id: string, delta: number) {
-    setProductosSeleccionados((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, cantidad: Math.max(1, p.cantidad + delta) } : p))
+  function cambiarCantidad(productoId: number, nuevaCantidad: number) {
+    setProductosSeleccionados(prev =>
+      prev.map(item => {
+        if (item.producto.id === productoId) {
+          const max = item.producto.stockActual
+          return { ...item, cantidad: Math.min(Math.max(1, nuevaCantidad), max) }
+        }
+        return item
+      })
     )
   }
 
-  function eliminarProducto(id: string) {
-    setProductosSeleccionados((prev) => prev.filter((p) => p.id !== id))
+  function eliminarProducto(productoId: number) {
+    setProductosSeleccionados(prev => prev.filter(item => item.producto.id !== productoId))
+  }
+
+  // Manejar cierre de sugerencias con delay para permitir click
+  function handleSocioBlur() {
+    setTimeout(() => setShowSociosSuggestions(false), 200)
+  }
+
+  function handleProductoBlur() {
+    setTimeout(() => setShowProductosSuggestions(false), 200)
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!metodoPago || productosSeleccionados.length === 0) return
+    
+    if (!metodoPagoId || productosSeleccionados.length === 0) {
+      alert('Debes seleccionar un método de pago y al menos un producto')
+      return
+    }
+
     onConfirm({
-      cliente: cliente || "Cliente General",
-      metodoPago: metodoPago as MetodoPago,
-      productos: productosSeleccionados,
+      socio_id: socioSeleccionado?.id || null,
+      metodo_pago_id: metodoPagoId as number,
+      productos: productosSeleccionados.map(item => ({
+        producto_id: item.producto.id,
+        cantidad: item.cantidad
+      }))
     })
+
     // Reset
-    setCliente("")
-    setMetodoPago("")
+    resetForm()
+  }
+
+  function resetForm() {
+    setSocioSeleccionado(null)
+    setMetodoPagoId("")
     setProductosSeleccionados([])
-    setProductoBuscar("")
+    setBusquedaSocio("")
+    setBusquedaProducto("")
   }
 
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4 pb-8 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 px-4 pb-4 overflow-y-auto">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-background/85 backdrop-blur-sm"
@@ -79,14 +206,13 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
 
       {/* Modal */}
       <div
-        className="relative bg-card rounded-xl w-full max-w-3xl overflow-hidden animate-slide-up"
-        style={{ boxShadow: "0 25px 50px rgba(0,0,0,0.5)" }}
+        className="relative bg-card rounded-xl w-full max-w-4xl overflow-hidden animate-slide-up shadow-2xl my-4"
       >
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
             <h3 className="text-xl font-bold text-primary flex items-center gap-2">
-              <PlusCircle className="h-5 w-5" />
+              <ShoppingCart className="h-5 w-5" />
               Registrar Nueva Venta
             </h3>
             <button
@@ -97,178 +223,253 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
             </button>
           </div>
 
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Column 1: Client Info */}
-              <div>
-                <h4 className="text-sm font-semibold mb-3 text-muted-foreground flex items-center gap-2">
-                  <User className="h-4 w-4 text-accent" />
-                  Informacion del Cliente
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Sección 1: Cliente y Método de Pago */}
+            <div className="grid grid-cols-2 gap-6">
+              {/* Cliente */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                  <Users className="h-4 w-4 text-accent" />
+                  Cliente (opcional)
                 </h4>
 
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="modal-cliente" className="block text-xs font-medium mb-1.5 text-muted-foreground">
-                      Buscar Cliente
-                    </label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <input
-                        type="text"
-                        id="modal-cliente"
-                        value={cliente}
-                        onChange={(e) => setCliente(e.target.value)}
-                        placeholder="Nombre o ID del cliente..."
-                        className="w-full pl-9 pr-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground focus:border-accent focus:ring-0 focus:outline-none transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label htmlFor="modal-metodo" className="block text-xs font-medium mb-1.5 text-muted-foreground">
-                      Metodo de Pago <span className="text-destructive">*</span>
-                    </label>
-                    <select
-                      id="modal-metodo"
-                      value={metodoPago}
-                      onChange={(e) => setMetodoPago(e.target.value as MetodoPago)}
-                      required
-                      className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-0 focus:outline-none transition-colors cursor-pointer"
-                    >
-                      <option value="">Selecciona metodo...</option>
-                      <option value="efectivo">Efectivo</option>
-                      <option value="tarjeta">Tarjeta de Credito/Debito</option>
-                      <option value="transferencia">Transferencia Bancaria</option>
-                      <option value="digital">Pago Digital</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Column 2: Products */}
-              <div>
-                <h4 className="text-sm font-semibold mb-3 text-muted-foreground flex items-center gap-2">
-                  <Package className="h-4 w-4 text-accent" />
-                  Productos
-                </h4>
-
-                <div className="space-y-3">
-                  {/* Product search */}
+                <div className="relative">
+                  <label htmlFor="busqueda-socio" className="block text-xs font-medium mb-1.5 text-muted-foreground">
+                    Buscar Socio
+                  </label>
                   <div className="relative">
-                    <label htmlFor="modal-producto" className="block text-xs font-medium mb-1.5 text-muted-foreground">
-                      Agregar Producto
-                    </label>
-                    <div className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <input
-                          type="text"
-                          id="modal-producto"
-                          value={productoBuscar}
-                          onChange={(e) => {
-                            setProductoBuscar(e.target.value)
-                            setShowSuggestions(true)
-                          }}
-                          onFocus={() => setShowSuggestions(true)}
-                          placeholder="Buscar producto..."
-                          className="w-full pl-9 pr-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground focus:border-accent focus:ring-0 focus:outline-none transition-colors"
-                        />
-
-                        {/* Suggestions dropdown */}
-                        {showSuggestions && sugerencias.length > 0 && (
-                          <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg overflow-hidden z-20 max-h-40 overflow-y-auto">
-                            {sugerencias.map((prod) => (
-                              <button
-                                key={prod.id}
-                                type="button"
-                                onClick={() => agregarProducto(prod)}
-                                className="w-full px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors flex items-center justify-between"
-                              >
-                                <span className="text-foreground">{prod.nombre}</span>
-                                <span className="text-primary font-medium text-xs">{formatCurrency(prod.precio)}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Selected products list */}
-                  <div className="bg-background rounded-lg p-3 max-h-52 overflow-y-auto">
-                    <h5 className="text-xs font-medium mb-2 text-muted-foreground">Productos Seleccionados</h5>
-
-                    {productosSeleccionados.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-6">
-                        No hay productos seleccionados
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {productosSeleccionados.map((p) => (
-                          <div
-                            key={p.id}
-                            className="flex items-center justify-between bg-card border border-border/50 rounded-lg px-3 py-2 transition-all hover:border-accent/30"
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      id="busqueda-socio"
+                      value={busquedaSocio}
+                      onChange={(e) => {
+                        setBusquedaSocio(e.target.value)
+                        setSocioSeleccionado(null)
+                        setShowSociosSuggestions(true)
+                      }}
+                      onFocus={() => setShowSociosSuggestions(true)}
+                      onBlur={handleSocioBlur}
+                      placeholder="Buscar por nombre o código..."
+                      className="w-full pl-9 pr-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground focus:border-accent focus:ring-0 focus:outline-none transition-colors"
+                    />
+                    
+                    {/* Sugerencias de socios */}
+                    {showSociosSuggestions && sociosFiltrados.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg overflow-hidden z-20 max-h-48 overflow-y-auto shadow-lg">
+                        {sociosFiltrados.map((socio) => (
+                          <button
+                            key={socio.id}
+                            type="button"
+                            onClick={() => seleccionarSocio(socio)}
+                            className="w-full px-3 py-2.5 text-left hover:bg-accent/10 transition-colors border-b border-border last:border-b-0"
                           >
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-foreground truncate">{p.nombre}</p>
-                              <p className="text-xs text-primary font-semibold">{formatCurrency(p.precio)}</p>
+                            <div className="text-sm font-medium text-foreground">{socio.nombre}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {socio.codigoSocio} · {socio.email}
                             </div>
-                            <div className="flex items-center gap-2 ml-3">
-                              <button
-                                type="button"
-                                onClick={() => cambiarCantidad(p.id, -1)}
-                                className="h-6 w-6 rounded border border-accent text-accent flex items-center justify-center hover:bg-accent hover:text-accent-foreground transition-colors text-xs"
-                              >
-                                <Minus className="h-3 w-3" />
-                              </button>
-                              <span className="text-xs font-medium text-foreground w-5 text-center">{p.cantidad}</span>
-                              <button
-                                type="button"
-                                onClick={() => cambiarCantidad(p.id, 1)}
-                                className="h-6 w-6 rounded border border-accent text-accent flex items-center justify-center hover:bg-accent hover:text-accent-foreground transition-colors text-xs"
-                              >
-                                <Plus className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => eliminarProducto(p.id)}
-                                className="h-6 w-6 rounded text-destructive hover:bg-destructive/10 flex items-center justify-center transition-colors ml-1"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </div>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     )}
-
-                    {/* Total */}
-                    <div className="border-t border-border mt-3 pt-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-bold text-foreground">Total:</span>
-                        <span className="text-xl font-bold text-primary">{formatCurrency(total)}</span>
-                      </div>
-                    </div>
                   </div>
+                  
+                  {/* Socio seleccionado */}
+                  {socioSeleccionado && (
+                    <div className="mt-2 flex items-center justify-between bg-accent/10 px-3 py-2 rounded-lg">
+                      <div>
+                        <div className="text-sm font-medium text-foreground">{socioSeleccionado.nombre}</div>
+                        <div className="text-xs text-muted-foreground">{socioSeleccionado.codigoSocio}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={limpiarSocio}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                  
+                  {!socioSeleccionado && (
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Deja vacío para "Público General"
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Método de Pago */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                  <Package className="h-4 w-4 text-accent" />
+                  Método de Pago
+                </h4>
+
+                <div>
+                  <label htmlFor="metodo-pago" className="block text-xs font-medium mb-1.5 text-muted-foreground">
+                    Método de Pago <span className="text-destructive">*</span>
+                  </label>
+                  <select
+                    id="metodo-pago"
+                    value={metodoPagoId}
+                    onChange={(e) => setMetodoPagoId(Number(e.target.value))}
+                    required
+                    className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-0 focus:outline-none transition-colors cursor-pointer"
+                  >
+                    <option value="">Selecciona un método...</option>
+                    {metodosPago.map((metodo) => (
+                      <option key={metodo.metodo_pago_id} value={metodo.metodo_pago_id}>
+                        {metodo.nombre}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 pt-5 mt-5 border-t border-border">
+            {/* Sección 2: Búsqueda de productos */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3 text-muted-foreground flex items-center gap-2">
+                <Package className="h-4 w-4 text-accent" />
+                Agregar Productos
+              </h4>
+
+              <div className="relative">
+                <label htmlFor="busqueda-producto" className="block text-xs font-medium mb-1.5 text-muted-foreground">
+                  Buscar Producto
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    id="busqueda-producto"
+                    value={busquedaProducto}
+                    onChange={(e) => {
+                      setBusquedaProducto(e.target.value)
+                      setShowProductosSuggestions(true)
+                    }}
+                    onFocus={() => setShowProductosSuggestions(true)}
+                    onBlur={handleProductoBlur}
+                    placeholder="Buscar por nombre o código..."
+                    className="w-full pl-9 pr-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground focus:border-accent focus:ring-0 focus:outline-none transition-colors"
+                  />
+                  
+                  {/* Sugerencias de productos */}
+                  {showProductosSuggestions && productosFiltrados.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg overflow-hidden z-20 max-h-60 overflow-y-auto shadow-lg">
+                      {productosFiltrados.map((producto) => (
+                        <button
+                          key={producto.id}
+                          type="button"
+                          onClick={() => agregarProducto(producto)}
+                          className="w-full px-3 py-2.5 text-left hover:bg-accent/10 transition-colors border-b border-border last:border-b-0"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-foreground">{producto.nombre}</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {producto.codigo} · Stock: {producto.stockActual}
+                              </div>
+                            </div>
+                            <div className="text-sm font-semibold text-accent">
+                              {formatCurrency(producto.precioVenta)}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Sección 3: Productos seleccionados */}
+            {productosSeleccionados.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold mb-3 text-muted-foreground flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4 text-accent" />
+                  Productos Seleccionados ({productosSeleccionados.length})
+                </h4>
+
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                  {productosSeleccionados.map((item) => (
+                    <div
+                      key={item.producto.id}
+                      className="flex items-center gap-3 bg-background p-3 rounded-lg border border-border"
+                    >
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-foreground">{item.producto.nombre}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {formatCurrency(item.producto.precioVenta)} c/u · Stock: {item.producto.stockActual}
+                        </div>
+                      </div>
+
+                      {/* Controles de cantidad */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => cambiarCantidad(item.producto.id, item.cantidad - 1)}
+                          className="p-1 hover:bg-accent/10 rounded transition-colors"
+                          disabled={item.cantidad <= 1}
+                        >
+                          <Minus className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                        <span className="text-sm font-medium min-w-[2rem] text-center">
+                          {item.cantidad}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => cambiarCantidad(item.producto.id, item.cantidad + 1)}
+                          className="p-1 hover:bg-accent/10 rounded transition-colors"
+                          disabled={item.cantidad >= item.producto.stockActual}
+                        >
+                          <Plus className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      </div>
+
+                      {/* Subtotal */}
+                      <div className="text-sm font-semibold text-foreground min-w-[5rem] text-right">
+                        {formatCurrency(item.producto.precioVenta * item.cantidad)}
+                      </div>
+
+                      {/* Eliminar */}
+                      <button
+                        type="button"
+                        onClick={() => eliminarProducto(item.producto.id)}
+                        className="p-1 hover:bg-destructive/10 rounded transition-colors text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total */}
+                <div className="mt-4 pt-4 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-base font-semibold text-foreground">Total a Cobrar:</span>
+                    <span className="text-2xl font-bold text-accent">{formatCurrency(total)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Botones */}
+            <div className="flex gap-3 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2 rounded-lg text-sm font-bold uppercase border border-accent text-accent hover:bg-accent/10 transition-colors"
+                className="flex-1 px-4 py-3 bg-background border border-border text-foreground rounded-lg hover:bg-accent/5 transition-colors font-medium"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={!metodoPago || productosSeleccionados.length === 0}
-                className="px-5 py-2 rounded-lg text-sm font-bold uppercase bg-primary text-primary-foreground glow-primary glow-primary-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!metodoPagoId || productosSeleccionados.length === 0}
+                className="flex-1 px-4 py-3 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Procesar Venta
+                Registrar Venta
               </button>
             </div>
           </form>
