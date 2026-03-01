@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { InventarioHeader } from "@/components/inventario/inventario-header"
 import { KpiInventario } from "@/components/inventario/kpi-inventario"
@@ -10,12 +10,19 @@ import { ProductoModal } from "@/components/inventario/producto-modal"
 import { CompraModal } from "@/components/inventario/compra-modal"
 import { AjustarStockModal } from "@/components/inventario/ajustar-stock-modal"
 import { DetalleProductoModal } from "@/components/inventario/detalle-producto-modal"
-import type { Producto, Categoria, EstadoStock, CompraItem } from "@/lib/inventario-data"
-import { generateInventarioData } from "@/lib/inventario-data"
+import { ProductosService } from "@/lib/services/productos"
+import { CategoriasService } from "@/lib/services/categorias"
+import type { ProductoExtendido, CreateProductoRequest } from "@/lib/types/productos"
+import { extenderProducto, reducirProducto, mapProductoToAPI, mapProductoToUpdateAPI, calcularEstadoStock } from "@/lib/types/productos"
+import type { Categoria as CategoriaAPI } from "@/lib/types/categorias"
+import type { Categoria, EstadoStock, CompraItem } from "@/lib/inventario-data"
 
 export default function InventarioPage() {
   // Data
-  const [productos, setProductos] = useState<Producto[]>(() => generateInventarioData())
+  const [productos, setProductos] = useState<ProductoExtendido[]>([])
+  const [categorias, setCategorias] = useState<CategoriaAPI[]>([])
+  const [categoriasMap, setCategoriasMap] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(true)
 
   // Filters
   const [busqueda, setBusqueda] = useState("")
@@ -24,15 +31,62 @@ export default function InventarioPage() {
 
   // Modals
   const [productoModalOpen, setProductoModalOpen] = useState(false)
-  const [editProducto, setEditProducto] = useState<Producto | null>(null)
+  const [editProducto, setEditProducto] = useState<ProductoExtendido | null>(null)
   const [compraModalOpen, setCompraModalOpen] = useState(false)
   const [ajustarModalOpen, setAjustarModalOpen] = useState(false)
-  const [ajustarProducto, setAjustarProducto] = useState<Producto | null>(null)
+  const [ajustarProducto, setAjustarProducto] = useState<ProductoExtendido | null>(null)
   const [detalleModalOpen, setDetalleModalOpen] = useState(false)
-  const [detalleProducto, setDetalleProducto] = useState<Producto | null>(null)
+  const [detalleProducto, setDetalleProducto] = useState<ProductoExtendido | null>(null)
+  const [loadingDetalle, setLoadingDetalle] = useState(false)
 
   // Notifications
   const [notificacion, setNotificacion] = useState<{ msg: string; tipo: string } | null>(null)
+
+  // Cargar productos y categorías desde la API
+  useEffect(() => {
+    cargarDatos()
+  }, [])
+
+  async function cargarDatos() {
+    try {
+      setLoading(true)
+      
+      // Cargar categorías primero
+      const categoriasAPI = await CategoriasService.getAll()
+      console.log('✅ Categorías cargadas:', categoriasAPI)
+      setCategorias(categoriasAPI)
+      
+      // Crear mapeo de nombre a ID
+      const mapeo: Record<string, number> = {}
+      categoriasAPI.forEach(cat => {
+        mapeo[cat.nombre] = cat.id
+      })
+      setCategoriasMap(mapeo)
+      console.log('✅ Mapeo de categorías creado:', mapeo)
+      
+      // Luego cargar productos
+      await cargarProductos()
+    } catch (error: any) {
+      console.error('❌ Error al cargar datos iniciales:', error)
+      mostrarNotificacion(error.message || 'Error al cargar datos', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function cargarProductos() {
+    try {
+      const { productos: productosAPI } = await ProductosService.getAll()
+      console.log('✅ Productos cargados:', productosAPI)
+      
+      // Extender productos con campos calculados
+      const productosExtendidos = productosAPI.map(extenderProducto)
+      setProductos(productosExtendidos)
+    } catch (error: any) {
+      console.error('❌ Error al cargar productos:', error)
+      mostrarNotificacion(error.message || 'Error al cargar productos', 'error')
+    }
+  }
 
   function mostrarNotificacion(msg: string, tipo = "success") {
     setNotificacion({ msg, tipo })
@@ -50,67 +104,103 @@ export default function InventarioPage() {
         p.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
         p.marca.toLowerCase().includes(busqueda.toLowerCase())
 
-      const matchCategoria = categoriaFiltro === "todas" || p.categoria === categoriaFiltro
+      const matchCategoria = categoriaFiltro === "todas" || p.categoria.toLowerCase() === categoriaFiltro.toLowerCase()
 
       let matchStock = true
-      if (stockFiltro === "disponible") matchStock = p.stockActual > p.stockMinimo
-      else if (stockFiltro === "bajo") matchStock = p.stockActual > 0 && p.stockActual <= p.stockMinimo
-      else if (stockFiltro === "agotado") matchStock = p.stockActual === 0
+      if (stockFiltro === "disponible") matchStock = p.estadoStock === "disponible"
+      else if (stockFiltro === "bajo") matchStock = p.estadoStock === "bajo"
+      else if (stockFiltro === "agotado") matchStock = p.estadoStock === "agotado"
 
       return matchBusqueda && matchCategoria && matchStock
     })
   }, [activos, busqueda, categoriaFiltro, stockFiltro])
 
   // CRUD handlers
-  function handleSaveProducto(data: Partial<Producto>) {
-    if (data.id) {
-      // Edit
-      setProductos((prev) =>
-        prev.map((p) => (p.id === data.id ? { ...p, ...data } as Producto : p))
-      )
-      mostrarNotificacion("Producto actualizado exitosamente")
-    } else {
-      // New
-      const newId = Date.now()
-      setProductos((prev) => [...prev, { ...data, id: newId } as Producto])
-      mostrarNotificacion("Producto agregado exitosamente")
+  async function handleSaveProducto(data: Partial<ProductoExtendido>) {
+    try {
+      if (data.id) {
+        // Editar producto existente
+        const productoAPI = mapProductoToUpdateAPI(data)
+        console.log('📦 Datos a actualizar:', productoAPI)
+        await ProductosService.update(data.id, productoAPI)
+        mostrarNotificacion("Producto actualizado exitosamente")
+      } else {
+        // Crear nuevo producto
+        const productoAPI = mapProductoToAPI(data, categoriasMap)
+        console.log('📦 Datos a enviar al API:', productoAPI)
+        const result = await ProductosService.create(productoAPI as CreateProductoRequest)
+        console.log('✅ Producto creado:', result)
+        mostrarNotificacion(`Producto creado exitosamente. Código: ${result.codigo}`)
+      }
+      
+      // Recargar la lista
+      await cargarProductos()
+      setProductoModalOpen(false)
+      setEditProducto(null)
+    } catch (error: any) {
+      console.error('❌ Error al guardar producto:', error)
+      mostrarNotificacion(error.message || 'Error al guardar producto', 'error')
     }
   }
 
-  function handleAjustarStock(productoId: number, cantidad: number) {
-    setProductos((prev) =>
-      prev.map((p) => {
-        if (p.id !== productoId) return p
-        const nuevoStock = Math.max(0, p.stockActual + cantidad)
-        let estado: EstadoStock = "disponible"
-        if (nuevoStock === 0) estado = "agotado"
-        else if (nuevoStock <= p.stockMinimo) estado = "bajo"
-        return { ...p, stockActual: nuevoStock, estadoStock: estado, fechaActualizacion: new Date().toISOString() }
-      })
-    )
-    mostrarNotificacion("Stock actualizado correctamente")
+  async function handleAjustarStock(productoId: number, cantidad: number) {
+    try {
+      const producto = productos.find(p => p.id === productoId)
+      if (!producto) return
+      
+      const nuevoStock = Math.max(0, producto.stockActual + cantidad)
+      await ProductosService.updateStock(productoId, nuevoStock)
+      
+      mostrarNotificacion("Stock actualizado correctamente")
+      await cargarProductos()
+    } catch (error: any) {
+      console.error('❌ Error al ajustar stock:', error)
+      mostrarNotificacion(error.message || 'Error al ajustar stock', 'error')
+    }
   }
 
-  function handleEliminar(p: Producto) {
-    if (!confirm("Esta seguro de que desea eliminar este producto?")) return
-    setProductos((prev) => prev.map((pr) => (pr.id === p.id ? { ...pr, activo: false } : pr)))
-    mostrarNotificacion("Producto eliminado correctamente")
+  async function handleEliminar(p: ProductoExtendido) {
+    if (!confirm("¿Está seguro de que desea eliminar este producto?")) return
+    
+    try {
+      await ProductosService.updateStatus(p.id, 'inactivo')
+      mostrarNotificacion("Producto eliminado correctamente")
+      await cargarProductos()
+    } catch (error: any) {
+      console.error('❌ Error al eliminar producto:', error)
+      mostrarNotificacion(error.message || 'Error al eliminar producto', 'error')
+    }
+  }
+
+  async function handleEditar(producto: ProductoExtendido) {
+    try {
+      // Obtener el detalle completo del producto (incluye descripción y todos los campos)
+      console.log('📝 Obteniendo detalle completo del producto para edición...')
+      const productoCompleto = await ProductosService.getById(producto.id)
+      console.log('✅ Producto completo:', productoCompleto)
+      setEditProducto(productoCompleto)
+      setProductoModalOpen(true)
+    } catch (error: any) {
+      console.error('❌ Error al obtener detalle del producto:', error)
+      mostrarNotificacion(error.message || 'Error al cargar el producto', 'error')
+    }
   }
 
   function handleCompraRealizada(proveedor: string, tipoPago: string, items: CompraItem[]) {
-    // Update stock for purchased items
+    // Actualizar stock de productos comprados
     setProductos((prev) =>
       prev.map((p) => {
         const item = items.find((it) => it.id === p.id)
         if (!item) return p
+        
         const nuevoStock = p.stockActual + item.cantidad
-        let estado: EstadoStock = "disponible"
-        if (nuevoStock === 0) estado = "agotado"
-        else if (nuevoStock <= p.stockMinimo) estado = "bajo"
+        const alertaStock = nuevoStock <= p.stockMinimo
+        
         return {
           ...p,
           stockActual: nuevoStock,
-          estadoStock: estado,
+          alertaStock,
+          estadoStock: calcularEstadoStock(nuevoStock, alertaStock),
           precioCompra: item.costoUnitario,
           fechaActualizacion: new Date().toISOString(),
         }
@@ -124,6 +214,39 @@ export default function InventarioPage() {
     setBusqueda("")
     setCategoriaFiltro("todas")
     setStockFiltro("todos")
+  }
+
+  async function handleVerDetalle(producto: ProductoExtendido) {
+    setDetalleModalOpen(true)
+    setLoadingDetalle(true)
+    setDetalleProducto(null)
+    
+    try {
+      console.log('🔍 Cargando detalle del producto:', producto.id)
+      const productoDetalle = await ProductosService.getById(producto.id)
+      console.log('✅ Detalle cargado:', productoDetalle)
+      setDetalleProducto(productoDetalle)
+    } catch (error: any) {
+      console.error('❌ Error al cargar detalle:', error)
+      mostrarNotificacion(error.message || 'Error al cargar detalle del producto', 'error')
+      setDetalleModalOpen(false)
+    } finally {
+      setLoadingDetalle(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-background">
+        <Sidebar activePage="inventario" />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Cargando inventario...</p>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -152,8 +275,8 @@ export default function InventarioPage() {
 
           <InventarioTable
             productos={filtrados}
-            onVerDetalle={(p) => { setDetalleProducto(p); setDetalleModalOpen(true) }}
-            onEditar={(p) => { setEditProducto(p); setProductoModalOpen(true) }}
+            onVerDetalle={handleVerDetalle}
+            onEditar={handleEditar}
             onAjustarStock={(p) => { setAjustarProducto(p); setAjustarModalOpen(true) }}
             onEliminar={handleEliminar}
           />
@@ -165,6 +288,7 @@ export default function InventarioPage() {
           onClose={() => { setProductoModalOpen(false); setEditProducto(null) }}
           onSave={handleSaveProducto}
           producto={editProducto}
+          categorias={categorias}
         />
         <CompraModal
           open={compraModalOpen}
@@ -180,8 +304,9 @@ export default function InventarioPage() {
         />
         <DetalleProductoModal
           open={detalleModalOpen}
-          onClose={() => { setDetalleModalOpen(false); setDetalleProducto(null) }}
+          onClose={() => { setDetalleModalOpen(false); setDetalleProducto(null); setLoadingDetalle(false) }}
           producto={detalleProducto}
+          loading={loadingDetalle}
         />
       </main>
 

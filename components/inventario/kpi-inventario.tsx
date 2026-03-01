@@ -1,10 +1,10 @@
 "use client"
 
 import { Package, AlertTriangle, DollarSign, FolderOpen, TrendingUp } from "lucide-react"
-import type { Producto } from "@/lib/inventario-data"
+import type { ProductoExtendido } from "@/lib/types/productos"
 
 interface KpiInventarioProps {
-  productos: Producto[]
+  productos: ProductoExtendido[]
 }
 
 export function KpiInventario({ productos }: KpiInventarioProps) {
