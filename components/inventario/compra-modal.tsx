@@ -2,14 +2,16 @@
 
 import { useState, useRef, useEffect } from "react"
 import { X, ShoppingCart, Plus, Trash2, Search, Package, Info, AlertTriangle } from "lucide-react"
-import type { Producto, CompraItem } from "@/lib/inventario-data"
-import { formatPrecio, categoriaInfo, estadoStockInfo } from "@/lib/inventario-data"
+import type { ProductoExtendido } from "@/lib/types/productos"
+import type { CompraItem } from "@/lib/inventario-data"
+import { formatPrecio } from "@/lib/types/productos"
+import { categoriaInfo, estadoStockInfo } from "@/lib/inventario-data"
 
 interface CompraModalProps {
   open: boolean
   onClose: () => void
   onCompraRealizada: (proveedor: string, tipoPago: string, items: CompraItem[]) => void
-  productosDisponibles: Producto[]
+  productosDisponibles: ProductoExtendido[]
 }
 
 export function CompraModal({ open, onClose, onCompraRealizada, productosDisponibles }: CompraModalProps) {
@@ -21,7 +23,7 @@ export function CompraModal({ open, onClose, onCompraRealizada, productosDisponi
   // Product search
   const [searchTerm, setSearchTerm] = useState("")
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [selectedProducto, setSelectedProducto] = useState<Producto | null>(null)
+  const [selectedProducto, setSelectedProducto] = useState<ProductoExtendido | null>(null)
   const [cantidad, setCantidad] = useState("1")
   const [costoUnitario, setCostoUnitario] = useState("")
   const searchRef = useRef<HTMLInputElement>(null)
