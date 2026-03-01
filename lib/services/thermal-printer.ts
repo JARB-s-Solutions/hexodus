@@ -153,18 +153,122 @@ export class ThermalPrinter {
   }
   
   /**
+   * Try to connect to a previously authorized printer automatically
+   * Returns true if successfully connected, false if no saved device found
+   */
+  async connectToSavedDevice(): Promise<boolean> {
+    try {
+      // Check if WebUSB is supported
+      if (!navigator.usb) {
+        return false
+      }
+      
+      // Si ya hay un dispositivo conectado y funcionando, retornar true sin reconectar
+      if (this.device && this.endpoint && this.device.opened) {
+        console.log('✅ Impresora ya estaba conectada y lista')
+        return true
+      }
+      
+      // Si hay un dispositivo pero no está bien configurado, desconectar primero
+      if (this.device) {
+        console.log('🔄 Limpiando conexión anterior...')
+        await this.disconnect()
+      }
+      
+      // Get previously authorized devices
+      const devices = await navigator.usb.getDevices()
+      
+      if (devices.length === 0) {
+        console.log('📭 No hay impresoras previamente autorizadas')
+        return false
+      }
+      
+      // Try to connect to the first authorized printer
+      this.device = devices[0]
+      
+      console.log('🔄 Conectando a impresora guardada:', {
+        name: this.device.productName,
+        vendorId: this.device.vendorId,
+        productId: this.device.productId,
+        opened: this.device.opened
+      })
+      
+      // Si el dispositivo ya está abierto, cerrarlo primero para reiniciar la conexión
+      if (this.device.opened) {
+        console.log('⚠️ Dispositivo ya estaba abierto, cerrando para reiniciar...')
+        try {
+          await this.device.close()
+          // Esperar un momento para que el cierre se complete
+          await new Promise(resolve => setTimeout(resolve, 100))
+        } catch (closeError) {
+          console.warn('Error al cerrar dispositivo (se ignorará):', closeError)
+          // Continuamos de todos modos
+        }
+      }
+      
+      // Open device
+      await this.device.open()
+      
+      // Select configuration
+      if (this.device.configuration === null) {
+        await this.device.selectConfiguration(1)
+      }
+      
+      // Claim interface
+      await this.device.claimInterface(0)
+      
+      // Find OUT endpoint
+      const endpoints = this.device.configuration?.interfaces[0].alternate.endpoints || []
+      this.endpoint = endpoints.find((ep: any) => ep.direction === 'out') || null
+      
+      if (!this.endpoint) {
+        throw new Error('No se encontró endpoint de salida en la impresora')
+      }
+      
+      console.log('✅ Impresora reconectada automáticamente')
+      
+      return true
+    } catch (error: any) {
+      console.error('❌ Error conectando a impresora guardada:', error)
+      
+      // Limpiar estado en caso de error
+      if (this.device) {
+        try {
+          if (this.device.opened) {
+            await this.device.close()
+          }
+        } catch (cleanupError) {
+          console.warn('Error en limpieza de dispositivo:', cleanupError)
+        }
+      }
+      
+      this.device = null
+      this.endpoint = null
+      return false
+    }
+  }
+  
+  /**
    * Disconnect from printer
    */
   async disconnect(): Promise<void> {
     try {
       if (this.device) {
-        await this.device.close()
+        // Solo intentar cerrar si está abierto
+        if (this.device.opened) {
+          await this.device.close()
+          console.log('🔌 Impresora desconectada')
+        } else {
+          console.log('🔌 Dispositivo ya estaba cerrado')
+        }
         this.device = null
         this.endpoint = null
-        console.log('🔌 Impresora desconectada')
       }
     } catch (error) {
       console.error('Error desconectando impresora:', error)
+      // Limpiar estado de todos modos
+      this.device = null
+      this.endpoint = null
     }
   }
   
