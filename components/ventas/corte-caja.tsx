@@ -24,8 +24,27 @@ import {
   CheckCircle2,
   MessageSquare,
 } from "lucide-react"
-import type { Venta, MetodoPago } from "@/lib/ventas-data"
-import { formatCurrency, getMetodoPagoLabel, getVentasPorMetodo } from "@/lib/ventas-data"
+import type { Venta, MetodoPago } from "@/lib/types/ventas"
+import { formatCurrency } from "@/lib/types/ventas"
+
+// Helper functions para corte de caja (temporal hasta integración con API)
+function getMetodoPagoLabel(metodo: MetodoPago | string): string {
+  return metodo
+}
+
+function getVentasPorMetodo(ventas: Venta[]): { metodo: string; cantidad: number; total: number }[] {
+  const metodosMap: Record<string, { cantidad: number; total: number }> = {}
+  ventas.forEach((v) => {
+    if (!metodosMap[v.metodoPago]) {
+      metodosMap[v.metodoPago] = { cantidad: 0, total: 0 }
+    }
+    metodosMap[v.metodoPago].cantidad += 1
+    metodosMap[v.metodoPago].total += v.total
+  })
+  return Object.entries(metodosMap)
+    .map(([metodo, data]) => ({ metodo, ...data }))
+    .sort((a, b) => b.cantidad - a.cantidad)
+}
 
 // ====== Types ======
 
@@ -78,26 +97,33 @@ const seededRandom = createSeededRandom(99)
 function generateDemoCortes(allVentas: Venta[], fondoInicial: number): CorteCajaRecord[] {
   const cortes: CorteCajaRecord[] = []
   // Use a fixed UTC reference date to match the UTC-based ventas data
-  const today = new Date(Date.UTC(2026, 1, 21))
+  const today = new Date(Date.UTC(2026, 2, 1)) // March 1, 2026
 
   for (let i = 6; i >= 1; i--) {
     const d = new Date(today)
     d.setUTCDate(d.getUTCDate() - i)
     const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
-    const dayVentas = allVentas.filter((v) => v.fecha === dateStr)
+    
+    // Filter ventas by date (fechaHora starts with dateStr)
+    const dayVentas = allVentas.filter((v) => v.fechaHora.startsWith(dateStr))
     const ingresos = dayVentas.reduce((sum, v) => sum + v.total, 0)
     const egresos = Math.round(ingresos * (seededRandom() * 0.3 + 0.1))
     const cajaFinal = fondoInicial + ingresos - egresos
 
-    const movimientos: Movimiento[] = dayVentas.map((v) => ({
-      fecha: v.fecha,
-      hora: v.hora,
-      concepto: `Venta ${v.id}`,
-      tipoPago: getMetodoPagoLabel(v.metodoPago),
-      usuario: "admin",
-      ingreso: v.total,
-      egreso: 0,
-    }))
+    const movimientos: Movimiento[] = dayVentas.map((v) => {
+      const dateTime = new Date(v.fechaHora)
+      const hora = `${String(dateTime.getHours()).padStart(2, "0")}:${String(dateTime.getMinutes()).padStart(2, "0")}`
+      
+      return {
+        fecha: dateStr,
+        hora: hora,
+        concepto: `Venta ${v.idVenta}`,
+        tipoPago: getMetodoPagoLabel(v.metodoPago),
+        usuario: "admin",
+        ingreso: v.total,
+        egreso: 0,
+      }
+    })
 
     // Add some expenses
     if (egresos > 0) {
@@ -142,20 +168,26 @@ function generateDemoCortes(allVentas: Venta[], fondoInicial: number): CorteCaja
 // ====== Generate Movimientos from Ventas for a date range ======
 
 function generateMovimientos(ventas: Venta[]): Movimiento[] {
-  const movimientos: Movimiento[] = ventas.map((v) => ({
-    fecha: v.fecha,
-    hora: v.hora,
-    concepto: `Venta ${v.id} - ${v.cliente}`,
-    tipoPago: getMetodoPagoLabel(v.metodoPago),
-    usuario: "admin",
-    ingreso: v.total,
-    egreso: 0,
-  }))
+  const movimientos: Movimiento[] = ventas.map((v) => {
+    const dateTime = new Date(v.fechaHora)
+    const fecha = v.fechaHora.split('T')[0]
+    const hora = `${String(dateTime.getHours()).padStart(2, "0")}:${String(dateTime.getMinutes()).padStart(2, "0")}`
+    
+    return {
+      fecha: fecha,
+      hora: hora,
+      concepto: `Venta ${v.idVenta} - ${v.cliente}`,
+      tipoPago: getMetodoPagoLabel(v.metodoPago),
+      usuario: "admin",
+      ingreso: v.total,
+      egreso: 0,
+    }
+  })
 
   // Simulate some egresos based on ventas
   const totalVentas = ventas.reduce((s, v) => s + v.total, 0)
   if (totalVentas > 0) {
-    const dates = [...new Set(ventas.map((v) => v.fecha))].sort()
+    const dates = [...new Set(ventas.map((v) => v.fechaHora.split('T')[0]))].sort()
     if (dates.length > 0) {
       movimientos.push({
         fecha: dates[0],
