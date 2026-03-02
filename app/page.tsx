@@ -363,15 +363,19 @@ export default function VentasPage() {
             )}
 
             {activeTab === "analytics" && (
-              <div className="bg-card rounded-lg p-6 border border-border">
-                <p className="text-muted-foreground text-center">Análisis - Próximamente</p>
-              </div>
+              <VentasAnalytics
+                ventasActuales={ventas}
+                ventasPeriodoAnterior={[]}
+                periodoLabel="Actual"
+              />
             )}
 
             {activeTab === "caja" && (
-              <div className="bg-card rounded-lg p-6 border border-border">
-                <p className="text-muted-foreground text-center">Corte de Caja - Próximamente</p>
-              </div>
+              <CorteCaja
+                ventasHoy={ventas}
+                allVentas={ventas}
+                fondoInicial={5000}
+              />
             )}
           </div>
         </div>
