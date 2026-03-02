@@ -24,15 +24,50 @@ import {
   Lightbulb,
   ArrowUpRight,
 } from "lucide-react"
-import type { Venta } from "@/lib/ventas-data"
-import {
-  formatCurrency,
-  getTotalVentas,
-  getProductosMasVendidos,
-  getVentasPorDia,
-  getVentasPorMetodo,
-  getMetodoPagoLabel,
-} from "@/lib/ventas-data"
+import type { Venta } from "@/lib/types/ventas"
+import { formatCurrency } from "@/lib/types/ventas"
+
+// Helper functions para analytics (temporal hasta integración con API)
+function getTotalVentas(ventas: Venta[]): number {
+  return ventas.reduce((sum, v) => sum + v.total, 0)
+}
+
+function getProductosMasVendidos(ventas: Venta[]): { nombre: string; cantidad: number }[] {
+  const productosMap: Record<string, number> = {}
+  ventas.forEach((v) => {
+    productosMap[v.productosResumen] = (productosMap[v.productosResumen] || 0) + 1
+  })
+  return Object.entries(productosMap)
+    .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+    .sort((a, b) => b.cantidad - a.cantidad)
+}
+
+function getVentasPorDia(ventas: Venta[]): { fecha: string; total: number }[] {
+  const ventasMap: Record<string, number> = {}
+  ventas.forEach((v) => {
+    const fecha = v.fechaHora.split('T')[0]
+    ventasMap[fecha] = (ventasMap[fecha] || 0) + v.total
+  })
+  return Object.entries(ventasMap).map(([fecha, total]) => ({ fecha, total }))
+}
+
+function getVentasPorMetodo(ventas: Venta[]): { metodo: string; cantidad: number; total: number }[] {
+  const metodosMap: Record<string, { cantidad: number; total: number }> = {}
+  ventas.forEach((v) => {
+    if (!metodosMap[v.metodoPago]) {
+      metodosMap[v.metodoPago] = { cantidad: 0, total: 0 }
+    }
+    metodosMap[v.metodoPago].cantidad += 1
+    metodosMap[v.metodoPago].total += v.total
+  })
+  return Object.entries(metodosMap)
+    .map(([metodo, data]) => ({ metodo, ...data }))
+    .sort((a, b) => b.cantidad - a.cantidad)
+}
+
+function getMetodoPagoLabel(metodo: string): string {
+  return metodo
+}
 
 interface VentasAnalyticsProps {
   ventasActuales: Venta[]
