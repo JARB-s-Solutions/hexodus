@@ -52,6 +52,17 @@ export default function VentasPage() {
     cargarVentas()
   }, [])
 
+  // Aplicar filtros automáticamente cuando cambien
+  useEffect(() => {
+    // Solo aplicar filtros si hay un cambio significativo (no en la carga inicial)
+    if (pagination.currentPage > 1 || metodoPagoFiltro !== "todos" || busqueda.trim() !== "") {
+      const timer = setTimeout(() => {
+        cargarVentas(1, pagination.limit) // Resetear a página 1 al filtrar
+      }, 500) // Debounce de 500ms para la búsqueda
+      return () => clearTimeout(timer)
+    }
+  }, [metodoPagoFiltro, busqueda])
+
   async function cargarVentas(page?: number, limit?: number) {
     try {
       setLoading(true)
@@ -60,11 +71,21 @@ export default function VentasPage() {
         limit: limit || pagination.limit,
       }
       
-      // Si hay datos de filtros, incluirlos
+      // Filtro por período
       if (periodo === "personalizado") {
         params.periodo = "Personalizado"
         if (fechaInicio) params.fecha_inicio = fechaInicio
         if (fechaFin) params.fecha_fin = fechaFin
+      }
+      
+      // Filtro por método de pago (ahora va al backend)
+      if (metodoPagoFiltro && metodoPagoFiltro !== "todos") {
+        params.metodo_pago = metodoPagoFiltro
+      }
+      
+      // Filtro por búsqueda (ahora va al backend)
+      if (busqueda.trim()) {
+        params.search = busqueda.trim()
       }
       
       console.log('📊 Cargando ventas con parámetros:', params)
@@ -87,78 +108,19 @@ export default function VentasPage() {
     }
   }
 
-  async function cargarVentasConFiltros() {
-    try {
-      setLoading(true)
-      
-      const params: any = {
-        page: 1, // Resetear a página 1 al aplicar filtros
-        limit: pagination.limit,
-      }
-      
-      if (periodo === "personalizado") {
-        params.periodo = "Personalizado"
-        if (fechaInicio) params.fecha_inicio = fechaInicio
-        if (fechaFin) params.fecha_fin = fechaFin
-      }
-      
-      console.log('📅 Cargando ventas con filtros:', params)
-      const data = await VentasService.getAll(params)
-      setVentas(data.ventas)
-      setDashboardStats(data.dashboardStats)
-      setSummaryBar(data.summaryBar)
-      setPagination(data.pagination)
-      console.log('✅ Ventas filtradas cargadas:', data.ventas.length)
-      
-      toast({
-        title: "Filtros aplicados",
-        description: `Se encontraron ${data.pagination.totalRecords} ventas en el rango seleccionado`,
-      })
-    } catch (error: any) {
-      console.error('❌ Error al cargar ventas con filtros:', error)
-      toast({
-        title: "Error",
-        description: error.message || "No se pudieron cargar las ventas con los filtros",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
   // Handlers de paginación
   const handlePageChange = useCallback((newPage: number) => {
     console.log('📄 Cambiando a página:', newPage)
     cargarVentas(newPage, pagination.limit)
-  }, [pagination.limit, periodo, fechaInicio, fechaFin])
+  }, [pagination.limit, periodo, fechaInicio, fechaFin, metodoPagoFiltro, busqueda])
 
   const handleLimitChange = useCallback((newLimit: number) => {
     console.log('📊 Cambiando límite a:', newLimit)
     cargarVentas(1, newLimit) // Resetear a página 1 al cambiar límite
-  }, [periodo, fechaInicio, fechaFin])
+  }, [periodo, fechaInicio, fechaFin, metodoPagoFiltro, busqueda])
 
-  // Filtrado local de búsqueda y método de pago (solo para datos actuales de la página)
-  const ventasFiltradas = useMemo(() => {
-    let filtered = [...ventas]
-
-    // Payment method filter
-    if (metodoPagoFiltro !== "todos") {
-      filtered = filtered.filter((v) => v.metodoPago === metodoPagoFiltro)
-    }
-
-    // Search filter
-    if (busqueda.trim()) {
-      const q = busqueda.toLowerCase()
-      filtered = filtered.filter(
-        (v) =>
-          v.idVenta.toLowerCase().includes(q) ||
-          v.cliente.toLowerCase().includes(q) ||
-          v.productosResumen.toLowerCase().includes(q)
-      )
-    }
-
-    return filtered
-  }, [ventas, metodoPagoFiltro, busqueda])
+  // Ahora los datos vienen filtrados desde el backend, no necesitamos filtrado local
+  const ventasFiltradas = ventas
 
   // KPI data desde el API
   const kpiData = useMemo(() => {
@@ -247,9 +209,13 @@ export default function VentasPage() {
   const handleAplicarFiltros = useCallback(() => {
     if (periodo === "personalizado" && fechaInicio && fechaFin) {
       console.log('🔍 Aplicando filtros personalizados:', { periodo, fechaInicio, fechaFin })
-      cargarVentasConFiltros()
+      cargarVentas(1, pagination.limit)
+      toast({
+        title: "Filtros aplicados",
+        description: `Buscando ventas en el rango seleccionado`,
+      })
     }
-  }, [periodo, fechaInicio, fechaFin])
+  }, [periodo, fechaInicio, fechaFin, pagination.limit])
 
   const handlePrintInvoice = useCallback((detalleVenta: DetalleVenta) => {
     console.log('📄 Imprimiendo invoice para venta:', detalleVenta.idVentaStr)
