@@ -9,6 +9,7 @@ import { AparienciaTab } from "@/components/configuracion/apariencia-tab"
 import { IdiomaTab } from "@/components/configuracion/idioma-tab"
 import { NotificacionesTab } from "@/components/configuracion/notificaciones-tab"
 import { AvanzadoTab } from "@/components/configuracion/avanzado-tab"
+import { MetodosPagoTab } from "@/components/configuracion/metodos-pago-tab"
 import { defaultConfig, type ConfigState } from "@/components/configuracion/config-types"
 
 export default function ConfiguracionPage() {
@@ -71,6 +72,9 @@ export default function ConfiguracionPage() {
               )}
               {activeTab === "avanzado" && (
                 <AvanzadoTab config={config} onChange={handleChange} />
+              )}
+              {activeTab === "metodosPago" && (
+                <MetodosPagoTab />
               )}
             </div>
           </div>

@@ -1,6 +1,8 @@
 "use client"
 
-import { Search, Calendar, CreditCard, Filter, XCircle, Plus, Download, CalendarCheck } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search, Calendar, CreditCard, Filter, XCircle, Plus, Download, CalendarCheck, Loader2 } from "lucide-react"
+import { getMetodosPago, type MetodoPago } from "@/lib/services/metodos-pago"
 
 interface VentasToolbarProps {
   busqueda: string
@@ -37,6 +39,25 @@ export function VentasToolbar({
   onExportar,
   totalVentas,
 }: VentasToolbarProps) {
+  const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
+  const [loadingMetodos, setLoadingMetodos] = useState(true)
+
+  // Cargar métodos de pago al montar
+  useEffect(() => {
+    async function cargarMetodosPago() {
+      try {
+        setLoadingMetodos(true)
+        const metodos = await getMetodosPago()
+        setMetodosPago(Array.isArray(metodos) ? metodos : [])
+      } catch (error) {
+        console.error("Error al cargar métodos de pago:", error)
+        setMetodosPago([])
+      } finally {
+        setLoadingMetodos(false)
+      }
+    }
+    cargarMetodosPago()
+  }, [])
   return (
     <div className="bg-card rounded-xl p-3 border border-border shadow-sm">
       <div className="flex flex-wrap items-center gap-2.5">
@@ -104,12 +125,19 @@ export function VentasToolbar({
           <select
             value={metodoPago}
             onChange={(e) => onMetodoPagoChange(e.target.value)}
-            className="pl-2 pr-8 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat"
+            disabled={loadingMetodos}
+            className="pl-2 pr-8 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <option value="todos">Todos</option>
-            <option value="efectivo">Efectivo</option>
-            <option value="tarjeta">Tarjeta</option>
-            <option value="transferencia">Transferencia</option>
+            {loadingMetodos ? (
+              <option disabled>Cargando...</option>
+            ) : (
+              metodosPago.map((metodo) => (
+                <option key={metodo.id} value={metodo.nombre}>
+                  {metodo.nombre}
+                </option>
+              ))
+            )}
           </select>
         </div>
 

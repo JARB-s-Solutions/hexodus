@@ -17,6 +17,8 @@ export interface GetVentasParams {
   periodo?: string
   fecha_inicio?: string
   fecha_fin?: string
+  metodo_pago?: string
+  search?: string
   page?: number
   limit?: number
 }
@@ -42,6 +44,14 @@ export class VentasService {
     
     if (params?.fecha_fin) {
       queryParams.append('fecha_fin', params.fecha_fin)
+    }
+    
+    if (params?.metodo_pago && params.metodo_pago !== 'todos') {
+      queryParams.append('metodo_pago', params.metodo_pago)
+    }
+    
+    if (params?.search) {
+      queryParams.append('search', params.search)
     }
     
     if (params?.page) {
