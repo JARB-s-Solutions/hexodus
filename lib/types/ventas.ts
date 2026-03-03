@@ -238,6 +238,76 @@ export interface VentasData {
 }
 
 // ============================================================================
+// ANÁLISIS DE VENTAS
+// ============================================================================
+
+/**
+ * Comparación actual vs anterior del análisis
+ */
+export interface ComparacionAnalisis {
+  actual: {
+    total: number
+    transacciones: number
+  }
+  anterior: {
+    total: number
+    transacciones: number
+  }
+  variacion_porcentaje: number
+}
+
+/**
+ * Tendencia de ventas por fecha
+ */
+export interface TendenciaVenta {
+  fecha: string
+  total: number
+}
+
+/**
+ * Top productos vendidos
+ */
+export interface TopProducto {
+  nombre: string
+  cantidad_vendida: number
+  ingreso_generado: number
+}
+
+/**
+ * Métodos de pago con estadísticas
+ */
+export interface MetodoPagoAnalisis {
+  nombre: string
+  transacciones: number
+  monto_total: number
+}
+
+/**
+ * Respuesta completa del análisis de ventas
+ */
+export interface AnalisisVentasResponse {
+  message: string
+  data: {
+    comparacion_actual: ComparacionAnalisis
+    tendencia_ventas: TendenciaVenta[]
+    top_productos: TopProducto[]
+    metodos_pago: MetodoPagoAnalisis[]
+    insights: string[]
+  }
+}
+
+/**
+ * Datos de análisis para el frontend
+ */
+export interface AnalisisVentasData {
+  comparacionActual: ComparacionAnalisis
+  tendenciaVentas: TendenciaVenta[]
+  topProductos: TopProducto[]
+  metodosPago: MetodoPagoAnalisis[]
+  insights: string[]
+}
+
+// ============================================================================
 // MAPPER FUNCTIONS
 // ============================================================================
 
@@ -313,6 +383,19 @@ export function mapVentasDataFromAPI(apiResponse: GetVentasResponse): VentasData
     dashboardStats: mapDashboardStatsFromAPI(apiResponse.dashboard_stats),
     summaryBar: mapSummaryBarFromAPI(apiResponse.summary_bar),
     pagination: mapPaginationFromAPI(apiResponse.pagination),
+  }
+}
+
+/**
+ * Mapea la respuesta del análisis de ventas
+ */
+export function mapAnalisisVentasFromAPI(apiResponse: AnalisisVentasResponse): AnalisisVentasData {
+  return {
+    comparacionActual: apiResponse.data.comparacion_actual,
+    tendenciaVentas: apiResponse.data.tendencia_ventas,
+    topProductos: apiResponse.data.top_productos,
+    metodosPago: apiResponse.data.metodos_pago,
+    insights: apiResponse.data.insights,
   }
 }
 
