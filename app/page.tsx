@@ -12,7 +12,15 @@ import { NuevaVentaModal } from "@/components/ventas/nueva-venta-modal"
 import { DetalleVentaModal } from "@/components/ventas/detalle-venta-modal"
 import { ImprimirTicketVentaModal } from "@/components/ventas/imprimir-ticket-venta-modal"
 import { VentasService } from "@/lib/services/ventas"
-import type { Venta, VentasData, DashboardStats, SummaryBar, DetalleVenta, Pagination } from "@/lib/types/ventas"
+import type { 
+  Venta, 
+  VentasData, 
+  DashboardStats, 
+  SummaryBar, 
+  DetalleVenta, 
+  Pagination,
+  AnalisisVentasData 
+} from "@/lib/types/ventas"
 import { formatCurrency, formatDateTime } from "@/lib/types/ventas"
 import { useToast } from "@/hooks/use-toast"
 
@@ -47,6 +55,10 @@ export default function VentasPage() {
   // Active tab
   const [activeTab, setActiveTab] = useState<"historial" | "analytics" | "caja">("historial")
 
+  // Estados para análisis de ventas
+  const [analisisData, setAnalisisData] = useState<AnalisisVentasData | null>(null)
+  const [analisisLoading, setAnalisisLoading] = useState(false)
+
   // Cargar ventas desde el API
   useEffect(() => {
     cargarVentas()
@@ -62,6 +74,13 @@ export default function VentasPage() {
       return () => clearTimeout(timer)
     }
   }, [metodoPagoFiltro, busqueda])
+
+  // Cargar análisis cuando se cambie al tab de analytics o cambien los filtros
+  useEffect(() => {
+    if (activeTab === "analytics") {
+      cargarAnalisis()
+    }
+  }, [activeTab, periodo, fechaInicio, fechaFin])
 
   async function cargarVentas(page?: number, limit?: number) {
     try {
@@ -105,6 +124,49 @@ export default function VentasPage() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Cargar análisis de ventas desde el API
+  async function cargarAnalisis() {
+    try {
+      setAnalisisLoading(true)
+      const params: any = {}
+      
+      // Filtro por período
+      if (periodo === "personalizado") {
+        params.periodo = "Personalizado"
+        if (fechaInicio) params.fecha_inicio = fechaInicio
+        if (fechaFin) params.fecha_fin = fechaFin
+      } else if (periodo !== "todo") {
+        params.periodo = periodo
+      }
+      
+      console.log('📊 Cargando análisis de ventas con parámetros:', params)
+      const data = await VentasService.getAnalysis(params)
+      setAnalisisData(data)
+      console.log('✅ Análisis cargado:', data)
+    } catch (error: any) {
+      console.error('❌ Error al cargar análisis:', error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo cargar el análisis de ventas",
+        variant: "destructive",
+      })
+      // Establecer datos vacíos para evitar crashes
+      setAnalisisData({
+        comparacionActual: {
+          actual: { total: 0, transacciones: 0 },
+          anterior: { total: 0, transacciones: 0 },
+          variacion_porcentaje: 0,
+        },
+        tendenciaVentas: [],
+        topProductos: [],
+        metodosPago: [],
+        insights: ["No hay datos disponibles para el período seleccionado."],
+      })
+    } finally {
+      setAnalisisLoading(false)
     }
   }
 
@@ -329,11 +391,26 @@ export default function VentasPage() {
             )}
 
             {activeTab === "analytics" && (
-              <VentasAnalytics
-                ventasActuales={ventas}
-                ventasPeriodoAnterior={[]}
-                periodoLabel="Actual"
-              />
+              <>
+                {analisisData ? (
+                  <VentasAnalytics
+                    analisisData={analisisData}
+                    periodoLabel={periodo === "personalizado" ? "Personalizado" : periodo}
+                    loading={analisisLoading}
+                  />
+                ) : analisisLoading ? (
+                  <div className="flex items-center justify-center h-96">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                      <p className="text-muted-foreground">Cargando análisis...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-96">
+                    <p className="text-muted-foreground">No hay datos de análisis disponibles</p>
+                  </div>
+                )}
+              </>
             )}
 
             {activeTab === "caja" && (

@@ -7,8 +7,14 @@ import type {
   GetDetalleVentaResponse,
   DetalleVenta,
   mapVentasDataFromAPI,
+  AnalisisVentasResponse,
+  AnalisisVentasData,
 } from '@/lib/types/ventas'
-import { mapVentasDataFromAPI as mapperFunction, mapDetalleVentaFromAPI } from '@/lib/types/ventas'
+import { 
+  mapVentasDataFromAPI as mapperFunction, 
+  mapDetalleVentaFromAPI,
+  mapAnalisisVentasFromAPI 
+} from '@/lib/types/ventas'
 
 /**
  * Parámetros opcionales para filtrar ventas
@@ -21,6 +27,15 @@ export interface GetVentasParams {
   search?: string
   page?: number
   limit?: number
+}
+
+/**
+ * Parámetros opcionales para análisis de ventas
+ */
+export interface GetAnalisisParams {
+  periodo?: string
+  fecha_inicio?: string
+  fecha_fin?: string
 }
 
 /**
@@ -116,5 +131,45 @@ export class VentasService {
     console.log('✅ Detalle mapeado al frontend:', detalleVenta)
     
     return detalleVenta
+  }
+
+  /**
+   * Obtener análisis de ventas con estadísticas y gráficas
+   */
+  static async getAnalysis(params?: GetAnalisisParams): Promise<AnalisisVentasData> {
+    // Construir query parameters
+    const queryParams = new URLSearchParams()
+    
+    if (params?.periodo) {
+      queryParams.append('periodo', params.periodo)
+    }
+    
+    if (params?.fecha_inicio) {
+      queryParams.append('fecha_inicio', params.fecha_inicio)
+    }
+    
+    if (params?.fecha_fin) {
+      queryParams.append('fecha_fin', params.fecha_fin)
+    }
+    
+    const queryString = queryParams.toString()
+    const endpoint = queryString ? `/analisis/ventas?${queryString}` : '/analisis/ventas'
+    
+    console.log('📊 GET /api/analisis/ventas - Obteniendo análisis de ventas')
+    console.log('🔍 Parámetros:', params)
+    console.log('🌐 Endpoint:', endpoint)
+    
+    const response = await apiGet<AnalisisVentasResponse>(endpoint)
+    console.log('✅ Response del servidor:', response)
+    console.log('📈 Comparación actual:', response.data.comparacion_actual)
+    console.log('📉 Tendencia ventas:', response.data.tendencia_ventas.length, 'registros')
+    console.log('🏆 Top productos:', response.data.top_productos.length, 'productos')
+    console.log('💳 Métodos de pago:', response.data.metodos_pago.length, 'métodos')
+    console.log('💡 Insights:', response.data.insights.length, 'insights')
+    
+    const analisisData = mapAnalisisVentasFromAPI(response)
+    console.log('✅ Análisis mapeado al frontend:', analisisData)
+    
+    return analisisData
   }
 }
