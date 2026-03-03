@@ -9,6 +9,7 @@ import { SociosService } from "@/lib/services/socios"
 import { MembresiasService } from "@/lib/services/membresias"
 import { CheckoutSocioModal } from "./checkout-socio-modal"
 import { ImprimirTicketModal } from "./imprimir-ticket-modal"
+import { CapturaFacialModal } from "./captura-facial-modal"
 import { toast } from "@/hooks/use-toast"
 import type { Socio, CreateSocioRequest, CotizacionResponse } from "@/lib/types/socios"
 import type { Membresia } from "@/lib/types/membresias"
@@ -509,15 +510,77 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   // ===== Handlers de biometría =====
   const handleCapturarRostro = () => {
     setShowFacialModal(true)
-    setFacialDetected(false)
-    // TODO: Integrar captura real con webcam + upload a Cloudinary
-    // Por ahora: simulación
-    setTimeout(() => setFacialDetected(true), 2000)
+  }
+
+  const handleCapturaFacialCompleta = async (imageData: string, faceEncoding?: number[]) => {
+    console.log('📸 Captura facial completada')
+    console.log('🖼️ Tamaño de imagen:', imageData.length, 'caracteres')
+    
+    try {
+      // Mostrar loading mientras se sube la imagen
+      toast({
+        title: "⏳ Subiendo imagen...",
+        description: "Procesando captura facial",
+      })
+
+      // Subir imagen a Cloudinary
+      const uploadResponse = await fetch('/api/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          image: imageData,
+          type: 'profile' // Usaremos esta imagen como foto de perfil
+        })
+      })
+
+      if (!uploadResponse.ok) {
+        throw new Error('Error al subir la imagen')
+      }
+
+      const { imageUrl, publicId } = await uploadResponse.json()
+      
+      console.log('✅ Imagen subida a Cloudinary:', imageUrl)
+      
+      // Guardar URL de Cloudinary (no el base64)
+      setFotoPerfilUrl(imageUrl)
+      
+      if (faceEncoding) {
+        console.log('🔢 Face encoding recibido:', faceEncoding.length, 'dimensiones')
+        setFaceEncoding(faceEncoding)
+      }
+      
+      setBioRostro(true)
+      setFacialDetected(true)
+      
+      toast({
+        title: "✓ Rostro capturado",
+        description: "Imagen facial registrada correctamente",
+      })
+
+    } catch (error) {
+      console.error('❌ Error al procesar captura facial:', error)
+      
+      // En caso de error, guardamos el base64 como fallback
+      setFotoPerfilUrl(imageData)
+      
+      if (faceEncoding) {
+        setFaceEncoding(faceEncoding)
+      }
+      
+      setBioRostro(true)
+      setFacialDetected(true)
+      
+      toast({
+        title: "⚠️ Rostro capturado (local)",
+        description: "Imagen guardada localmente. Verifica la conexión.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleConfirmarRostro = () => {
-    // TODO: Aquí se subiría la foto a Cloudinary y se generaría face_encoding
-    // Por ahora: simulación
+    // Esta función ya no se usa, la captura se maneja en CapturaFacialModal
+    // Dejamos por compatibilidad
     setBioRostro(true)
     setFotoPerfilUrl("https://via.placeholder.com/150") // Mock
     setFaceEncoding([0.1, 0.2, 0.3, 0.4, 0.5]) // Mock encoding
@@ -970,72 +1033,11 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       </div>
 
       {/* Facial Capture Modal */}
-      {showFacialModal && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center px-4"
-          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(5px)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowFacialModal(false) }}
-        >
-          <div
-            className="w-full max-w-2xl rounded-2xl overflow-hidden animate-slide-up"
-            style={{
-              background: "linear-gradient(180deg, rgba(22,24,36,0.97), rgba(18,20,32,0.95))",
-              border: "1px solid rgba(255,255,255,0.09)",
-            }}
-          >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border/30">
-              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <ScanFace className="h-5 w-5 text-accent" />
-                Captura Facial para Acceso
-              </h3>
-              <button onClick={() => setShowFacialModal(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              {/* Camera placeholder */}
-              <div className="relative w-full aspect-video bg-background rounded-xl overflow-hidden mb-4 flex items-center justify-center border border-border">
-                <div className="w-48 h-48 rounded-full border-2 border-dashed border-accent/50 flex items-center justify-center">
-                  <ScanFace className="h-20 w-20 text-accent/40" />
-                </div>
-                <div className="absolute bottom-4 left-0 right-0 text-center">
-                  <p className="text-sm font-medium text-foreground">Posiciona tu rostro en el circulo</p>
-                  <p className={`text-xs mt-1 ${facialDetected ? "text-[#22C55E]" : "text-muted-foreground"}`}>
-                    {facialDetected ? "Rostro detectado correctamente" : "Esperando deteccion..."}
-                  </p>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-muted/30 border border-border/50 mb-4">
-                <p className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-2">
-                  Instrucciones
-                </p>
-                <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                  <li>Asegurate de tener buena iluminacion</li>
-                  <li>Mira directamente a la camara</li>
-                  <li>Manten una expresion neutral</li>
-                </ul>
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowFacialModal(false)}
-                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmarRostro}
-                  disabled={!facialDetected}
-                  className="flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-xl text-primary-foreground bg-primary hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed glow-primary"
-                >
-                  Confirmar Captura
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <CapturaFacialModal
+        open={showFacialModal}
+        onClose={() => setShowFacialModal(false)}
+        onCapture={handleCapturaFacialCompleta}
+      />
 
       {/* Fingerprint Capture Modal */}
       {showHuellaModal && (
