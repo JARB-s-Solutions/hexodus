@@ -1,0 +1,341 @@
+/**
+ * EJEMPLO: Actualización de Endpoint de Registro de Socios
+ * Para guardar el descriptor facial en la base de datos
+ * 
+ * Este es un ejemplo de cómo debería actualizarse tu endpoint actual
+ * POST /api/socios
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+// import { prisma } from '@/lib/prisma'; // Tu ORM
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    
+    const {
+      // Datos básicos
+      nombre_completo,
+      correo,
+      telefono,
+      genero,
+      
+      // Membresía
+      membresia_id,
+      fecha_inicio_membresia,
+      fecha_fin_membresia,
+      
+      // Biometría
+      foto_perfil_url,      // URL de Cloudinary
+      face_descriptor,      // ⚠️ NUEVO: Array de 128 números
+      fingerprint_template, // Opcional: para huella digital
+      
+      // Contrato
+      firmo_contrato,
+      fecha_inicio_contrato,
+      fecha_fin_contrato,
+      
+    } = body;
+
+    // ======================================================
+    // VALIDACIONES
+    // ======================================================
+    
+    // Validar campos obligatorios
+    if (!nombre_completo || !correo || !telefono || !membresia_id) {
+      return NextResponse.json(
+        { error: 'Faltan campos obligatorios' },
+        { status: 400 }
+      );
+    }
+
+    // Validar descriptor facial si se envió biometría
+    if (face_descriptor) {
+      // Debe ser un array de 128 números
+      if (!Array.isArray(face_descriptor)) {
+        return NextResponse.json(
+          { error: 'face_descriptor debe ser un array' },
+          { status: 400 }
+        );
+      }
+      
+      if (face_descriptor.length !== 128) {
+        return NextResponse.json(
+          { 
+            error: 'face_descriptor debe tener 128 dimensiones',
+            recibido: face_descriptor.length
+          },
+          { status: 400 }
+        );
+      }
+
+      // Validar que todos sean números
+      const todosSonNumeros = face_descriptor.every(val => typeof val === 'number');
+      if (!todosSonNumeros) {
+        return NextResponse.json(
+          { error: 'face_descriptor debe contener solo números' },
+          { status: 400 }
+        );
+      }
+
+      console.log('✅ Descriptor facial válido:', {
+        dimensiones: face_descriptor.length,
+        rango: [
+          Math.min(...face_descriptor).toFixed(3),
+          Math.max(...face_descriptor).toFixed(3)
+        ]
+      });
+    }
+
+    // ======================================================
+    // PREPARAR DATOS PARA GUARDAR
+    // ======================================================
+    
+    // Generar código de socio único
+    const codigo_socio = `SOC-${Date.now().toString().slice(-6)}`;
+    
+    // Convertir descriptor a JSON string para almacenar en BD
+    const face_descriptor_json = face_descriptor 
+      ? JSON.stringify(face_descriptor) 
+      : null;
+
+    // ======================================================
+    // GUARDAR EN BASE DE DATOS
+    // ======================================================
+    
+    // EJEMPLO CON PRISMA:
+    /*
+    const nuevoSocio = await prisma.socio.create({
+      data: {
+        codigo_socio,
+        nombre_completo,
+        correo,
+        telefono,
+        genero,
+        
+        // Membresía
+        membresia_id,
+        fecha_inicio_membresia: new Date(fecha_inicio_membresia),
+        fecha_fin_membresia: new Date(fecha_fin_membresia),
+        
+        // Biometría
+        foto_perfil_url,
+        face_descriptor: face_descriptor_json,  // ⚠️ GUARDAR AQUÍ
+        fingerprint_template,
+        biometrico_rostro: !!face_descriptor,
+        biometrico_huella: !!fingerprint_template,
+        
+        // Contrato
+        firmo_contrato: firmo_contrato || false,
+        estado_contrato: firmo_contrato ? 'vigente' : 'pendiente',
+        fecha_inicio_contrato: fecha_inicio_contrato ? new Date(fecha_inicio_contrato) : null,
+        fecha_fin_contrato: fecha_fin_contrato ? new Date(fecha_fin_contrato) : null,
+        
+        fecha_registro: new Date()
+      }
+    });
+    */
+
+    // EJEMPLO CON SQL DIRECTO:
+    /*
+    const query = `
+      INSERT INTO socios (
+        codigo_socio,
+        nombre_completo,
+        correo,
+        telefono,
+        genero,
+        membresia_id,
+        fecha_inicio_membresia,
+        fecha_fin_membresia,
+        foto_perfil_url,
+        face_descriptor,
+        fingerprint_template,
+        biometrico_rostro,
+        biometrico_huella,
+        firmo_contrato,
+        estado_contrato,
+        fecha_inicio_contrato,
+        fecha_fin_contrato,
+        fecha_registro
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    `;
+    
+    const values = [
+      codigo_socio,
+      nombre_completo,
+      correo,
+      telefono,
+      genero,
+      membresia_id,
+      fecha_inicio_membresia,
+      fecha_fin_membresia,
+      foto_perfil_url,
+      face_descriptor_json,  // ⚠️ JSON string
+      fingerprint_template,
+      !!face_descriptor,
+      !!fingerprint_template,
+      firmo_contrato || false,
+      firmo_contrato ? 'vigente' : 'pendiente',
+      fecha_inicio_contrato,
+      fecha_fin_contrato
+    ];
+    
+    const [result] = await db.execute(query, values);
+    const nuevoSocioId = result.insertId;
+    */
+
+    // ======================================================
+    // LOGGING Y AUDITORÍA
+    // ======================================================
+    
+    console.log('✅ Socio registrado exitosamente:', {
+      codigo_socio,
+      nombre: nombre_completo,
+      biometria: {
+        rostro: !!face_descriptor,
+        huella: !!fingerprint_template
+      }
+    });
+
+    // ⚠️ IMPORTANTE: No retornes el face_descriptor en la respuesta
+    // Es un dato sensible que no debe exponerse
+
+    // ======================================================
+    // RESPUESTA
+    // ======================================================
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Socio registrado correctamente',
+      data: {
+        // id: nuevoSocio.id,
+        codigo_socio,
+        nombre_completo,
+        correo,
+        foto_perfil_url,
+        biometrico_rostro: !!face_descriptor,
+        biometrico_huella: !!fingerprint_template,
+        membresia_id,
+        fecha_registro: new Date().toISOString()
+        // ⚠️ NO incluir face_descriptor aquí
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error registrando socio:', error);
+    
+    return NextResponse.json(
+      { 
+        error: 'Error al registrar socio',
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * EJEMPLO DE REQUEST DESDE EL FRONTEND:
+ * 
+ * ```typescript
+ * // En el componente SocioModal, después de capturar rostro:
+ * 
+ * const handleGuardarSocio = async () => {
+ *   const datosCompletos = {
+ *     // Datos del formulario
+ *     nombre_completo: nombre,
+ *     correo,
+ *     telefono,
+ *     genero,
+ *     membresia_id: membresiaId,
+ *     fecha_inicio_membresia: fechaInicio,
+ *     fecha_fin_membresia: calcularFechaFin(fechaInicio, duracionMembresia),
+ *     
+ *     // Biometría (ya capturada previamente)
+ *     foto_perfil_url: fotoPerfilUrl,           // URL de Cloudinary
+ *     face_descriptor: faceEncoding,            // Array de 128 números
+ *     fingerprint_template: fingerprintTemplate, // Opcional
+ *     
+ *     // Contrato
+ *     firmo_contrato: firmoContrato,
+ *     fecha_inicio_contrato: fechaContrato,
+ *     fecha_fin_contrato: calcularFechaFin(fechaContrato, duracionContrato)
+ *   }
+ *   
+ *   const response = await fetch('/api/socios', {
+ *     method: 'POST',
+ *     headers: { 'Content-Type': 'application/json' },
+ *     body: JSON.stringify(datosCompletos)
+ *   })
+ *   
+ *   if (response.ok) {
+ *     const result = await response.json()
+ *     console.log('✅ Socio registrado:', result.data.codigo_socio)
+ *     onSuccess(result.data)
+ *   }
+ * }
+ * ```
+ * 
+ * VERIFICAR EN BASE DE DATOS:
+ * 
+ * ```sql
+ * SELECT 
+ *   codigo_socio,
+ *   nombre_completo,
+ *   biometrico_rostro,
+ *   LENGTH(face_descriptor) as descriptor_size,
+ *   foto_perfil_url
+ * FROM socios
+ * WHERE biometrico_rostro = true
+ * ORDER BY fecha_registro DESC
+ * LIMIT 10;
+ * 
+ * -- Resultado esperado:
+ * -- descriptor_size debe ser ~3000-5000 caracteres (JSON string)
+ * -- biometrico_rostro debe ser true
+ * -- foto_perfil_url debe ser URL de Cloudinary
+ * ```
+ */
+
+/**
+ * MODELO DE BASE DE DATOS ACTUALIZADO:
+ * 
+ * ```sql
+ * CREATE TABLE socios (
+ *   id INT PRIMARY KEY AUTO_INCREMENT,
+ *   codigo_socio VARCHAR(20) UNIQUE NOT NULL,
+ *   nombre_completo VARCHAR(255) NOT NULL,
+ *   correo VARCHAR(255) UNIQUE NOT NULL,
+ *   telefono VARCHAR(20),
+ *   genero ENUM('Masculino', 'Femenino', 'Otro'),
+ *   
+ *   -- Membresía
+ *   membresia_id INT NOT NULL,
+ *   fecha_inicio_membresia DATE NOT NULL,
+ *   fecha_fin_membresia DATE NOT NULL,
+ *   
+ *   -- Biometría
+ *   foto_perfil_url VARCHAR(500),
+ *   face_descriptor TEXT NULL,              -- ⚠️ NUEVO: JSON string del array
+ *   fingerprint_template TEXT NULL,         -- ⚠️ NUEVO: para huella
+ *   biometrico_rostro BOOLEAN DEFAULT false,
+ *   biometrico_huella BOOLEAN DEFAULT false,
+ *   
+ *   -- Contrato
+ *   firmo_contrato BOOLEAN DEFAULT false,
+ *   estado_contrato ENUM('pendiente', 'vigente', 'vencido') DEFAULT 'pendiente',
+ *   fecha_inicio_contrato DATE,
+ *   fecha_fin_contrato DATE,
+ *   
+ *   -- Metadata
+ *   fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+ *   fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ *   
+ *   FOREIGN KEY (membresia_id) REFERENCES membresias(id),
+ *   INDEX idx_biometria (biometrico_rostro, fecha_fin_membresia),
+ *   INDEX idx_codigo (codigo_socio),
+ *   INDEX idx_correo (correo)
+ * );
+ * ```
+ */

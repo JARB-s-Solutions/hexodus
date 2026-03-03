@@ -1,0 +1,232 @@
+/**
+ * API Route: Validación de Asistencia con Reconocimiento Facial
+ * POST /api/asistencia/validar
+ * 
+ * Este es un ejemplo de implementación para el futuro.
+ * Cuando el backend esté listo, este endpoint comparará el rostro
+ * capturado con los socios registrados y validará el acceso.
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { findBestMatch } from '@/lib/faceapi-config';
+// import { prisma } from '@/lib/prisma'; // Tu ORM
+
+/**
+ * EJEMPLO - NO IMPLEMENTADO AÚN
+ * 
+ * Este endpoint recibirá un descriptor facial del frontend
+ * y buscará un match contra los socios registrados.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { faceDescriptor } = body;
+
+    // Validar que se envió el descriptor
+    if (!faceDescriptor || !Array.isArray(faceDescriptor)) {
+      return NextResponse.json(
+        { error: 'Se requiere un descriptor facial válido (array de 128 números)' },
+        { status: 400 }
+      );
+    }
+
+    // Validar dimensiones
+    if (faceDescriptor.length !== 128) {
+      return NextResponse.json(
+        { error: `Descriptor inválido: se esperaban 128 dimensiones, se recibieron ${faceDescriptor.length}` },
+        { status: 400 }
+      );
+    }
+
+    // TODO: Obtener socios activos de la base de datos
+    // Ejemplo con Prisma:
+    /*
+    const sociosActivos = await prisma.socio.findMany({
+      where: {
+        bioRostro: true,
+        membresiaActiva: true,
+        fechaFinMembresia: {
+          gte: new Date() // Membresía no vencida
+        }
+      },
+      select: {
+        id: true,
+        nombre: true,
+        correo: true,
+        faceDescriptor: true,
+        membresiaId: true,
+        fechaFinMembresia: true
+      }
+    });
+    */
+
+    // Simulación para desarrollo (eliminar en producción)
+    const sociosActivos = [
+      {
+        id: 1,
+        nombre: "Juan Pérez",
+        correo: "juan@example.com",
+        faceDescriptor: JSON.stringify(Array.from({ length: 128 }, () => Math.random() - 0.5)),
+        membresiaId: 1,
+        fechaFinMembresia: new Date('2026-12-31')
+      }
+    ];
+
+    // Preparar descriptores guardados para comparación
+    const savedDescriptors = sociosActivos.map(socio => ({
+      id: socio.id,
+      name: socio.nombre,
+      descriptor: typeof socio.faceDescriptor === 'string' 
+        ? JSON.parse(socio.faceDescriptor)
+        : socio.faceDescriptor
+    }));
+
+    console.log(`🔍 Comparando contra ${savedDescriptors.length} socios registrados...`);
+
+    // Buscar mejor match con umbral de 0.6 (60% similitud)
+    const match = findBestMatch(faceDescriptor, savedDescriptors, 0.6);
+
+    if (!match) {
+      console.log('❌ No se encontró match con ningún socio');
+      
+      return NextResponse.json({
+        success: false,
+        message: 'Rostro no reconocido. Por favor, contacta al personal.',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    console.log(`✅ Match encontrado: ${match.name} (${match.confidence}% confianza)`);
+
+    // TODO: Registrar asistencia en la base de datos
+    /*
+    const asistencia = await prisma.asistencia.create({
+      data: {
+        socioId: match.id,
+        timestamp: new Date(),
+        confidence: match.confidence,
+        tipoAcceso: 'facial'
+      }
+    });
+    */
+
+    // TODO: Obtener datos completos del socio
+    /*
+    const socio = await prisma.socio.findUnique({
+      where: { id: match.id },
+      include: {
+        membresia: true
+      }
+    });
+    */
+
+    // Simulación de socio completo
+    const socioCompleto = sociosActivos.find(s => s.id === match.id);
+
+    return NextResponse.json({
+      success: true,
+      message: `¡Bienvenido, ${match.name}!`,
+      socio: {
+        id: match.id,
+        nombre: match.name,
+        // No incluir datos sensibles como faceDescriptor
+      },
+      asistencia: {
+        timestamp: new Date().toISOString(),
+        confidence: match.confidence,
+        distance: match.distance
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error en validación de asistencia:', error);
+    
+    return NextResponse.json(
+      { 
+        error: 'Error al validar asistencia',
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * EJEMPLO DE USO DESDE EL FRONTEND:
+ * 
+ * ```typescript
+ * import { detectFaceDescriptor } from '@/lib/faceapi-config'
+ * 
+ * async function validarAcceso() {
+ *   // 1. Capturar rostro actual
+ *   const videoElement = document.querySelector('video')
+ *   const descriptor = await detectFaceDescriptor(videoElement)
+ *   
+ *   if (!descriptor) {
+ *     alert('No se detectó rostro')
+ *     return
+ *   }
+ *   
+ *   // 2. Enviar al backend
+ *   const response = await fetch('/api/asistencia/validar', {
+ *     method: 'POST',
+ *     headers: { 'Content-Type': 'application/json' },
+ *     body: JSON.stringify({ faceDescriptor: descriptor })
+ *   })
+ *   
+ *   const result = await response.json()
+ *   
+ *   if (result.success) {
+ *     // Acceso concedido
+ *     console.log(`✅ Bienvenido, ${result.socio.nombre}`)
+ *     console.log(`Confianza: ${result.asistencia.confidence}%`)
+ *   } else {
+ *     // Acceso denegado
+ *     console.log('❌ Rostro no reconocido')
+ *   }
+ * }
+ * ```
+ * 
+ * MODELO DE BASE DE DATOS SUGERIDO:
+ * 
+ * ```prisma
+ * model Socio {
+ *   id                  Int       @id @default(autoincrement())
+ *   nombre              String
+ *   correo              String    @unique
+ *   telefono            String
+ *   
+ *   // Biometría
+ *   fotoPerfilUrl       String?
+ *   faceDescriptor      String?   // JSON string de Array<number>
+ *   fingerprintTemplate String?
+ *   bioRostro           Boolean   @default(false)
+ *   bioHuella           Boolean   @default(false)
+ *   
+ *   // Membresía
+ *   membresiaId         Int
+ *   membresia           Membresia @relation(fields: [membresiaId], references: [id])
+ *   membresiaActiva     Boolean   @default(true)
+ *   fechaInicioMembresia DateTime
+ *   fechaFinMembresia    DateTime
+ *   
+ *   // Asistencias
+ *   asistencias         Asistencia[]
+ *   
+ *   createdAt           DateTime  @default(now())
+ *   updatedAt           DateTime  @updatedAt
+ * }
+ * 
+ * model Asistencia {
+ *   id          Int      @id @default(autoincrement())
+ *   socioId     Int
+ *   socio       Socio    @relation(fields: [socioId], references: [id])
+ *   
+ *   timestamp   DateTime @default(now())
+ *   tipoAcceso  String   // 'facial', 'huella', 'tarjeta', 'manual'
+ *   confidence  Float?   // Porcentaje de confianza (solo para biometría)
+ *   
+ *   @@index([socioId, timestamp])
+ * }
+ * ```
+ */
