@@ -69,22 +69,15 @@ export const AuthService = {
 
   /**
    * Cerrar sesión
+   * Nota: No existe endpoint de logout en el backend, solo limpiamos localStorage
    */
   async logout(): Promise<void> {
-    try {
-      // Intentar cerrar sesión en el servidor
-      if (USE_MOCK_API && mockLogout) {
-        await mockLogout()
-      } else {
-        await apiPost(API_ENDPOINTS.LOGOUT)
-      }
-    } catch (error) {
-      // Ignorar errores del servidor al cerrar sesión
-      console.error('Error al cerrar sesión:', error)
-    } finally {
-      // Limpiar datos locales siempre
-      this.clearAuthData()
-    }
+    console.log('🚪 Cerrando sesión...')
+    
+    // Solo limpiar datos locales (no hay endpoint de logout en el backend)
+    this.clearAuthData()
+    
+    console.log('✅ Sesión cerrada correctamente')
   },
 
   /**
@@ -155,6 +148,7 @@ export const AuthService = {
     localStorage.removeItem(EXPIRES_KEY)
     
     // Disparar evento personalizado para notificar el logout
+    console.log('🔔 Disparando evento auth:logout...')
     window.dispatchEvent(new CustomEvent('auth:logout'))
   },
 
