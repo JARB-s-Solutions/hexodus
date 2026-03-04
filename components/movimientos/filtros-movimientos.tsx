@@ -2,6 +2,12 @@
 
 import { Search, X, Download, SlidersHorizontal } from "lucide-react"
 
+interface MetodoPago {
+  id: string
+  nombre: string
+  activo?: boolean
+}
+
 interface FiltrosMovimientosProps {
   busqueda: string
   onBusquedaChange: (v: string) => void
@@ -15,6 +21,7 @@ interface FiltrosMovimientosProps {
   onFechaFinChange: (v: string) => void
   onLimpiar: () => void
   onExportar: () => void
+  metodosPago?: MetodoPago[]
 }
 
 export function FiltrosMovimientos({
@@ -30,8 +37,19 @@ export function FiltrosMovimientos({
   onFechaFinChange,
   onLimpiar,
   onExportar,
+  metodosPago = [],
 }: FiltrosMovimientosProps) {
-  const hasFilters = busqueda || tipo !== "todos" || tipoPago !== "todos" || fechaInicio || fechaFin
+  const hasFilters = busqueda || tipo !== "todos" || tipoPago !== "" || fechaInicio || fechaFin
+
+  // Métodos de pago por defecto si no se cargan del API
+  const metodosDefault = [
+    { id: "efectivo", nombre: "Efectivo" },
+    { id: "transferencia", nombre: "Transfer." },
+    { id: "tarjeta", nombre: "Tarjeta" },
+  ]
+
+  // Usar métodos de pago del API o fallback
+  const metodosDisponibles = metodosPago.length > 0 ? metodosPago : metodosDefault
 
   return (
     <div
@@ -110,25 +128,33 @@ export function FiltrosMovimientos({
         {/* Tipo de Pago */}
         <div>
           <label className="block text-[11px] font-medium mb-1.5 text-muted-foreground uppercase tracking-wider">
-            Metodo de Pago
+            Método de Pago
           </label>
           <div className="grid grid-cols-2 gap-1.5">
-            {[
-              { value: "todos", label: "Todos" },
-              { value: "efectivo", label: "Efectivo" },
-              { value: "transferencia", label: "Transfer." },
-              { value: "tarjeta", label: "Tarjeta" },
-            ].map((opt) => (
+            {/* Botón "Todos" */}
+            <button
+              onClick={() => onTipoPagoChange("")}
+              className={`py-2 rounded-lg text-xs font-medium border transition-all duration-200 ${
+                tipoPago === ""
+                  ? "bg-accent/15 border-accent/40 text-accent"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Todos
+            </button>
+
+            {/* Métodos de pago dinámicos */}
+            {metodosDisponibles.map((metodo) => (
               <button
-                key={opt.value}
-                onClick={() => onTipoPagoChange(opt.value)}
+                key={metodo.id}
+                onClick={() => onTipoPagoChange(metodo.nombre)}
                 className={`py-2 rounded-lg text-xs font-medium border transition-all duration-200 ${
-                  tipoPago === opt.value
+                  tipoPago === metodo.nombre
                     ? "bg-accent/15 border-accent/40 text-accent"
                     : "border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {opt.label}
+                {metodo.nombre}
               </button>
             ))}
           </div>
