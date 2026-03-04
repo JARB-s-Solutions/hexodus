@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { CajaProvider, useCaja } from "@/lib/contexts/caja-context"
 import { ModalAperturaCaja } from "@/components/caja/modal-apertura-caja"
 import { IndicadorCaja } from "@/components/caja/indicador-caja"
+import { AuthService } from "@/lib/auth"
 
 // Rutas que no requieren caja abierta
 const RUTAS_SIN_CAJA = ["/login", "/register"]
@@ -12,18 +13,37 @@ const RUTAS_SIN_CAJA = ["/login", "/register"]
 function CajaGuardInner({ children }: { children: React.ReactNode }) {
   const { estadoCaja, loading } = useCaja()
   const pathname = usePathname()
+  const router = useRouter()
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
-    // Verificar si la ruta actual requiere caja abierta
-    const requiereCaja = !RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))
+    // 1. PRIMERO: Verificar autenticación
+    if (typeof window !== "undefined") {
+      const isAuthenticated = AuthService.isAuthenticated()
+      
+      // Si no está autenticado y no está en rutas públicas, redirigir a login
+      if (!isAuthenticated && !RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))) {
+        console.log("🚫 Usuario no autenticado, redirigiendo a login...")
+        router.push("/login")
+        return
+      }
 
-    if (!loading && requiereCaja && estadoCaja && !estadoCaja.abierta) {
-      setShowModal(true)
-    } else {
-      setShowModal(false)
+      // Si está en ruta pública pero está autenticado, no mostrar modal
+      if (RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))) {
+        setShowModal(false)
+        return
+      }
+
+      // 2. SEGUNDO: Si está autenticado y no está en ruta pública, verificar caja
+      const requiereCaja = !RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))
+
+      if (!loading && requiereCaja && estadoCaja && !estadoCaja.abierta && isAuthenticated) {
+        setShowModal(true)
+      } else {
+        setShowModal(false)
+      }
     }
-  }, [estadoCaja, loading, pathname])
+  }, [estadoCaja, loading, pathname, router])
 
   const handleAperturaExitosa = () => {
     setShowModal(false)
