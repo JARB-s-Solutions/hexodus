@@ -76,8 +76,6 @@ export class CajaService {
       console.log("✅ Estado de caja obtenido:")
       console.log("  Efectivo inicial:", response.resumen.efectivo_inicial)
       console.log("  Efectivo final:", response.resumen.efectivo_final)
-      console.log("  Total ingresos:", response.resumen.total_ingresos)
-      console.log("  Total egresos:", response.resumen.total_egresos)
       console.log("  Movimientos:", response.movimientos.length)
 
       return response
