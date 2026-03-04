@@ -36,7 +36,7 @@ const navItems = [
   { label: "Gestion de Membresias", icon: CreditCard, href: "/membresias", id: "membresias" },
   { label: "Gestion de Socios", icon: Users, href: "/socios", id: "socios" },
   { label: "Control de Asistencia", icon: ScanFace, href: "/asistencia", id: "asistencia" },
-  { label: "Gestion de Ventas", icon: ShoppingCart, href: "/", id: "ventas" },
+  { label: "Gestion de Ventas", icon: ShoppingCart, href: "/ventas", id: "ventas" },
   { label: "Inventario y Productos", icon: Package, href: "/inventario", id: "inventario" },
   { label: "Control de Movimientos", icon: TrendingUp, href: "/movimientos", id: "movimientos" },
   { label: "Reportes", icon: FileText, href: "/reportes", id: "reportes" },
@@ -47,7 +47,7 @@ interface SidebarProps {
   activePage?: string
 }
 
-export function Sidebar({ activePage = "ventas" }: SidebarProps) {
+export function Sidebar({ activePage = "dashboard" }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [user, setUser] = useState<UserType | null>(null)
   const router = useRouter()

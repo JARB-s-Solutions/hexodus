@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Unlock, DollarSign, Loader2, AlertTriangle } from "lucide-react"
+import { Unlock, DollarSign, Loader2, AlertTriangle, LogOut } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useCaja } from "@/lib/contexts/caja-context"
 import { useToast } from "@/hooks/use-toast"
 import { CajaService } from "@/lib/services/caja"
+import { AuthService } from "@/lib/auth"
 import { ModalCierreCaja } from "./modal-cierre-caja"
 
 interface ModalAperturaCajaProps {
@@ -22,6 +24,7 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
     fecha_apertura: string | null
   } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
   const { abrirCaja, refrescarEstado } = useCaja()
   const { toast } = useToast()
 
@@ -147,6 +150,13 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
     })
   }
 
+  const handleLogout = async () => {
+    if (confirm("¿Estás seguro de que deseas cerrar sesión? Deberás abrir la caja la próxima vez que inicies sesión.")) {
+      await AuthService.logout()
+      router.push("/login")
+    }
+  }
+
   if (!open) return null
 
   // Si hay modal de cierre, mostrar ese en lugar del de apertura
@@ -245,7 +255,7 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 bg-muted/30 border-t border-border">
+          <div className="px-6 py-4 bg-muted/30 border-t border-border space-y-3">
             <button
               type="submit"
               disabled={loading || !montoInicial || parseFloat(montoInicial) <= 0}
@@ -266,7 +276,22 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
                 </>
               )}
             </button>
-            <p className="text-xs text-center text-muted-foreground mt-3">
+            
+            {/* Botón de escape: Cerrar Sesión */}
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loading}
+              className="w-full px-4 py-2 bg-muted text-muted-foreground rounded-lg 
+                       hover:bg-destructive/10 hover:text-destructive transition-all 
+                       flex items-center justify-center gap-2 text-sm
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <LogOut className="h-4 w-4" />
+              Cerrar Sesión
+            </button>
+            
+            <p className="text-xs text-center text-muted-foreground">
               No podrás acceder al sistema hasta abrir la caja
             </p>
           </div>
