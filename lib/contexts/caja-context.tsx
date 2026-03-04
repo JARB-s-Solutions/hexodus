@@ -22,49 +22,107 @@ export function CajaProvider({ children }: { children: React.ReactNode }) {
   // Función para refrescar el estado de la caja
   const refrescarEstado = useCallback(async () => {
     try {
+      // ⚠️ CRÍTICO: Solo consultar si el usuario está autenticado
+      if (!AuthService.isAuthenticated()) {
+        console.log("⏸️ Usuario NO autenticado, saltando consulta de caja")
+        setLoading(false)
+        return
+      }
+      
       console.log("🔄 Refrescando estado de caja...")
+      console.log("   ✅ Usuario autenticado, consultando backend...")
+      
       const response = await CajaService.consultarCaja()
       const user = AuthService.getUser()
 
+      console.log("📊 Resumen de caja:", response.resumen)
+      console.log("📝 Total de movimientos encontrados:", response.movimientos.length)
+      
+      // Mostrar TODOS los movimientos para debugging
+      console.log("🔍 === ANÁLISIS DE MOVIMIENTOS (buscando apertura) ===")
+      response.movimientos.forEach((mov, idx) => {
+        const conceptoLower = mov.concepto.toLowerCase().trim()
+        const tieneApertura = conceptoLower.includes("apertura")
+        const tieneFondo = conceptoLower.includes("fondo")
+        const esIngreso = mov.tipo === "ingreso"
+        
+        console.log(`  [${idx + 1}] "${mov.concepto}"`)
+        console.log(`      tipo: "${mov.tipo}" | incluyeApertura: ${tieneApertura} | incluyeFondo: ${tieneFondo} | esIngreso: ${esIngreso}`)
+      })
+
       // Buscar movimiento de apertura
-      const movApertura = response.movimientos.find(
-        (mov) => mov.concepto === "Apertura / Fondo de Caja" && mov.tipo === "ingreso"
-      )
+      console.log("🔍 Buscando movimiento de apertura...")
+      const movApertura = response.movimientos.find((mov) => {
+        const conceptoLower = mov.concepto.toLowerCase().trim()
+        const tieneApertura = conceptoLower.includes("apertura")
+        const esIngreso = mov.tipo === "ingreso"
+        return tieneApertura && esIngreso
+      })
+
+      console.log("🔍 Resultado de búsqueda:", movApertura ? "✅ ENCONTRADO" : "❌ NO ENCONTRADO")
+      if (movApertura) {
+        console.log("   📍 Movimiento de apertura:", {
+          id: movApertura.id,
+          concepto: movApertura.concepto,
+          tipo: movApertura.tipo,
+          monto: movApertura.monto,
+          fecha: movApertura.fecha
+        })
+      }
 
       if (movApertura) {
         // Caja abierta
-        setEstadoCaja({
+        const nuevoEstado = {
           abierta: true,
           corte_id: movApertura.id,
           monto_inicial: response.resumen.efectivo_inicial,
           monto_actual: response.resumen.efectivo_final,
           fecha_apertura: movApertura.fecha,
           usuario: user?.nombre_completo || user?.username || "Usuario",
-        })
+        }
+        
+        console.log("✅ ✅ ✅ CAJA ABIERTA - Estableciendo estado:")
+        console.log("   📌 Estado que se va a establecer:", JSON.stringify(nuevoEstado, null, 2))
+        
+        setEstadoCaja(nuevoEstado)
+        console.log("   ✅ Estado establecido correctamente")
       } else {
         // Caja cerrada (sin movimiento de apertura)
-        setEstadoCaja({
+        const nuevoEstado = {
           abierta: false,
           corte_id: null,
           monto_inicial: 0,
           monto_actual: 0,
           fecha_apertura: null,
           usuario: user?.nombre_completo || user?.username || "Usuario",
-        })
+        }
+        
+        console.log("❌ ❌ ❌ CAJA CERRADA - No se encontró movimiento de apertura")
+        console.log("   📌 Estado que se va a establecer:", JSON.stringify(nuevoEstado, null, 2))
+        
+        setEstadoCaja(nuevoEstado)
+        console.log("   ⚠️ Estado de caja cerrada establecido")
       }
     } catch (error) {
-      console.error("Error al refrescar estado de caja:", error)
+      console.error("❌ ❌ ❌ Error al refrescar estado de caja:", error)
+      console.error("   Tipo de error:", typeof error)
+      console.error("   Error completo:", JSON.stringify(error, null, 2))
+      
       // Si hay error, asumimos caja cerrada
       const user = AuthService.getUser()
-      setEstadoCaja({
+      const estadoError = {
         abierta: false,
         corte_id: null,
         monto_inicial: 0,
         monto_actual: 0,
         fecha_apertura: null,
         usuario: user?.nombre_completo || user?.username || "Usuario",
-      })
+      }
+      
+      console.warn("   ⚠️ Por error, estableciendo caja como CERRADA")
+      setEstadoCaja(estadoError)
     } finally {
+      console.log("🏁 refrescarEstado() finalizado, estableciendo loading = false")
       setLoading(false)
     }
   }, [])
@@ -72,6 +130,84 @@ export function CajaProvider({ children }: { children: React.ReactNode }) {
   // Cargar estado inicial al montar
   useEffect(() => {
     refrescarEstado()
+  }, [refrescarEstado])
+
+  // Listener para detectar login/logout en tiempo real (mismo navegador)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      console.log("🎧 Registrando listeners para eventos de autenticación (auth:login, auth:logout)")
+      
+      const handleLogin = () => {
+        console.log("✅ ✅ ✅ Evento auth:login capturado! Refrescando estado de caja...")
+        refrescarEstado()
+      }
+      
+      const handleLogout = () => {
+        console.log("🚪 Evento auth:logout capturado! Limpiando estado de caja...")
+        setEstadoCaja({
+          abierta: false,
+          corte_id: null,
+          monto_inicial: 0,
+          monto_actual: 0,
+          fecha_apertura: null,
+          usuario: "",
+        })
+      }
+      
+      window.addEventListener("auth:login", handleLogin)
+      window.addEventListener("auth:logout", handleLogout)
+      
+      return () => {
+        console.log("🔇 Removiendo listeners de autenticación")
+        window.removeEventListener("auth:login", handleLogin)
+        window.removeEventListener("auth:logout", handleLogout)
+      }
+    }
+  }, [refrescarEstado])
+
+  // Listener para detectar cambios en autenticación entre tabs (storage event)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === "auth_token") {
+          if (e.newValue) {
+            console.log("🔄 Token agregado en otra tab, refrescando caja...")
+            refrescarEstado()
+          } else {
+            console.log("🔄 Token eliminado en otra tab, limpiando caja...")
+            setEstadoCaja({
+              abierta: false,
+              corte_id: null,
+              monto_inicial: 0,
+              monto_actual: 0,
+              fecha_apertura: null,
+              usuario: "",
+            })
+          }
+        }
+      }
+      
+      window.addEventListener("storage", handleStorageChange)
+      return () => window.removeEventListener("storage", handleStorageChange)
+    }
+  }, [refrescarEstado])
+
+  // Refrescar estado periódicamente para sincronización entre tabs/navegadores
+  useEffect(() => {
+    // Solo refrescar si hay un usuario autenticado
+    if (typeof window !== "undefined" && AuthService.isAuthenticated()) {
+      console.log("⏰ Configurando refresco automático de caja cada 30 segundos")
+      
+      const interval = setInterval(() => {
+        console.log("🔄 Refresco automático de estado de caja...")
+        refrescarEstado()
+      }, 30000) // 30 segundos
+
+      return () => {
+        console.log("⏰ Limpiando interval de refresco")
+        clearInterval(interval)
+      }
+    }
   }, [refrescarEstado])
 
   // Función para abrir caja
