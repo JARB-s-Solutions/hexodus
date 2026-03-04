@@ -1,7 +1,7 @@
 "use client"
 
 import { TrendingUp, TrendingDown, DollarSign, Activity, ArrowUp, ArrowDown } from "lucide-react"
-import type { MovimientoKpis } from "@/lib/movimientos-data"
+import type { MovimientoKpis } from "@/lib/types/movimientos"
 
 interface KpiMovimientosProps {
   kpis: MovimientoKpis
