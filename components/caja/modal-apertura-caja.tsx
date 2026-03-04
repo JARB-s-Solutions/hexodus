@@ -40,13 +40,24 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
       console.log("🔍 Verificando si hay caja antigua abierta...")
       const response = await CajaService.consultarCaja()
       
-      // Buscar movimiento de apertura
-      const movApertura = response.movimientos.find(
-        (mov) => mov.concepto === "Apertura / Fondo de Caja" && mov.tipo === "ingreso"
-      )
+      console.log("📝 Movimientos recibidos:", response.movimientos.length)
+      response.movimientos.forEach((mov, idx) => {
+        console.log(`  ${idx + 1}. ${mov.concepto} - ${mov.tipo} - $${mov.monto}`)
+      })
+      
+      // Buscar movimiento de apertura (búsqueda flexible)
+      const movApertura = response.movimientos.find((mov) => {
+        const conceptoNormalizado = mov.concepto.toLowerCase().trim()
+        const esApertura = 
+          conceptoNormalizado.includes("apertura") || 
+          conceptoNormalizado.includes("fondo de caja")
+        const esIngreso = mov.tipo === "ingreso"
+        return esApertura && esIngreso
+      })
       
       if (movApertura) {
         console.log("⚠️ Detectada caja antigua abierta:", response.resumen)
+        console.log("   Movimiento de apertura:", movApertura)
         
         setCajaAntigua({
           monto_inicial: response.resumen.efectivo_inicial,
@@ -64,6 +75,7 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
         return true
       }
       
+      console.log("✅ No hay caja antigua, se puede abrir")
       return false
     } catch (error) {
       console.error("Error al verificar caja antigua:", error)
