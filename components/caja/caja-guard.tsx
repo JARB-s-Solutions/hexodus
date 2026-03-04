@@ -21,6 +21,16 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       const isAuthenticated = AuthService.isAuthenticated()
       
+      console.log("🔒 CajaGuard - Estado:", {
+        isAuthenticated,
+        loading,
+        pathname,
+        estadoCaja: estadoCaja ? {
+          abierta: estadoCaja.abierta,
+          corte_id: estadoCaja.corte_id
+        } : null
+      })
+      
       // Si no está autenticado y no está en rutas públicas, redirigir a login
       if (!isAuthenticated && !RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))) {
         console.log("🚫 Usuario no autenticado, redirigiendo a login...")
@@ -30,6 +40,7 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
 
       // Si está en ruta pública pero está autenticado, no mostrar modal
       if (RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))) {
+        console.log("✅ Ruta pública detectada, no mostrar modal")
         setShowModal(false)
         return
       }
@@ -38,8 +49,12 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
       const requiereCaja = !RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))
 
       if (!loading && requiereCaja && estadoCaja && !estadoCaja.abierta && isAuthenticated) {
+        console.log("⚠️ CAJA CERRADA DETECTADA - Mostrando modal de apertura")
         setShowModal(true)
       } else {
+        if (estadoCaja?.abierta) {
+          console.log("✅ CAJA ABIERTA - Acceso permitido")
+        }
         setShowModal(false)
       }
     }
