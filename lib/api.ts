@@ -126,15 +126,26 @@ export async function apiPost<T>(
   })
 
   console.log('  Status:', response.status, response.statusText)
+  console.log('  Response.ok:', response.ok)
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    console.error('❌ POST Error:', error)
-    throw new ApiError(
+    console.error('❌ POST Error Response Body:', error)
+    
+    const errorMessage = error.error || error.message || 'Error en la petición'
+    console.error('❌ Construyendo ApiError:')
+    console.error('  - status:', response.status)
+    console.error('  - message:', errorMessage)
+    console.error('  - errors:', error.errors)
+    
+    const apiError = new ApiError(
       response.status,
-      error.error || error.message || 'Error en la petición',
+      errorMessage,
       error.errors
     )
+    
+    console.error('❌ Lanzando ApiError:', apiError)
+    throw apiError
   }
 
   const responseData = await response.json()
