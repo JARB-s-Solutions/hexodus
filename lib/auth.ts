@@ -138,6 +138,10 @@ export const AuthService = {
     localStorage.setItem(TOKEN_KEY, token)
     localStorage.setItem(USER_KEY, JSON.stringify(user))
     localStorage.setItem(EXPIRES_KEY, expiresAt)
+    
+    // Disparar evento personalizado para notificar el login
+    console.log('🔔 Disparando evento auth:login...')
+    window.dispatchEvent(new CustomEvent('auth:login', { detail: { user, token } }))
   },
 
   /**
@@ -149,6 +153,9 @@ export const AuthService = {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     localStorage.removeItem(EXPIRES_KEY)
+    
+    // Disparar evento personalizado para notificar el logout
+    window.dispatchEvent(new CustomEvent('auth:logout'))
   },
 
   /**
