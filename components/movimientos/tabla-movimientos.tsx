@@ -15,7 +15,7 @@ import {
   Clock,
   Calendar,
 } from "lucide-react"
-import type { Movimiento } from "@/lib/movimientos-data"
+import type { Movimiento } from "@/lib/types/movimientos"
 
 interface TablaMovimientosProps {
   movimientos: Movimiento[]

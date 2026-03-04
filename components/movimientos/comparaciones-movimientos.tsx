@@ -1,28 +1,19 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { ArrowUp, ArrowDown, Minus, TrendingUp, TrendingDown, DollarSign, BarChart3 } from "lucide-react"
-import type { Movimiento, PeriodoComparacion } from "@/lib/movimientos-data"
+import { MovimientosService } from "@/lib/services/movimientos"
+import type { ComparacionData, PeriodoComparacionAPI } from "@/lib/types/movimientos"
 
-interface ComparacionesMovimientosProps {
-  movimientos: Movimiento[]
-  periodos: PeriodoComparacion[]
-}
+interface ComparacionesMovimientosProps {}
 
-function filterByRange(movimientos: Movimiento[], inicio: string, fin: string) {
-  return movimientos.filter((m) => m.fecha >= inicio && m.fecha <= fin)
-}
-
-function calcTotals(movs: Movimiento[]) {
-  const ingresos = movs.filter((m) => m.tipo === "ingreso").reduce((s, m) => s + m.total, 0)
-  const egresos = movs.filter((m) => m.tipo === "egreso").reduce((s, m) => s + m.total, 0)
-  return { ingresos, egresos, balance: ingresos - egresos, count: movs.length }
-}
-
-function pctChange(current: number, prev: number): number | null {
-  if (prev === 0) return current > 0 ? 100 : null
-  return ((current - prev) / Math.abs(prev)) * 100
-}
+const PERIODOS: Array<{ key: PeriodoComparacionAPI; label: string }> = [
+  { key: "Hoy", label: "Hoy" },
+  { key: "Este Mes", label: "Este Mes" },
+  { key: "Este Trimestre", label: "Este Trimestre" },
+  { key: "Este Semestre", label: "Este Semestre" },
+  { key: "Este Año", label: "Este Año" },
+]
 
 function fmtMoney(n: number): string {
   const abs = Math.abs(n)
@@ -32,11 +23,9 @@ function fmtMoney(n: number): string {
   return `$${formatted}.${decPart}`
 }
 
-function ChangeCell({ current, prev }: { current: number; prev: number }) {
-  const change = pctChange(current, prev)
-  if (change === null) return <span className="text-muted-foreground/50 text-xs">--</span>
-  const isUp = change > 0
-  const isZero = Math.abs(change) < 0.1
+function ChangeCell({ cambio }: { cambio: number }) {
+  const isUp = cambio > 0
+  const isZero = Math.abs(cambio) < 0.1
 
   return (
     <span
@@ -45,30 +34,55 @@ function ChangeCell({ current, prev }: { current: number; prev: number }) {
       }`}
     >
       {isZero ? <Minus className="h-3 w-3" /> : isUp ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-      {Math.abs(change).toFixed(1)}%
+      {Math.abs(cambio).toFixed(1)}%
     </span>
   )
 }
 
-export function ComparacionesMovimientos({ movimientos, periodos }: ComparacionesMovimientosProps) {
-  const [selectedIdx, setSelectedIdx] = useState(1)
+export function ComparacionesMovimientos({}: ComparacionesMovimientosProps) {
+  const [selectedIdx, setSelectedIdx] = useState(2) // "Este Trimestre" por defecto
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [data, setData] = useState<ComparacionData | null>(null)
 
-  const comparison = useMemo(() => {
-    const p = periodos[selectedIdx]
-    if (!p) return null
-    const current = calcTotals(filterByRange(movimientos, p.inicio, p.fin))
-    const prev = calcTotals(filterByRange(movimientos, p.anteriorInicio, p.anteriorFin))
-    return { periodo: p, current, prev }
-  }, [movimientos, periodos, selectedIdx])
+  // Cargar comparación cuando cambia el período seleccionado
+  useEffect(() => {
+    const cargarComparacion = async () => {
+      setLoading(true)
+      setError(null)
 
-  if (!comparison) return null
-  const { periodo, current, prev } = comparison
+      try {
+        const periodo = PERIODOS[selectedIdx].key
+        console.log("📊 Cargando comparación para:", periodo)
 
-  const rows = [
-    { label: "Ingresos", icon: TrendingUp, iconClass: "text-success", current: current.ingresos, prev: prev.ingresos },
-    { label: "Egresos", icon: TrendingDown, iconClass: "text-destructive", current: current.egresos, prev: prev.egresos },
-    { label: "Balance", icon: DollarSign, iconClass: "text-accent", current: current.balance, prev: prev.balance },
-  ]
+        const comparacionData = await MovimientosService.getComparacion(periodo)
+        setData(comparacionData)
+
+        console.log("✅ Comparación cargada exitosamente")
+      } catch (err: any) {
+        console.error("❌ Error cargando comparación:", err)
+        setError(err.message || "Error al cargar comparación")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    cargarComparacion()
+  }, [selectedIdx])
+
+  // Función para obtener el icono y clase según el concepto
+  const getRowIcon = (concepto: string) => {
+    switch (concepto) {
+      case "Ingresos":
+        return { icon: TrendingUp, iconClass: "text-success" }
+      case "Egresos":
+        return { icon: TrendingDown, iconClass: "text-destructive" }
+      case "Balance":
+        return { icon: DollarSign, iconClass: "text-accent" }
+      default:
+        return { icon: BarChart3, iconClass: "text-muted-foreground" }
+    }
+  }
 
   return (
     <div
@@ -83,9 +97,9 @@ export function ComparacionesMovimientos({ movimientos, periodos }: Comparacione
 
       {/* Period tabs */}
       <div className="flex flex-wrap gap-1.5 px-5 py-3 bg-muted/20">
-        {periodos.map((p, idx) => (
+        {PERIODOS.map((p, idx) => (
           <button
-            key={p.label}
+            key={p.key}
             onClick={() => setSelectedIdx(idx)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               idx === selectedIdx
@@ -98,46 +112,73 @@ export function ComparacionesMovimientos({ movimientos, periodos }: Comparacione
         ))}
       </div>
 
+      {/* Loading state */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center space-y-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-sm text-muted-foreground">Cargando comparación...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && !loading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center space-y-2">
+            <p className="text-destructive font-medium">⚠️ Error al cargar</p>
+            <p className="text-sm text-muted-foreground">{error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Comparison table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full">
-          <thead>
-            <tr className="border-b border-border/50">
-              <th className="text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wider py-2.5 px-5">Concepto</th>
-              <th className="text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wider py-2.5 px-5">{periodo.label}</th>
-              <th className="text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wider py-2.5 px-5">{periodo.labelAnterior}</th>
-              <th className="text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wider py-2.5 px-5">Cambio</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.label} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
-                <td className="py-3 px-5 flex items-center gap-2">
-                  <row.icon className={`h-4 w-4 ${row.iconClass}`} />
-                  <span className="text-sm font-medium text-foreground">{row.label}</span>
-                </td>
-                <td className="py-3 px-5 text-right text-sm font-semibold text-foreground">
-                  {row.current < 0 ? "-" : ""}{fmtMoney(row.current)}
-                </td>
-                <td className="py-3 px-5 text-right text-sm text-muted-foreground">
-                  {row.prev < 0 ? "-" : ""}{fmtMoney(row.prev)}
-                </td>
-                <td className="py-3 px-5 text-right">
-                  <ChangeCell current={row.current} prev={row.prev} />
-                </td>
+      {!loading && !error && data && (
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead>
+              <tr className="border-b border-border/50">
+                <th className="text-left text-[11px] font-medium text-muted-foreground uppercase tracking-wider py-2.5 px-5">
+                  Concepto
+                </th>
+                <th className="text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wider py-2.5 px-5">
+                  {data.labels_columnas.actual}
+                </th>
+                <th className="text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wider py-2.5 px-5">
+                  {data.labels_columnas.anterior}
+                </th>
+                <th className="text-right text-[11px] font-medium text-muted-foreground uppercase tracking-wider py-2.5 px-5">
+                  Cambio
+                </th>
               </tr>
-            ))}
-            <tr className="hover:bg-muted/20 transition-colors">
-              <td className="py-3 px-5 text-sm font-medium text-foreground">Movimientos</td>
-              <td className="py-3 px-5 text-right text-sm font-semibold text-foreground">{current.count}</td>
-              <td className="py-3 px-5 text-right text-sm text-muted-foreground">{prev.count}</td>
-              <td className="py-3 px-5 text-right">
-                <ChangeCell current={current.count} prev={prev.count} />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {data.filas.map((fila) => {
+                const { icon: Icon, iconClass } = getRowIcon(fila.concepto)
+                const esMonetario = fila.concepto !== "Movimientos"
+
+                return (
+                  <tr key={fila.concepto} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                    <td className="py-3 px-5 flex items-center gap-2">
+                      <Icon className={`h-4 w-4 ${iconClass}`} />
+                      <span className="text-sm font-medium text-foreground">{fila.concepto}</span>
+                    </td>
+                    <td className="py-3 px-5 text-right text-sm font-semibold text-foreground">
+                      {esMonetario ? fmtMoney(fila.actual) : fila.actual}
+                    </td>
+                    <td className="py-3 px-5 text-right text-sm text-muted-foreground">
+                      {esMonetario ? fmtMoney(fila.anterior) : fila.anterior}
+                    </td>
+                    <td className="py-3 px-5 text-right">
+                      <ChangeCell cambio={fila.cambio_pct} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
