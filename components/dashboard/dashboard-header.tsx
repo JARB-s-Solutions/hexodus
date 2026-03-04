@@ -7,6 +7,7 @@ import { AuthService } from "@/lib/auth"
 import type { User } from "@/lib/types/auth"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
+import { IndicadorCaja } from "@/components/caja/indicador-caja"
 
 export function DashboardHeader() {
   const [dateTime, setDateTime] = useState("")
@@ -80,6 +81,7 @@ export function DashboardHeader() {
         <p className="text-sm text-muted-foreground">{dateTime}</p>
       </div>
       <div className="flex items-center space-x-4">
+        <IndicadorCaja />
         <button
           className="relative p-2 rounded-full hover:bg-gray-800 transition duration-200"
           title="Notificaciones"

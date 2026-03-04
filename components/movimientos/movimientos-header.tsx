@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Bell, LogOut, SlidersHorizontal } from "lucide-react"
+import { IndicadorCaja } from "@/components/caja/indicador-caja"
 
 interface MovimientosHeaderProps {
   onToggleFilters?: () => void
@@ -39,6 +40,7 @@ export function MovimientosHeader({ onToggleFilters }: MovimientosHeaderProps) {
         <p className="text-sm text-muted-foreground">{dateTime.replace('Admin. | ', '')}</p>
       </div>
       <div className="flex items-center space-x-4">
+        <IndicadorCaja />
         {onToggleFilters && (
           <button
             onClick={onToggleFilters}

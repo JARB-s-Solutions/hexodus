@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Bell, LogOut } from "lucide-react"
+import { IndicadorCaja } from "@/components/caja/indicador-caja"
 
 export function VentasHeader() {
   const [dateTime, setDateTime] = useState("")
@@ -35,6 +36,7 @@ export function VentasHeader() {
         <p className="text-sm text-muted-foreground">{dateTime}</p>
       </div>
       <div className="flex items-center space-x-4">
+        <IndicadorCaja />
         <button
           className="relative p-2 rounded-full hover:bg-gray-800 transition duration-200"
           title="Notificaciones"
