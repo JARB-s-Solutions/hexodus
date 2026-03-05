@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast"
 import { CajaService } from "@/lib/services/caja"
 import { AuthService } from "@/lib/auth"
 import { ModalCierreCaja } from "./modal-cierre-caja"
+import { ModalCierreAutomatico } from "./modal-cierre-automatico"
 
 interface ModalAperturaCajaProps {
   open: boolean
@@ -18,6 +19,7 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
   const [montoInicial, setMontoInicial] = useState("")
   const [loading, setLoading] = useState(false)
   const [showModalCierre, setShowModalCierre] = useState(false)
+  const [showModalCierreAutomatico, setShowModalCierreAutomatico] = useState(false)
   const [cajaAntigua, setCajaAntigua] = useState<{
     monto_inicial: number
     monto_actual: number
@@ -30,15 +32,24 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
 
   // Focus en el input al abrir
   useEffect(() => {
-    if (open && !showModalCierre && inputRef.current) {
+    if (open && !showModalCierre && !showModalCierreAutomatico && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 100)
     }
-  }, [open, showModalCierre])
+  }, [open, showModalCierre, showModalCierreAutomatico])
+
+  // CRÍTICO: Verificar si hay caja antigua al abrir el modal
+  useEffect(() => {
+    if (open && !showModalCierre && !showModalCierreAutomatico) {
+      console.log("🔍 Modal de apertura abierto, verificando caja antigua...")
+      verificarCajaAntigua()
+    }
+  }, [open])
 
   const verificarCajaAntigua = async () => {
     try {
       console.log("🔍 Verificando si hay caja antigua abierta...")
-      const response = await CajaService.consultarCaja()
+      // IMPORTANTE: Usar consultarCajaAmplio() para buscar en los últimos 7 días
+      const response = await CajaService.consultarCajaAmplio()
       
       console.log("📝 Movimientos recibidos:", response.movimientos.length)
       response.movimientos.forEach((mov, idx) => {
@@ -56,8 +67,15 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
       })
       
       if (movApertura) {
-        console.log("⚠️ Detectada caja antigua abierta:", response.resumen)
+        console.log("⚠️ Detectada caja abierta:", response.resumen)
         console.log("   Movimiento de apertura:", movApertura)
+        
+        // Verificar si es antigua (más de 12 horas)
+        const fechaApertura = new Date(movApertura.fecha)
+        const ahora = new Date()
+        const diffHoras = (ahora.getTime() - fechaApertura.getTime()) / (1000 * 60 * 60)
+        
+        console.log(`   📅 Tiempo desde apertura: ${diffHoras.toFixed(1)} horas`)
         
         setCajaAntigua({
           monto_inicial: response.resumen.efectivo_inicial,
@@ -65,13 +83,30 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
           fecha_apertura: movApertura.fecha,
         })
         
-        toast({
-          title: "⚠️ Caja Pendiente",
-          description: "Hay una caja anterior sin cerrar. Debes cerrarla primero.",
-          variant: "destructive",
-        })
+        if (diffHoras > 12) {
+          // Caja antigua (más de 12 horas) - Mostrar modal de cierre automático
+          console.log("🤖 Caja antigua detectada (>${diffHoras.toFixed(0)}h) - Cierre automático disponible")
+          
+          toast({
+            title: "⚠️ Caja Anterior Sin Cerrar",
+            description: `Detectada caja abierta hace ${Math.floor(diffHoras)} horas. Se cerrará automáticamente.`,
+            variant: "destructive",
+          })
+          
+          setShowModalCierreAutomatico(true)
+        } else {
+          // Caja del mismo día - Mostrar modal de cierre manual
+          console.log("📝 Caja del mismo día (<12h) - Cierre manual requerido")
+          
+          toast({
+            title: "⚠️ Caja Pendiente",
+            description: "Hay una caja anterior sin cerrar. Debes cerrarla primero.",
+            variant: "destructive",
+          })
+          
+          setShowModalCierre(true)
+        }
         
-        setShowModalCierre(true)
         return true
       }
       
@@ -151,6 +186,23 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
     setTimeout(() => inputRef.current?.focus(), 300)
   }
 
+  const handleCierreAutomaticoSuccess = async () => {
+    console.log("✅ Caja antigua cerrada automáticamente, limpiando estado...")
+    setShowModalCierreAutomatico(false)
+    setCajaAntigua(null)
+    
+    // Refrescar estado para detectar que ya no hay caja antigua
+    await refrescarEstado()
+    
+    toast({
+      title: "✅ Listo para Abrir Caja",
+      description: "Ahora puedes abrir una nueva caja para el día de hoy",
+    })
+    
+    // Focus en el input de apertura
+    setTimeout(() => inputRef.current?.focus(), 300)
+  }
+
   const handleCierreCancel = () => {
     setShowModalCierre(false)
     // Note: No permitimos cancelar el flujo completamente,
@@ -171,7 +223,30 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
 
   if (!open) return null
 
-  // Si hay modal de cierre, mostrar ese en lugar del de apertura
+  // Si hay modal de cierre automático, mostrar ese con prioridad
+  if (showModalCierreAutomatico && cajaAntigua && cajaAntigua.fecha_apertura) {
+    return (
+      <ModalCierreAutomatico
+        open={showModalCierreAutomatico}
+        cajaAntigua={{
+          monto_inicial: cajaAntigua.monto_inicial,
+          monto_actual: cajaAntigua.monto_actual,
+          fecha_apertura: cajaAntigua.fecha_apertura,
+        }}
+        onSuccess={handleCierreAutomaticoSuccess}
+        onCancel={() => {
+          setShowModalCierreAutomatico(false)
+          toast({
+            title: "⚠️ Acción requerida",
+            description: "Debes cerrar la caja anterior para continuar",
+            variant: "destructive",
+          })
+        }}
+      />
+    )
+  }
+
+  // Si hay modal de cierre manual, mostrar ese
   if (showModalCierre && cajaAntigua) {
     return (
       <ModalCierreCaja
