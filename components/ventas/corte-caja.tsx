@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import {
   Wallet,
   CreditCard,
@@ -26,6 +26,9 @@ import {
 } from "lucide-react"
 import type { Venta, MetodoPago } from "@/lib/types/ventas"
 import { formatCurrency } from "@/lib/types/ventas"
+import { CajaService } from "@/lib/services/caja"
+import type { CorteCaja as CorteCajaType, GetCortesResponse, Movimiento, CorteDetalle } from "@/lib/types/caja"
+import { useToast } from "@/hooks/use-toast"
 
 // Helper functions para corte de caja (temporal hasta integración con API)
 function getMetodoPagoLabel(metodo: MetodoPago | string): string {
@@ -48,29 +51,8 @@ function getVentasPorMetodo(ventas: Venta[]): { metodo: string; cantidad: number
 
 // ====== Types ======
 
-interface Movimiento {
-  fecha: string
-  hora: string
-  concepto: string
-  tipoPago: string
-  usuario: string
-  ingreso: number
-  egreso: number
-}
-
-interface CorteCajaRecord {
-  id: string
-  fechaInicio: string
-  fechaFin: string
-  ingresos: number
-  egresos: number
-  cajaInicial: number
-  cajaFinal: number
-  usuario: string
-  fechaCreacion: string
-  observacion: string
-  movimientos: Movimiento[]
-}
+// Usamos los tipos del API directamente
+type CorteCajaRecord = CorteCajaType
 
 interface CorteCajaProps {
   ventasHoy: Venta[]
@@ -78,202 +60,136 @@ interface CorteCajaProps {
   fondoInicial: number
 }
 
-// ====== Seeded PRNG for deterministic demo data (avoids hydration mismatch) ======
-
-function createSeededRandom(seed: number) {
-  let s = seed | 0
-  return () => {
-    s = (s + 0x6d2b79f5) | 0
-    let t = Math.imul(s ^ (s >>> 15), 1 | s)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-const seededRandom = createSeededRandom(99)
-
-// ====== Demo Cortes Data Generator ======
-
-function generateDemoCortes(allVentas: Venta[], fondoInicial: number): CorteCajaRecord[] {
-  const cortes: CorteCajaRecord[] = []
-  // Use a fixed UTC reference date to match the UTC-based ventas data
-  const today = new Date(Date.UTC(2026, 2, 1)) // March 1, 2026
-
-  for (let i = 6; i >= 1; i--) {
-    const d = new Date(today)
-    d.setUTCDate(d.getUTCDate() - i)
-    const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
-    
-    // Filter ventas by date (fechaHora starts with dateStr)
-    const dayVentas = allVentas.filter((v) => v.fechaHora.startsWith(dateStr))
-    const ingresos = dayVentas.reduce((sum, v) => sum + v.total, 0)
-    const egresos = Math.round(ingresos * (seededRandom() * 0.3 + 0.1))
-    const cajaFinal = fondoInicial + ingresos - egresos
-
-    const movimientos: Movimiento[] = dayVentas.map((v) => {
-      const dateTime = new Date(v.fechaHora)
-      const hora = `${String(dateTime.getHours()).padStart(2, "0")}:${String(dateTime.getMinutes()).padStart(2, "0")}`
-      
-      return {
-        fecha: dateStr,
-        hora: hora,
-        concepto: `Venta ${v.idVenta}`,
-        tipoPago: getMetodoPagoLabel(v.metodoPago),
-        usuario: "admin",
-        ingreso: v.total,
-        egreso: 0,
-      }
-    })
-
-    // Add some expenses
-    if (egresos > 0) {
-      movimientos.push({
-        fecha: dateStr,
-        hora: "10:00",
-        concepto: "Pago Proveedores",
-        tipoPago: "Efectivo",
-        usuario: "admin",
-        ingreso: 0,
-        egreso: Math.round(egresos * 0.6),
-      })
-      movimientos.push({
-        fecha: dateStr,
-        hora: "14:30",
-        concepto: "Gastos Operativos",
-        tipoPago: "Transferencia",
-        usuario: "admin",
-        ingreso: 0,
-        egreso: Math.round(egresos * 0.4),
-      })
-    }
-
-    cortes.push({
-      id: `CC-${String(i).padStart(4, "0")}`,
-      fechaInicio: dateStr,
-      fechaFin: dateStr,
-      ingresos,
-      egresos,
-      cajaInicial: fondoInicial,
-      cajaFinal,
-      usuario: "admin",
-      fechaCreacion: `${dateStr} ${String(18 + Math.floor(seededRandom() * 3)).padStart(2, "0")}:00`,
-      observacion: i % 2 === 0 ? "Corte normal del dia" : "",
-      movimientos: movimientos.sort((a, b) => a.hora.localeCompare(b.hora)),
-    })
-  }
-
-  return cortes.reverse()
-}
-
-// ====== Generate Movimientos from Ventas for a date range ======
-
-function generateMovimientos(ventas: Venta[]): Movimiento[] {
-  const movimientos: Movimiento[] = ventas.map((v) => {
-    const dateTime = new Date(v.fechaHora)
-    const fecha = v.fechaHora.split('T')[0]
-    const hora = `${String(dateTime.getHours()).padStart(2, "0")}:${String(dateTime.getMinutes()).padStart(2, "0")}`
-    
-    return {
-      fecha: fecha,
-      hora: hora,
-      concepto: `Venta ${v.idVenta} - ${v.cliente}`,
-      tipoPago: getMetodoPagoLabel(v.metodoPago),
-      usuario: "admin",
-      ingreso: v.total,
-      egreso: 0,
-    }
-  })
-
-  // Simulate some egresos based on ventas
-  const totalVentas = ventas.reduce((s, v) => s + v.total, 0)
-  if (totalVentas > 0) {
-    const dates = [...new Set(ventas.map((v) => v.fechaHora.split('T')[0]))].sort()
-    if (dates.length > 0) {
-      movimientos.push({
-        fecha: dates[0],
-        hora: "09:00",
-        concepto: "Compra de Suministros",
-        tipoPago: "Efectivo",
-        usuario: "admin",
-        ingreso: 0,
-        egreso: Math.round(totalVentas * 0.08),
-      })
-      movimientos.push({
-        fecha: dates[Math.floor(dates.length / 2)] || dates[0],
-        hora: "13:30",
-        concepto: "Pago Servicios",
-        tipoPago: "Transferencia",
-        usuario: "admin",
-        ingreso: 0,
-        egreso: Math.round(totalVentas * 0.05),
-      })
-    }
-  }
-
-  return movimientos.sort((a, b) => {
-    const dateComp = a.fecha.localeCompare(b.fecha)
-    if (dateComp !== 0) return dateComp
-    return a.hora.localeCompare(b.hora)
-  })
-}
-
 // ====== Main Component ======
 
 export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps) {
-  const [cortes, setCortes] = useState<CorteCajaRecord[]>(() =>
-    generateDemoCortes(allVentas, fondoInicial)
-  )
+  const { toast } = useToast()
+  
+  // Estados de datos del API
+  const [cortes, setCortes] = useState<CorteCajaRecord[]>([])
+  const [dashboardStats, setDashboardStats] = useState<GetCortesResponse["dashboard_stats"] | null>(null)
+  const [pagination, setPagination] = useState<GetCortesResponse["pagination"]>({
+    current_page: 1,
+    limit: 10,
+    total_records: 0,
+    total_pages: 0,
+  })
+  const [loading, setLoading] = useState(true)
 
   // Filters
   const [filtroFechaInicio, setFiltroFechaInicio] = useState("")
   const [filtroFechaFin, setFiltroFechaFin] = useState("")
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 5
-
   // Modals
   const [showNuevoModal, setShowNuevoModal] = useState(false)
   const [selectedCorte, setSelectedCorte] = useState<CorteCajaRecord | null>(null)
   const [showDetalleModal, setShowDetalleModal] = useState(false)
+  const [corteDetalle, setCorteDetalle] = useState<CorteDetalle | null>(null)
+  const [loadingDetalle, setLoadingDetalle] = useState(false)
 
-  // Effective cash in register
+  // Cargar cortes desde el API
+  const cargarCortes = useCallback(async (page?: number) => {
+    try {
+      setLoading(true)
+      console.log("🔄 Cargando cortes de caja...")
+      
+      const params: any = {
+        page: page || pagination.current_page,
+        limit: 10,
+      }
+      
+      // Agregar filtros de fecha si existen
+      if (filtroFechaInicio) {
+        params.fecha_inicio = filtroFechaInicio
+      }
+      
+      if (filtroFechaFin) {
+        params.fecha_fin = filtroFechaFin
+      }
+      
+      const resultado = await CajaService.getCortes(params)
+      
+      setCortes(resultado.cortes)
+      setDashboardStats(resultado.dashboardStats)
+      setPagination(resultado.pagination)
+      
+      console.log("✅ Cortes cargados:", resultado.cortes.length)
+    } catch (error: any) {
+      console.error("❌ Error al cargar cortes:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudieron cargar los cortes de caja",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [filtroFechaInicio, filtroFechaFin, pagination.current_page, toast])
+
+  // Cargar cortes al montar el componente
+  useEffect(() => {
+    cargarCortes()
+  }, [])
+
+  // Effective cash in register (calculado desde ventasHoy)
   const totalEfectivo = useMemo(() => {
     return ventasHoy
-      .filter((v) => v.metodoPago === "efectivo")
+      .filter((v) => v.metodoPago === "Efectivo")
       .reduce((sum, v) => sum + v.total, 0)
   }, [ventasHoy])
-  const efectivoEnCaja = fondoInicial + totalEfectivo
+  
+  // Usar dashboardStats si está disponible, sino calcular
+  const efectivoEnCaja = dashboardStats 
+    ? dashboardStats.efectivo_caja.total 
+    : fondoInicial + totalEfectivo
 
-  // Filtered cortes
-  const cortesFiltrados = useMemo(() => {
-    let filtered = [...cortes]
-    if (filtroFechaInicio) {
-      filtered = filtered.filter((c) => c.fechaInicio >= filtroFechaInicio)
+  // Cargar detalle de un corte específico
+  const cargarDetalle = useCallback(async (corteId: number) => {
+    try {
+      setLoadingDetalle(true)
+      console.log("🔄 Cargando detalle del corte:", corteId)
+      
+      const detalle = await CajaService.getCorteDetalle(corteId)
+      
+      setCorteDetalle(detalle)
+      setShowDetalleModal(true)
+      
+      console.log("✅ Detalle cargado con", detalle.movimientos.length, "movimientos")
+    } catch (error: any) {
+      console.error("❌ Error al cargar detalle:", error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo cargar el detalle del corte",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingDetalle(false)
     }
-    if (filtroFechaFin) {
-      filtered = filtered.filter((c) => c.fechaFin <= filtroFechaFin)
-    }
-    return filtered
-  }, [cortes, filtroFechaInicio, filtroFechaFin])
+  }, [toast])
 
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(cortesFiltrados.length / itemsPerPage))
-  const paginatedCortes = cortesFiltrados.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  )
+  // Handlers de paginación
+  const handlePageChange = useCallback((newPage: number) => {
+    console.log("📄 Cambiando a página:", newPage)
+    setPagination((prev) => ({ ...prev, current_page: newPage }))
+    cargarCortes(newPage)
+  }, [cargarCortes])
 
   // Handlers
   const handleEliminar = useCallback(() => {
     if (!selectedCorte) return
+    // TODO: Implementar eliminación con API
     setCortes((prev) => prev.filter((c) => c.id !== selectedCorte.id))
     setSelectedCorte(null)
-  }, [selectedCorte])
+    toast({
+      title: "Corte eliminado",
+      description: "El corte ha sido eliminado (funcionalidad demo)",
+      variant: "destructive",
+    })
+  }, [selectedCorte, toast])
 
   const handleExportar = useCallback(() => {
     const headers = [
-      "ID",
+      "Folio",
       "Fecha Inicio",
       "Fecha Final",
       "Ingresos",
@@ -283,9 +199,10 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
       "Usuario",
       "Fecha Creacion",
       "Observacion",
+      "Status",
     ]
-    const rows = cortesFiltrados.map((c) => [
-      c.id,
+    const rows = cortes.map((c) => [
+      c.folio,
       c.fechaInicio,
       c.fechaFin,
       c.ingresos.toFixed(2),
@@ -295,6 +212,7 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
       c.usuario,
       c.fechaCreacion,
       c.observacion,
+      c.status,
     ])
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n")
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" })
@@ -304,41 +222,26 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
     a.download = `cortes_caja_${new Date().toISOString().split("T")[0]}.csv`
     a.click()
     URL.revokeObjectURL(url)
-  }, [cortesFiltrados])
-
-  const handleNuevoCorte = useCallback(
-    (data: {
-      fechaInicio: string
-      fechaFin: string
-      observacion: string
-      ingresos: number
-      egresos: number
-      cajaInicial: number
-      cajaFinal: number
-      movimientos: Movimiento[]
-    }) => {
-      const newCorte: CorteCajaRecord = {
-        id: `CC-${String(cortes.length + 1).padStart(4, "0")}`,
-        fechaInicio: data.fechaInicio,
-        fechaFin: data.fechaFin,
-        ingresos: data.ingresos,
-        egresos: data.egresos,
-        cajaInicial: data.cajaInicial,
-        cajaFinal: data.cajaFinal,
-        usuario: "admin",
-        fechaCreacion: new Date().toISOString().replace("T", " ").substring(0, 16),
-        observacion: data.observacion,
-        movimientos: data.movimientos,
-      }
-      setCortes((prev) => [newCorte, ...prev])
-      setShowNuevoModal(false)
-    },
-    [cortes.length]
-  )
+    
+    toast({
+      title: "Exportación exitosa",
+      description: `${cortes.length} cortes exportados a Excel`,
+    })
+  }, [cortes, toast])
 
   const handleBuscar = useCallback(() => {
-    setCurrentPage(1)
-  }, [])
+    console.log("🔍 Aplicando filtros de fecha...")
+    setPagination((prev) => ({ ...prev, current_page: 1 }))
+    cargarCortes(1)
+  }, [cargarCortes])
+
+  const handleNuevoCorte = useCallback(() => {
+    console.log("✅ Corte creado exitosamente, recargando lista...")
+    setShowNuevoModal(false)
+    // Recargar la lista de cortes desde la página 1
+    setPagination((prev) => ({ ...prev, current_page: 1 }))
+    cargarCortes(1)
+  }, [cargarCortes])
 
   return (
     <div className="space-y-4">
@@ -365,12 +268,16 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
           </button>
           <button
             onClick={() => {
-              if (selectedCorte) setShowDetalleModal(true)
+              if (selectedCorte) cargarDetalle(selectedCorte.id)
             }}
-            disabled={!selectedCorte}
+            disabled={!selectedCorte || loadingDetalle}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase border border-accent text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Eye className="h-4 w-4" />
+            {loadingDetalle ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
             Ver Detalle
           </button>
           <div className="flex-1" />
@@ -441,126 +348,141 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
 
         {/* Cortes Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider w-8" />
-                <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Fecha inicio
-                </th>
-                <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Fecha final
-                </th>
-                <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Ingresos
-                </th>
-                <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Egresos
-                </th>
-                <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Caja inicial
-                </th>
-                <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Caja final
-                </th>
-                <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Usuario
-                </th>
-                <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Fecha creacion
-                </th>
-                <th className="pb-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Observacion
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedCortes.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={10}
-                    className="text-center py-10 text-xs text-muted-foreground"
-                  >
-                    No hay cortes registrados
-                  </td>
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 text-accent animate-spin" />
+            </div>
+          ) : (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider w-8" />
+                  <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Folio
+                  </th>
+                  <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Fecha inicio
+                  </th>
+                  <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Fecha final
+                  </th>
+                  <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Ingresos
+                  </th>
+                  <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Egresos
+                  </th>
+                  <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Caja inicial
+                  </th>
+                  <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Caja final
+                  </th>
+                  <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Usuario
+                  </th>
+                  <th className="pb-3 pr-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Fecha creacion
+                  </th>
+                  <th className="pb-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Observacion
+                  </th>
                 </tr>
-              ) : (
-                paginatedCortes.map((corte) => {
-                  const isSelected = selectedCorte?.id === corte.id
-                  return (
-                    <tr
-                      key={corte.id}
-                      onClick={() => setSelectedCorte(isSelected ? null : corte)}
-                      onDoubleClick={() => {
-                        setSelectedCorte(corte)
-                        setShowDetalleModal(true)
-                      }}
-                      className={`border-b border-border/40 cursor-pointer transition-colors ${
-                        isSelected
-                          ? "bg-accent/10 border-accent/30"
-                          : "hover:bg-muted/30"
-                      }`}
+              </thead>
+              <tbody>
+                {cortes.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={11}
+                      className="text-center py-10 text-xs text-muted-foreground"
                     >
-                      <td className="py-3 pr-3">
-                        <div
-                          className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-colors ${
-                            isSelected
-                              ? "border-accent bg-accent"
-                              : "border-border"
-                          }`}
-                        >
-                          {isSelected && (
-                            <CheckCircle2 className="h-3 w-3 text-accent-foreground" />
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 pr-3 text-xs text-foreground">{corte.fechaInicio}</td>
-                      <td className="py-3 pr-3 text-xs text-foreground">{corte.fechaFin}</td>
-                      <td className="py-3 pr-3 text-xs font-semibold text-success">
-                        {formatCurrency(corte.ingresos)}
-                      </td>
-                      <td className="py-3 pr-3 text-xs font-semibold text-destructive">
-                        {formatCurrency(corte.egresos)}
-                      </td>
-                      <td className="py-3 pr-3 text-xs text-accent font-medium">
-                        {formatCurrency(corte.cajaInicial)}
-                      </td>
-                      <td className="py-3 pr-3 text-xs text-accent font-medium">
-                        {formatCurrency(corte.cajaFinal)}
-                      </td>
-                      <td className="py-3 pr-3 text-xs text-foreground">{corte.usuario}</td>
-                      <td className="py-3 pr-3 text-xs text-muted-foreground">{corte.fechaCreacion}</td>
-                      <td className="py-3 text-xs text-muted-foreground truncate max-w-[140px]">
-                        {corte.observacion || "-"}
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+                      No hay cortes registrados
+                    </td>
+                  </tr>
+                ) : (
+                  cortes.map((corte) => {
+                    const isSelected = selectedCorte?.id === corte.id
+                    // Formatear fechas
+                    const fechaInicio = new Date(corte.fechaInicio).toLocaleDateString("es-MX")
+                    const fechaFin = new Date(corte.fechaFin).toLocaleDateString("es-MX")
+                    const fechaCreacion = new Date(corte.fechaCreacion).toLocaleString("es-MX")
+                    
+                    return (
+                      <tr
+                        key={corte.id}
+                        onClick={() => setSelectedCorte(isSelected ? null : corte)}
+                        onDoubleClick={() => {
+                          setSelectedCorte(corte)
+                          cargarDetalle(corte.id)
+                        }}
+                        className={`border-b border-border/40 cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-accent/10 border-accent/30"
+                            : "hover:bg-muted/30"
+                        }`}
+                      >
+                        <td className="py-3 pr-3">
+                          <div
+                            className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-colors ${
+                              isSelected
+                                ? "border-accent bg-accent"
+                                : "border-border"
+                            }`}
+                          >
+                            {isSelected && (
+                              <CheckCircle2 className="h-3 w-3 text-accent-foreground" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3 text-xs text-foreground font-medium">{corte.folio}</td>
+                        <td className="py-3 pr-3 text-xs text-foreground">{fechaInicio}</td>
+                        <td className="py-3 pr-3 text-xs text-foreground">{fechaFin}</td>
+                        <td className="py-3 pr-3 text-xs font-semibold text-success">
+                          {formatCurrency(corte.ingresos)}
+                        </td>
+                        <td className="py-3 pr-3 text-xs font-semibold text-destructive">
+                          {formatCurrency(corte.egresos)}
+                        </td>
+                        <td className="py-3 pr-3 text-xs text-accent font-medium">
+                          {formatCurrency(corte.cajaInicial)}
+                        </td>
+                        <td className="py-3 pr-3 text-xs text-accent font-medium">
+                          {formatCurrency(corte.cajaFinal)}
+                        </td>
+                        <td className="py-3 pr-3 text-xs text-foreground">{corte.usuario}</td>
+                        <td className="py-3 pr-3 text-xs text-muted-foreground">{fechaCreacion}</td>
+                        <td className="py-3 text-xs text-muted-foreground truncate max-w-[140px]">
+                          {corte.observacion || "-"}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Pagination */}
-        {cortesFiltrados.length > itemsPerPage && (
+        {pagination.total_pages > 1 && !loading && (
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
             <span className="text-xs text-muted-foreground">
-              {cortesFiltrados.length} corte{cortesFiltrados.length !== 1 ? "s" : ""} registrado{cortesFiltrados.length !== 1 ? "s" : ""}
+              {pagination.total_records} corte{pagination.total_records !== 1 ? "s" : ""} registrado{pagination.total_records !== 1 ? "s" : ""}
             </span>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
+                onClick={() => handlePageChange(pagination.current_page - 1)}
+                disabled={pagination.current_page === 1}
                 className="p-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <span className="text-xs text-foreground font-medium px-2">
-                {currentPage} / {totalPages}
+                {pagination.current_page} / {pagination.total_pages}
               </span>
               <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
+                onClick={() => handlePageChange(pagination.current_page + 1)}
+                disabled={pagination.current_page === pagination.total_pages}
                 className="p-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -582,17 +504,28 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Efectivo en Caja</span>
             <DollarSign className="h-4 w-4 text-success" />
           </div>
-          <p className="text-xl font-bold text-success">{formatCurrency(efectivoEnCaja)}</p>
-          <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <ArrowDownRight className="h-3 w-3" />
-              Fondo: {formatCurrency(fondoInicial)}
-            </span>
-            <span className="flex items-center gap-1">
-              <ArrowUpRight className="h-3 w-3 text-success" />
-              +{formatCurrency(totalEfectivo)}
-            </span>
-          </div>
+          {loading ? (
+            <div className="flex items-center py-2">
+              <Loader2 className="h-6 w-6 text-success animate-spin" />
+            </div>
+          ) : (
+            <>
+              <p className="text-xl font-bold text-success">
+                {formatCurrency(dashboardStats?.efectivo_caja.total ?? efectivoEnCaja)}
+              </p>
+              <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <ArrowDownRight className="h-3 w-3" />
+                  Fondo: {formatCurrency(dashboardStats?.efectivo_caja.fondo ?? fondoInicial)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <ArrowUpRight className="h-3 w-3 text-success" />
+                  {dashboardStats && dashboardStats.efectivo_caja.variacion >= 0 ? "+" : ""}
+                  {formatCurrency(dashboardStats?.efectivo_caja.variacion ?? totalEfectivo)}
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Total Hoy */}
@@ -605,12 +538,22 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Hoy</span>
             <Receipt className="h-4 w-4 text-primary" />
           </div>
-          <p className="text-xl font-bold text-primary">
-            {formatCurrency(ventasHoy.reduce((s, v) => s + v.total, 0))}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-2">
-            {ventasHoy.length} transacciones
-          </p>
+          {loading ? (
+            <div className="flex items-center py-2">
+              <Loader2 className="h-6 w-6 text-primary animate-spin" />
+            </div>
+          ) : (
+            <>
+              <p className="text-xl font-bold text-primary">
+                {formatCurrency(
+                  dashboardStats?.total_hoy.total ?? ventasHoy.reduce((s, v) => s + v.total, 0)
+                )}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-2">
+                {dashboardStats?.total_hoy.transacciones ?? ventasHoy.length} transacciones
+              </p>
+            </>
+          )}
         </div>
 
         {/* Cortes Realizados */}
@@ -623,28 +566,48 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Cortes Realizados</span>
             <Calendar className="h-4 w-4 text-accent" />
           </div>
-          <p className="text-xl font-bold text-accent">{cortes.length}</p>
-          <p className="text-[10px] text-muted-foreground mt-2">
-            Ultimo: {cortes[0]?.fechaCreacion || "N/A"}
-          </p>
+          {loading ? (
+            <div className="flex items-center py-2">
+              <Loader2 className="h-6 w-6 text-accent animate-spin" />
+            </div>
+          ) : (
+            <>
+              <p className="text-xl font-bold text-accent">
+                {dashboardStats?.cortes_realizados.total ?? cortes.length}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-2">
+                Ultimo:{" "}
+                {dashboardStats?.cortes_realizados.ultimo
+                  ? new Date(dashboardStats.cortes_realizados.ultimo).toLocaleString("es-MX", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : cortes[0]?.fechaCreacion || "N/A"}
+              </p>
+            </>
+          )}
         </div>
       </div>
 
       {/* Nuevo Corte Modal */}
       {showNuevoModal && (
         <NuevoCorteModal
-          allVentas={allVentas}
-          fondoInicial={fondoInicial}
           onClose={() => setShowNuevoModal(false)}
-          onConfirm={handleNuevoCorte}
+          onSuccess={handleNuevoCorte}
         />
       )}
 
       {/* Detalle Corte Modal */}
-      {showDetalleModal && selectedCorte && (
+      {showDetalleModal && corteDetalle && (
         <DetalleCorteModal
-          corte={selectedCorte}
-          onClose={() => setShowDetalleModal(false)}
+          corte={corteDetalle}
+          onClose={() => {
+            setShowDetalleModal(false)
+            setCorteDetalle(null)
+          }}
         />
       )}
     </div>
@@ -654,67 +617,123 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
 // ====== Nuevo Corte Modal ======
 
 function NuevoCorteModal({
-  allVentas,
-  fondoInicial,
   onClose,
-  onConfirm,
+  onSuccess,
 }: {
-  allVentas: Venta[]
-  fondoInicial: number
   onClose: () => void
-  onConfirm: (data: {
-    fechaInicio: string
-    fechaFin: string
-    observacion: string
-    ingresos: number
-    egresos: number
-    cajaInicial: number
-    cajaFinal: number
-    movimientos: Movimiento[]
-  }) => void
+  onSuccess: () => void
 }) {
-  const today = "2026-02-21"
-  const [fechaInicio, setFechaInicio] = useState(today)
-  const [fechaFin, setFechaFin] = useState(today)
+  const { toast } = useToast()
+  
+  // Fechas por defecto: día actual
+  const now = new Date()
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  
+  const [fechaInicio, setFechaInicio] = useState(startOfDay.toISOString())
+  const [fechaFin, setFechaFin] = useState(endOfDay.toISOString())
   const [observacion, setObservacion] = useState("")
   const [consulted, setConsulted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [movimientos, setMovimientos] = useState<Movimiento[]>([])
   const [ingresos, setIngresos] = useState(0)
   const [egresos, setEgresos] = useState(0)
-  const cajaFinal = fondoInicial + ingresos - egresos
+  const [efectivoInicial, setEfectivoInicial] = useState(0)
+  const [efectivoFinal, setEfectivoFinal] = useState(0)
 
-  const handleConsultar = useCallback(() => {
+  const handleConsultar = useCallback(async () => {
     setLoading(true)
-    // Simulate API call
-    setTimeout(() => {
-      const ventasRango = allVentas.filter(
-        (v) => v.fecha >= fechaInicio && v.fecha <= fechaFin
-      )
-      const movs = generateMovimientos(ventasRango)
-      const totalIngresos = movs.reduce((sum, m) => sum + m.ingreso, 0)
-      const totalEgresos = movs.reduce((sum, m) => sum + m.egreso, 0)
-
+    try {
+      console.log("📊 Consultando movimientos:", fechaInicio, "→", fechaFin)
+      
+      const response = await CajaService.consultarCaja({
+        fecha_inicial: fechaInicio,
+        fecha_final: fechaFin,
+      })
+      
+      console.log("✅ Response:", response)
+      
+      // Adaptar MovimientoCaja a estructura UI
+      const movs = response.movimientos.map((m: any) => {
+        const fecha = new Date(m.fecha)
+        return {
+          id: m.id,
+          fecha: fecha.toLocaleDateString("es-MX"),
+          hora: fecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+          concepto: m.concepto,
+          tipo: m.tipo,
+          tipoPago: m.tipo === "ingreso" ? "Ingreso" : "Egreso",
+          usuario: m.usuario,
+          ingreso: m.tipo === "ingreso" ? m.monto : 0,
+          egreso: m.tipo === "egreso" ? m.monto : 0,
+        }
+      })
+      
       setMovimientos(movs)
-      setIngresos(totalIngresos)
-      setEgresos(totalEgresos)
+      setIngresos(response.resumen.total_ingresos)
+      setEgresos(response.resumen.total_egresos)
+      setEfectivoInicial(response.resumen.efectivo_inicial)
+      setEfectivoFinal(response.resumen.efectivo_final)
       setConsulted(true)
+      
+      toast({
+        title: "Consulta exitosa",
+        description: `${movs.length} movimiento${movs.length !== 1 ? "s" : ""} encontrado${movs.length !== 1 ? "s" : ""}`,
+      })
+    } catch (error: any) {
+      console.error("❌ Error en consulta:", error)
+      toast({
+        title: "Error al consultar",
+        description: error.message || "No se pudo consultar el rango de fechas",
+        variant: "destructive",
+      })
+    } finally {
       setLoading(false)
-    }, 600)
-  }, [allVentas, fechaInicio, fechaFin])
+    }
+  }, [fechaInicio, fechaFin, toast])
 
-  const handleRealizarCorte = useCallback(() => {
-    onConfirm({
-      fechaInicio,
-      fechaFin,
-      observacion,
-      ingresos,
-      egresos,
-      cajaInicial: fondoInicial,
-      cajaFinal,
-      movimientos,
-    })
-  }, [fechaInicio, fechaFin, observacion, ingresos, egresos, fondoInicial, cajaFinal, movimientos, onConfirm])
+  const handleRealizarCorte = useCallback(async () => {
+    if (!consulted || movimientos.length === 0) {
+      toast({
+        title: "Advertencia",
+        description: "Debes consultar los movimientos primero",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setLoading(true)
+    try {
+      console.log("💰 Creando corte de caja...")
+      console.log("  Fechas:", fechaInicio, "→", fechaFin)
+      console.log("  Observación:", observacion)
+      
+      const response = await CajaService.cerrarCaja({
+        fecha_inicial: fechaInicio,
+        fecha_final: fechaFin,
+        observacion: observacion || undefined,
+      })
+      
+      console.log("✅ Corte creado:", response.data.corte_id)
+      
+      toast({
+        title: "¡Corte realizado!",
+        description: `Corte de caja creado exitosamente (ID: ${response.data.corte_id})`,
+      })
+      
+      // Llamar callback de éxito (cierra modal + recarga lista)
+      onSuccess()
+    } catch (error: any) {
+      console.error("❌ Error al crear corte:", error)
+      toast({
+        title: "Error al crear corte",
+        description: error.message || "No se pudo realizar el corte de caja",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [consulted, movimientos, fechaInicio, fechaFin, observacion, onSuccess, toast])
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-6 px-4 pb-6 overflow-y-auto">
@@ -754,8 +773,11 @@ function NuevoCorteModal({
                   </label>
                   <input
                     type="datetime-local"
-                    value={`${fechaInicio}T00:00`}
-                    onChange={(e) => setFechaInicio(e.target.value.split("T")[0])}
+                    value={fechaInicio.slice(0, 16)}
+                    onChange={(e) => {
+                      const isoDate = new Date(e.target.value).toISOString()
+                      setFechaInicio(isoDate)
+                    }}
                     className="px-3 py-2.5 bg-card border border-border rounded-lg text-foreground text-xs focus:border-accent focus:ring-0 focus:outline-none transition-colors"
                   />
                 </div>
@@ -765,8 +787,11 @@ function NuevoCorteModal({
                   </label>
                   <input
                     type="datetime-local"
-                    value={`${fechaFin}T23:59`}
-                    onChange={(e) => setFechaFin(e.target.value.split("T")[0])}
+                    value={fechaFin.slice(0, 16)}
+                    onChange={(e) => {
+                      const isoDate = new Date(e.target.value).toISOString()
+                      setFechaFin(isoDate)
+                    }}
                     className="px-3 py-2.5 bg-card border border-border rounded-lg text-foreground text-xs focus:border-accent focus:ring-0 focus:outline-none transition-colors"
                   />
                 </div>
@@ -830,16 +855,16 @@ function NuevoCorteModal({
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
                   Efectivo en caja inicial
                 </p>
-                <p className="text-lg font-bold text-accent">
-                  {formatCurrency(fondoInicial)}
+                <p className={`text-lg font-bold ${consulted ? "text-accent" : "text-muted-foreground"}`}>
+                  {formatCurrency(efectivoInicial)}
                 </p>
               </div>
               <div className="bg-background rounded-lg p-3">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
                   Efectivo en caja final
                 </p>
-                <p className={`text-lg font-bold ${consulted ? (cajaFinal >= fondoInicial ? "text-accent" : "text-warning") : "text-muted-foreground"}`}>
-                  {formatCurrency(consulted ? cajaFinal : 0)}
+                <p className={`text-lg font-bold ${consulted ? (efectivoFinal >= efectivoInicial ? "text-accent" : "text-warning") : "text-muted-foreground"}`}>
+                  {formatCurrency(efectivoFinal)}
                 </p>
               </div>
             </div>
@@ -951,7 +976,7 @@ function DetalleCorteModal({
   corte,
   onClose,
 }: {
-  corte: CorteCajaRecord
+  corte: CorteDetalle
   onClose: () => void
 }) {
   return (
@@ -967,7 +992,7 @@ function DetalleCorteModal({
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
             <h3 className="text-lg font-bold text-accent flex items-center gap-2">
               <Receipt className="h-5 w-5" />
-              Detalle del Corte {corte.id}
+              Detalle del Corte {corte.folio}
             </h3>
             <button
               onClick={onClose}
@@ -981,11 +1006,15 @@ function DetalleCorteModal({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Fecha Inicio</p>
-              <p className="text-sm font-medium text-foreground">{corte.fechaInicio}</p>
+              <p className="text-sm font-medium text-foreground">
+                {new Date(corte.fechaInicio).toLocaleString("es-MX")}
+              </p>
             </div>
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Fecha Final</p>
-              <p className="text-sm font-medium text-foreground">{corte.fechaFin}</p>
+              <p className="text-sm font-medium text-foreground">
+                {new Date(corte.fechaFin).toLocaleString("es-MX")}
+              </p>
             </div>
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Usuario</p>
@@ -993,7 +1022,9 @@ function DetalleCorteModal({
             </div>
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Creado</p>
-              <p className="text-sm font-medium text-foreground">{corte.fechaCreacion}</p>
+              <p className="text-sm font-medium text-foreground">
+                {new Date(corte.creado).toLocaleString("es-MX")}
+              </p>
             </div>
           </div>
 
@@ -1001,11 +1032,11 @@ function DetalleCorteModal({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Total Ingresos</p>
-              <p className="text-lg font-bold text-success">{formatCurrency(corte.ingresos)}</p>
+              <p className="text-lg font-bold text-success">{formatCurrency(corte.totalIngresos)}</p>
             </div>
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Total Egresos</p>
-              <p className="text-lg font-bold text-destructive">{formatCurrency(corte.egresos)}</p>
+              <p className="text-lg font-bold text-destructive">{formatCurrency(corte.totalEgresos)}</p>
             </div>
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Caja Inicial</p>
@@ -1018,10 +1049,10 @@ function DetalleCorteModal({
           </div>
 
           {/* Observacion */}
-          {corte.observacion && (
+          {corte.observaciones && (
             <div className="bg-background rounded-lg p-3 mb-5">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Observacion</p>
-              <p className="text-sm text-foreground">{corte.observacion}</p>
+              <p className="text-sm text-foreground">{corte.observaciones}</p>
             </div>
           )}
 
@@ -1040,45 +1071,60 @@ function DetalleCorteModal({
                   <thead className="sticky top-0 bg-background z-10">
                     <tr className="border-b border-border">
                       <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        Folio
+                      </th>
+                      <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                         Fecha
                       </th>
                       <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                         Concepto
                       </th>
                       <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                        Tipo
-                      </th>
-                      <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                         Usuario
                       </th>
-                      <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right">
-                        Ingresos
+                      <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center">
+                        Tipo
                       </th>
                       <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right">
-                        Egresos
+                        Monto
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {corte.movimientos.map((m, idx) => (
+                    {corte.movimientos.map((m) => (
                       <tr
-                        key={`${m.fecha}-${m.hora}-${idx}`}
+                        key={m.id}
                         className="border-b border-border/30 hover:bg-muted/20 transition-colors"
                       >
+                        <td className="px-3 py-2 text-xs text-muted-foreground font-mono whitespace-nowrap">
+                          {m.folioMovimiento}
+                        </td>
                         <td className="px-3 py-2 text-xs text-foreground whitespace-nowrap">
-                          {m.fecha} {m.hora}
+                          {new Date(m.fecha).toLocaleString("es-MX", {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </td>
                         <td className="px-3 py-2 text-xs text-foreground">{m.concepto}</td>
-                        <td className="px-3 py-2 text-xs text-foreground">{m.tipoPago}</td>
                         <td className="px-3 py-2 text-xs text-foreground">{m.usuario}</td>
-                        <td className="px-3 py-2 text-xs font-semibold text-right">
-                          <span className={m.ingreso > 0 ? "text-success" : "text-muted-foreground"}>
-                            {formatCurrency(m.ingreso)}
+                        <td className="px-3 py-2 text-xs font-semibold text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] uppercase ${
+                              m.tipo === "ingreso"
+                                ? "bg-success/10 text-success"
+                                : "bg-destructive/10 text-destructive"
+                            }`}
+                          >
+                            {m.tipo}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-xs font-semibold text-right">
-                          <span className={m.egreso > 0 ? "text-destructive" : "text-muted-foreground"}>
-                            {formatCurrency(m.egreso)}
+                          <span className={m.tipo === "ingreso" ? "text-success" : "text-destructive"}>
+                            {m.tipo === "ingreso" ? "+" : "-"}
+                            {formatCurrency(m.monto)}
                           </span>
                         </td>
                       </tr>
