@@ -23,6 +23,25 @@ function obtenerFechasDelDia(): { fecha_inicial: string; fecha_final: string } {
 }
 
 /**
+ * Genera fechas inicial y final para un día específico
+ * Útil para cerrar cajas antiguas del día que se abrieron
+ */
+function obtenerFechasDeDia(fechaReferencia: string): { fecha_inicial: string; fecha_final: string } {
+  const fecha = new Date(fechaReferencia)
+  const fecha_inicial = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate(), 0, 0, 0, 0)
+  const fecha_final = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate(), 23, 59, 59, 999)
+
+  console.log("📅 Calculando fechas para:", fechaReferencia)
+  console.log("  Fecha inicial:", fecha_inicial.toISOString())
+  console.log("  Fecha final:", fecha_final.toISOString())
+
+  return {
+    fecha_inicial: fecha_inicial.toISOString(),
+    fecha_final: fecha_final.toISOString(),
+  }
+}
+
+/**
  * Servicio para gestionar operaciones de caja
  * (apertura, cierre, consulta de estado)
  */
@@ -86,6 +105,42 @@ export class CajaService {
   }
 
   /**
+   * Consultar caja con rango de fechas amplio (últimos 7 días)
+   * Útil para detectar cajas antiguas sin cerrar
+   * POST /api/caja/consultar
+   */
+  static async consultarCajaAmplio(): Promise<ConsultarCajaResponse> {
+    console.log("🔍 Consultando caja con rango amplio (últimos 7 días)...")
+
+    try {
+      const ahora = new Date()
+      const hace7Dias = new Date(ahora)
+      hace7Dias.setDate(ahora.getDate() - 7)
+      hace7Dias.setHours(0, 0, 0, 0)
+      
+      const finDeHoy = new Date(ahora)
+      finDeHoy.setHours(23, 59, 59, 999)
+
+      const data: ConsultarCajaData = {
+        fecha_inicial: hace7Dias.toISOString(),
+        fecha_final: finDeHoy.toISOString(),
+      }
+
+      console.log("  Rango:", data.fecha_inicial, "a", data.fecha_final)
+
+      const response = await apiPost<ConsultarCajaResponse>("/caja/consultar", data)
+
+      console.log("✅ Consulta amplia completada:")
+      console.log("  Movimientos encontrados:", response.movimientos.length)
+
+      return response
+    } catch (error: any) {
+      console.error("❌ Error consultando caja amplia:", error)
+      throw error
+    }
+  }
+
+  /**
    * Cerrar caja del día actual
    * POST /api/caja/cerrar
    */
@@ -111,6 +166,42 @@ export class CajaService {
       return response
     } catch (error: any) {
       console.error("❌ Error cerrando caja:", error)
+      throw error
+    }
+  }
+
+  /**
+   * Cerrar caja antigua (de días anteriores)
+   * Usa las fechas del día que se abrió la caja
+   * POST /api/caja/cerrar
+   */
+  static async cerrarCajaAntigua(
+    fechaApertura: string,
+    observacion?: string
+  ): Promise<CerrarCajaResponse> {
+    console.log("🔒📅 Cerrando caja antigua...")
+    console.log("  Fecha de apertura:", fechaApertura)
+
+    try {
+      // Obtener fechas del día que se abrió la caja
+      const fechas = obtenerFechasDeDia(fechaApertura)
+      const data: CerrarCajaData = {
+        ...fechas,
+        observacion: observacion || "Cierre automático de caja antigua",
+      }
+
+      console.log("  Rango:", fechas.fecha_inicial, "a", fechas.fecha_final)
+      console.log("  Observación:", data.observacion)
+
+      const response = await apiPost<CerrarCajaResponse>("/caja/cerrar", data)
+
+      console.log("✅ Caja antigua cerrada exitosamente:")
+      console.log("  Corte ID:", response.data.corte_id)
+      console.log("  Total ingresos:", response.data.total_ingresos_amarrados)
+
+      return response
+    } catch (error: any) {
+      console.error("❌ Error cerrando caja antigua:", error)
       throw error
     }
   }
