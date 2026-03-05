@@ -1,4 +1,4 @@
-import { apiPost } from "@/lib/api"
+import { apiPost, apiGet } from "@/lib/api"
 import type {
   AbrirCajaData,
   AbrirCajaResponse,
@@ -6,7 +6,12 @@ import type {
   ConsultarCajaResponse,
   CerrarCajaData,
   CerrarCajaResponse,
+  GetCortesResponse,
+  CorteCaja,
+  GetCorteDetalleResponse,
+  CorteDetalle,
 } from "@/lib/types/caja"
+import { mapCorteFromAPI, mapCorteDetalleFromAPI } from "@/lib/types/caja"
 
 /**
  * Genera fechas inicial y final para el día actual
@@ -226,6 +231,101 @@ export class CajaService {
       console.error("❌ Error verificando caja:", error)
       // Si hay error, asumir que no está abierta
       return false
+    }
+  }
+
+  /**
+   * Obtener historial de cortes de caja con filtros opcionales
+   * GET /api/caja/cortes
+   */
+  static async getCortes(params?: {
+    fecha_inicio?: string
+    fecha_fin?: string
+    page?: number
+    limit?: number
+  }): Promise<{
+    cortes: CorteCaja[]
+    dashboardStats: GetCortesResponse["dashboard_stats"]
+    pagination: GetCortesResponse["pagination"]
+  }> {
+    console.log("📊 GET /api/caja/cortes - Obteniendo historial de cortes")
+    console.log("🔍 Parámetros:", params)
+
+    try {
+      // Construir query parameters
+      const queryParams = new URLSearchParams()
+      
+      if (params?.fecha_inicio) {
+        queryParams.append("fecha_inicio", params.fecha_inicio)
+      }
+      
+      if (params?.fecha_fin) {
+        queryParams.append("fecha_fin", params.fecha_fin)
+      }
+      
+      if (params?.page) {
+        queryParams.append("page", params.page.toString())
+      }
+      
+      if (params?.limit) {
+        queryParams.append("limit", params.limit.toString())
+      }
+      
+      const queryString = queryParams.toString()
+      const endpoint = queryString ? `/caja/cortes?${queryString}` : "/caja/cortes"
+      
+      console.log("🌐 Endpoint:", endpoint)
+
+      const response = await apiGet<GetCortesResponse>(endpoint)
+      
+      console.log("✅ Response del servidor:", response)
+      console.log("📈 Dashboard Stats:", response.dashboard_stats)
+      console.log("📋 Cortes obtenidos:", response.data.length)
+      console.log("📃 Paginación:", response.pagination)
+
+      // Mapear cortes al formato frontend
+      const cortes = response.data.map(mapCorteFromAPI)
+      
+      console.log("✅ Cortes mapeados:", cortes.length)
+
+      return {
+        cortes,
+        dashboardStats: response.dashboard_stats,
+        pagination: response.pagination,
+      }
+    } catch (error: any) {
+      console.error("❌ Error obteniendo cortes:", error)
+      throw error
+    }
+  }
+
+  /**
+   * Obtener detalle completo de un corte específico
+   * GET /api/caja/cortes/:id
+   */
+  static async getCorteDetalle(corteId: number): Promise<CorteDetalle> {
+    console.log(`📋 GET /api/caja/cortes/${corteId} - Obteniendo detalle del corte`)
+
+    try {
+      const endpoint = `/caja/cortes/${corteId}`
+      
+      console.log("🌐 Endpoint:", endpoint)
+
+      const response = await apiGet<GetCorteDetalleResponse>(endpoint)
+      
+      console.log("✅ Response del servidor:", response)
+      console.log("📋 Corte:", response.data.folio)
+      console.log("📦 Movimientos:", response.data.movimientos.length)
+
+      // Mapear el detalle al formato frontend
+      const corteDetalle = mapCorteDetalleFromAPI(response.data)
+      
+      console.log("✅ Detalle mapeado con", corteDetalle.movimientos.length, "movimientos")
+
+      return corteDetalle
+    } catch (error: any) {
+      console.error("❌ Error obteniendo detalle del corte:", error)
+      throw error
     }
   }
 }
