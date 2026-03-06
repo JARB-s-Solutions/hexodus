@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Save, Info, DollarSign, RefreshCw } from "lucide-react"
+import { X, Save, Info, DollarSign, RefreshCw, Plus } from "lucide-react"
 import type { ProductoExtendido } from "@/lib/types/productos"
 import type { Categoria as CategoriaAPI } from "@/lib/types/categorias"
 import type { Categoria } from "@/lib/inventario-data"
+import { CategoriaModal } from "./categoria-modal"
 
 interface ProductoModalProps {
   open: boolean
@@ -12,9 +13,10 @@ interface ProductoModalProps {
   onSave: (data: Partial<ProductoExtendido>) => void
   producto?: ProductoExtendido | null
   categorias?: CategoriaAPI[]
+  onRefreshCategorias?: () => Promise<void> // Callback para recargar categorías
 }
 
-export function ProductoModal({ open, onClose, onSave, producto, categorias = [] }: ProductoModalProps) {
+export function ProductoModal({ open, onClose, onSave, producto, categorias = [], onRefreshCategorias }: ProductoModalProps) {
   const isEdit = !!producto
   const [nombre, setNombre] = useState("")
   const [codigo, setCodigo] = useState("")
@@ -27,6 +29,9 @@ export function ProductoModal({ open, onClose, onSave, producto, categorias = []
   const [stockMinimo, setStockMinimo] = useState("")
   const [descripcion, setDescripcion] = useState("")
   const [codigoEditado, setCodigoEditado] = useState(false) // Para saber si el usuario editó manualmente el código
+  
+  // Modal de categoría inline
+  const [categoriaModalOpen, setCategoriaModalOpen] = useState(false)
 
   // Función para generar prefijo de categoría
   const generarPrefijo = (nombreCategoria: string): string => {
@@ -232,6 +237,14 @@ export function ProductoModal({ open, onClose, onSave, producto, categorias = []
                       <option key={cat.id} value={cat.id}>{cat.nombre}</option>
                     ))}
                   </select>
+                  <button
+                    type="button"
+                    onClick={() => setCategoriaModalOpen(true)}
+                    className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent/20 text-accent rounded-lg text-xs font-medium transition-all border border-accent/20"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Crear nueva categoría
+                  </button>
                 </div>
               </div>
 
@@ -360,6 +373,37 @@ export function ProductoModal({ open, onClose, onSave, producto, categorias = []
           </div>
         </form>
       </div>
+
+      {/* Modal inline de categoría */}
+      {categoriaModalOpen && (
+        <CategoriaModal
+          open={categoriaModalOpen}
+          onClose={() => setCategoriaModalOpen(false)}
+          onSuccess={async (nuevaCategoria) => {
+            // Auto-seleccionar la categoría recién creada
+            setCategoriaId(nuevaCategoria.id)
+            setCategoria(nuevaCategoria.nombre as Categoria)
+            
+            // Auto-generar código con el nuevo prefijo si aplica
+            if (!codigoEditado && !isEdit && nuevaCategoria.prefijo) {
+              const numeroAleatorio = Math.floor(Math.random() * 900) + 100
+              setCodigo(`${nuevaCategoria.prefijo}-${numeroAleatorio}`)
+            }
+            
+            // Cerrar modal y recargar categorías
+            setCategoriaModalOpen(false)
+            if (onRefreshCategorias) {
+              await onRefreshCategorias()
+            }
+            
+            toast({
+              title: "Categoría creada",
+              description: `"${nuevaCategoria.nombre}" está lista para usar`,
+            })
+          }}
+          inline={true}
+        />
+      )}
     </div>
   )
 }
