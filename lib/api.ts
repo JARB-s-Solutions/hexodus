@@ -3,7 +3,7 @@
 // ================================================
 
 // URL base de la API - Configurar según el entorno
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://hexodusapi.vercel.app/api'
 
 // Timeout por defecto para las peticiones
 const DEFAULT_TIMEOUT = 10000
