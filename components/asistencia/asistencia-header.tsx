@@ -1,10 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Bell, LogOut } from "lucide-react"
+import { AuthService } from "@/lib/auth"
+import { useToast } from "@/hooks/use-toast"
 
 export function AsistenciaHeader() {
   const [fechaHora, setFechaHora] = useState("")
+  const router = useRouter()
+  const { toast } = useToast()
 
   useEffect(() => {
     const update = () => {
@@ -25,6 +30,23 @@ export function AsistenciaHeader() {
     const id = setInterval(update, 60000)
     return () => clearInterval(id)
   }, [])
+
+  const handleLogout = async () => {
+    try {
+      await AuthService.logout()
+      toast({
+        title: 'Sesión cerrada',
+        description: 'Has cerrado sesión correctamente',
+      })
+      router.push('/login')
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Error al cerrar sesión',
+      })
+    }
+  }
 
   return (
     <header
@@ -47,6 +69,7 @@ export function AsistenciaHeader() {
           <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-primary" />
         </button>
         <button
+          onClick={handleLogout}
           className="p-2 rounded-full hover:bg-muted transition-colors"
           aria-label="Cerrar sesion"
         >
