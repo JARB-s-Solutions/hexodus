@@ -1,10 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Bell, LogOut } from "lucide-react"
+import { AuthService } from "@/lib/auth"
+import { useToast } from "@/hooks/use-toast"
 
 export function SociosHeader() {
   const [dateTime, setDateTime] = useState("")
+  const router = useRouter()
+  const { toast } = useToast()
 
   useEffect(() => {
     function update() {
@@ -26,6 +31,23 @@ export function SociosHeader() {
     return () => clearInterval(interval)
   }, [])
 
+  const handleLogout = async () => {
+    try {
+      await AuthService.logout()
+      toast({
+        title: 'Sesión cerrada',
+        description: 'Has cerrado sesión correctamente',
+      })
+      router.push('/login')
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Error al cerrar sesión',
+      })
+    }
+  }
+
   return (
     <header className="flex items-center justify-between p-4 mx-4 mt-4 mb-0 rounded-xl sticky top-4 z-10 bg-card">
       <div>
@@ -43,6 +65,7 @@ export function SociosHeader() {
           <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-primary" />
         </button>
         <button
+          onClick={handleLogout}
           className="p-2 rounded-full hover:bg-gray-800 transition duration-200"
           title="Cerrar sesión"
         >
