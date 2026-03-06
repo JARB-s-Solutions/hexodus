@@ -6,6 +6,7 @@ import { InventarioHeader } from "@/components/inventario/inventario-header"
 import { KpiInventario } from "@/components/inventario/kpi-inventario"
 import { InventarioToolbar } from "@/components/inventario/inventario-toolbar"
 import { InventarioTable } from "@/components/inventario/inventario-table"
+import { CategoriasTab } from "@/components/inventario/categorias-tab"
 import { ProductoModal } from "@/components/inventario/producto-modal"
 import { CompraModal } from "@/components/inventario/compra-modal"
 import { AjustarStockModal } from "@/components/inventario/ajustar-stock-modal"
@@ -16,8 +17,12 @@ import type { ProductoExtendido, CreateProductoRequest } from "@/lib/types/produ
 import { extenderProducto, reducirProducto, mapProductoToAPI, mapProductoToUpdateAPI, calcularEstadoStock } from "@/lib/types/productos"
 import type { Categoria as CategoriaAPI } from "@/lib/types/categorias"
 import type { Categoria, EstadoStock, CompraItem } from "@/lib/inventario-data"
+import { Package, Tag } from "lucide-react"
 
 export default function InventarioPage() {
+  // Tabs
+  const [activeTab, setActiveTab] = useState<'productos' | 'categorias'>('productos')
+  
   // Data
   const [productos, setProductos] = useState<ProductoExtendido[]>([])
   const [categorias, setCategorias] = useState<CategoriaAPI[]>([])
@@ -257,29 +262,79 @@ export default function InventarioPage() {
         <InventarioHeader />
 
         <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6 space-y-5">
-          <KpiInventario productos={productos} />
+          {/* Tabs Navigation */}
+          <div className="flex gap-2 border-b border-border/40 mb-6">
+            <button
+              onClick={() => setActiveTab('productos')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all relative ${
+                activeTab === 'productos'
+                  ? 'text-accent'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Package className="h-4 w-4" />
+              Productos
+              {activeTab === 'productos' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('categorias')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all relative ${
+                activeTab === 'categorias'
+                  ? 'text-accent'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Tag className="h-4 w-4" />
+              Categorías
+              {activeTab === 'categorias' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full" />
+              )}
+            </button>
+          </div>
 
-          <InventarioToolbar
-            busqueda={busqueda}
-            onBusquedaChange={setBusqueda}
-            categoriaFiltro={categoriaFiltro}
-            onCategoriaChange={setCategoriaFiltro}
-            stockFiltro={stockFiltro}
-            onStockChange={setStockFiltro}
-            onLimpiar={limpiarFiltros}
-            onNuevoProducto={() => { setEditProducto(null); setProductoModalOpen(true) }}
-            onNuevaCompra={() => setCompraModalOpen(true)}
-            totalFiltrados={filtrados.length}
-            totalProductos={activos.length}
-          />
+          {/* Tab: Productos */}
+          {activeTab === 'productos' && (
+            <>
+              <KpiInventario productos={productos} />
 
-          <InventarioTable
-            productos={filtrados}
-            onVerDetalle={handleVerDetalle}
-            onEditar={handleEditar}
-            onAjustarStock={(p) => { setAjustarProducto(p); setAjustarModalOpen(true) }}
-            onEliminar={handleEliminar}
-          />
+              <InventarioToolbar
+                busqueda={busqueda}
+                onBusquedaChange={setBusqueda}
+                categoriaFiltro={categoriaFiltro}
+                onCategoriaChange={setCategoriaFiltro}
+                stockFiltro={stockFiltro}
+                onStockChange={setStockFiltro}
+                onLimpiar={limpiarFiltros}
+                onNuevoProducto={() => { setEditProducto(null); setProductoModalOpen(true) }}
+                onNuevaCompra={() => setCompraModalOpen(true)}
+                totalFiltrados={filtrados.length}
+                totalProductos={activos.length}
+              />
+
+              <InventarioTable
+                productos={filtrados}
+                onVerDetalle={handleVerDetalle}
+                onEditar={handleEditar}
+                onAjustarStock={(p) => { setAjustarProducto(p); setAjustarModalOpen(true) }}
+                onEliminar={handleEliminar}
+              />
+            </>
+          )}
+
+          {/* Tab: Categorías */}
+          {activeTab === 'categorias' && (
+            <CategoriasTab
+              categorias={categorias}
+              onRefresh={cargarDatos}
+              onVerProductos={(categoria) => {
+                // Cambiar al tab de productos y filtrar por la categoría
+                setActiveTab('productos')
+                setCategoriaFiltro(categoria.nombre as Categoria)
+              }}
+            />
+          )}
         </div>
 
         {/* Modals */}
@@ -289,6 +344,7 @@ export default function InventarioPage() {
           onSave={handleSaveProducto}
           producto={editProducto}
           categorias={categorias}
+          onRefreshCategorias={cargarDatos}
         />
         <CompraModal
           open={compraModalOpen}
