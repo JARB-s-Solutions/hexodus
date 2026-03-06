@@ -146,21 +146,48 @@ export class CajaService {
   }
 
   /**
-   * Cerrar caja del día actual
+   * Cerrar caja del día actual o con rango de fechas personalizado
    * POST /api/caja/cerrar
+   * 
+   * @param params - Puede ser:
+   *   - string: Solo observación (usa fechas del día actual)
+   *   - CerrarCajaData: Objeto con fechas y observación personalizadas
+   *   - undefined: Sin observación, usa fechas del día actual
    */
-  static async cerrarCaja(observacion?: string): Promise<CerrarCajaResponse> {
-    console.log("🔒 Cerrando caja del día...")
+  static async cerrarCaja(params?: string | CerrarCajaData): Promise<CerrarCajaResponse> {
+    console.log("🔒 Cerrando caja...")
 
     try {
-      const fechas = obtenerFechasDelDia()
-      const data: CerrarCajaData = {
-        ...fechas,
-        observacion,
+      let data: CerrarCajaData
+      
+      // Si params es string, es solo observación (uso legacy)
+      if (typeof params === 'string') {
+        const fechas = obtenerFechasDelDia()
+        data = {
+          ...fechas,
+          observacion: params,
+        }
+        console.log("  Modo: Día actual con observación")
+      }
+      // Si params es objeto, usar sus propiedades (nuevo modo con fechas personalizadas)
+      else if (params) {
+        data = {
+          fecha_inicial: params.fecha_inicial,
+          fecha_final: params.fecha_final,
+          observacion: params.observacion,
+        }
+        console.log("  Modo: Rango personalizado")
+      }
+      // Si no hay params, usar fechas del día
+      else {
+        data = {
+          ...obtenerFechasDelDia(),
+        }
+        console.log("  Modo: Día actual sin observación")
       }
 
-      console.log("  Rango:", fechas.fecha_inicial, "a", fechas.fecha_final)
-      if (observacion) console.log("  Observación:", observacion)
+      console.log("  Rango:", data.fecha_inicial, "a", data.fecha_final)
+      if (data.observacion) console.log("  Observación:", data.observacion)
 
       const response = await apiPost<CerrarCajaResponse>("/caja/cerrar", data)
 

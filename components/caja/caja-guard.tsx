@@ -48,15 +48,21 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
       // 2. SEGUNDO: Si está autenticado y no está en ruta pública, verificar caja
       const requiereCaja = !RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))
 
-      if (!loading && requiereCaja && estadoCaja && !estadoCaja.abierta && isAuthenticated) {
-        console.log("⚠️ CAJA CERRADA DETECTADA - Mostrando modal de apertura")
-        setShowModal(true)
-      } else {
-        if (estadoCaja?.abierta) {
+      // ⚠️ IMPORTANTE: Solo verificar caja si:
+      //    - NO está cargando (loading = false)
+      //    - estadoCaja existe (no es null - ya se consultó el backend)
+      //    - requiere caja (no es ruta pública)
+      //    - está autenticado
+      if (!loading && estadoCaja !== null && requiereCaja && isAuthenticated) {
+        if (!estadoCaja.abierta) {
+          console.log("⚠️ CAJA CERRADA DETECTADA - Mostrando modal de apertura")
+          setShowModal(true)
+        } else {
           console.log("✅ CAJA ABIERTA - Acceso permitido")
+          setShowModal(false)
         }
-        setShowModal(false)
       }
+      // Si loading es true o estadoCaja es null, no hacer nada (esperar)
     }
   }, [estadoCaja, loading, pathname, router])
 
