@@ -96,12 +96,21 @@ export function mapMetodoPago(metodoAPI: string): TipoPago {
  * Convierte MovimientoAPI (backend) a Movimiento (frontend)
  */
 export function mapMovimientoFromAPI(apiMov: MovimientoAPI): Movimiento {
+  console.log("🔄 Mapeando movimiento del API:", {
+    folio: apiMov.folio,
+    tipo: apiMov.tipo,
+    concepto: apiMov.concepto,
+    monto: apiMov.monto,
+    metodo: apiMov.metodo,
+    fecha_hora: apiMov.fecha_hora,
+  })
+
   // Parsear fecha_hora: "2026-03-04T03:43:06.029Z"
   const fechaHora = new Date(apiMov.fecha_hora)
   const fecha = fechaHora.toISOString().split("T")[0] // "2026-03-04"
   const hora = fechaHora.toTimeString().slice(0, 5) // "HH:MM"
 
-  return {
+  const movimientoMapeado = {
     id: apiMov.folio, // Usar folio como ID único
     folio: apiMov.folio,
     tipo: apiMov.tipo.toLowerCase() as TipoMovimiento,
@@ -113,25 +122,44 @@ export function mapMovimientoFromAPI(apiMov: MovimientoAPI): Movimiento {
     usuario: apiMov.responsable,
     observaciones: apiMov.nota_movimiento || undefined,
   }
+
+  console.log("✅ Movimiento mapeado:", movimientoMapeado)
+
+  return movimientoMapeado
 }
 
 /**
  * Convierte DashboardStats (backend) a MovimientoKpis (frontend)
  */
 export function mapKpisFromAPI(stats: DashboardStats): MovimientoKpis {
-  return {
+  console.log("📊 Mapeando KPIs del API:", stats)
+
+  const kpisMapeados = {
     totalIngresos: stats.total_ingresos,
     totalEgresos: stats.total_egresos,
     balanceNeto: stats.balance_neto,
     totalMovimientos: stats.total_movimientos,
   }
+
+  console.log("✅ KPIs mapeados:", kpisMapeados)
+
+  return kpisMapeados
 }
 
 /**
  * Convierte array de MovimientoAPI a array de Movimiento
  */
 export function mapMovimientosFromAPI(apiMovs: MovimientoAPI[]): Movimiento[] {
-  return apiMovs.map(mapMovimientoFromAPI)
+  console.log("📋 Mapeando lista de movimientos del API:", apiMovs.length, "movimientos")
+  
+  const movimientos = apiMovs.map(mapMovimientoFromAPI)
+  
+  console.log("✅ Lista de movimientos mapeados:", movimientos.length, "movimientos")
+  console.log("  Resumen:")
+  console.log("    - Ingresos:", movimientos.filter(m => m.tipo === "ingreso").length)
+  console.log("    - Egresos:", movimientos.filter(m => m.tipo === "egreso").length)
+  
+  return movimientos
 }
 
 // ============================================================

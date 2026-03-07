@@ -17,12 +17,22 @@ import {
 } from "lucide-react"
 import type { Movimiento } from "@/lib/types/movimientos"
 
+interface PaginationInfo {
+  current_page: number
+  limit: number
+  total_records: number
+  total_pages: number
+}
+
 interface TablaMovimientosProps {
   movimientos: Movimiento[]
   onNuevo: () => void
   onVer: (m: Movimiento) => void
   onEditar: (m: Movimiento) => void
   onEliminar: (m: Movimiento) => void
+  serverPagination?: PaginationInfo
+  onPageChange?: (page: number) => void
+  onLimitChange?: (limit: number) => void
 }
 
 const tipoPagoLabels: Record<string, string> = {
@@ -76,12 +86,18 @@ export function TablaMovimientos({
   onVer,
   onEditar,
   onEliminar,
+  serverPagination,
+  onPageChange,
+  onLimitChange,
 }: TablaMovimientosProps) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [sortField, setSortField] = useState<SortField>("fecha")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+
+  // Usar paginación del servidor si está disponible
+  const useServerPagination = !!serverPagination && !!onPageChange
 
   const sorted = [...movimientos].sort((a, b) => {
     const dir = sortDir === "asc" ? 1 : -1
@@ -103,13 +119,39 @@ export function TablaMovimientos({
     }
   })
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / perPage))
-  const clampedPage = Math.min(page, totalPages)
-  const start = (clampedPage - 1) * perPage
-  const end = Math.min(start + perPage, sorted.length)
-  const visible = sorted.slice(start, end)
+  // Calcular paginación
+  let totalPages: number
+  let clampedPage: number
+  let visible: Movimiento[]
+  let start: number
+  let end: number
+  let totalRecords: number
 
-  const goTo = (p: number) => setPage(Math.max(1, Math.min(p, totalPages)))
+  if (useServerPagination) {
+    // Paginación del servidor: mostrar todos los movimientos sin paginar
+    totalPages = serverPagination.total_pages
+    clampedPage = serverPagination.current_page
+    totalRecords = serverPagination.total_records
+    start = (serverPagination.current_page - 1) * serverPagination.limit
+    end = Math.min(start + sorted.length, serverPagination.total_records)
+    visible = sorted
+  } else {
+    // Paginación local: paginar los movimientos localmente
+    totalPages = Math.max(1, Math.ceil(sorted.length / perPage))
+    clampedPage = Math.min(page, totalPages)
+    totalRecords = sorted.length
+    start = (clampedPage - 1) * perPage
+    end = Math.min(start + perPage, sorted.length)
+    visible = sorted.slice(start, end)
+  }
+
+  const goTo = (p: number) => {
+    if (useServerPagination && onPageChange) {
+      onPageChange(p)
+    } else {
+      setPage(Math.max(1, Math.min(p, totalPages)))
+    }
+  }
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -155,7 +197,7 @@ export function TablaMovimientos({
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold text-foreground">Registro de Movimientos</h2>
           <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-accent/15 text-accent border border-accent/20">
-            {movimientos.length}
+            {totalRecords}
           </span>
         </div>
         <button
@@ -170,7 +212,7 @@ export function TablaMovimientos({
       {/* Per-page and info */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-muted/30">
         <p className="text-xs text-muted-foreground">
-          {movimientos.length === 0 ? "Sin resultados" : `${start + 1}-${end} de ${movimientos.length} registros`}
+          {movimientos.length === 0 ? "Sin resultados" : `${start + 1}-${end} de ${totalRecords} registros`}
         </p>
         <div className="flex items-center gap-2">
           <label htmlFor="per-page" className="text-xs text-muted-foreground">
@@ -178,10 +220,15 @@ export function TablaMovimientos({
           </label>
           <select
             id="per-page"
-            value={perPage}
+            value={useServerPagination ? serverPagination.limit : perPage}
             onChange={(e) => {
-              setPerPage(Number(e.target.value))
-              setPage(1)
+              const newLimit = Number(e.target.value)
+              if (useServerPagination && onLimitChange) {
+                onLimitChange(newLimit)
+              } else {
+                setPerPage(newLimit)
+                setPage(1)
+              }
             }}
             className="px-2 py-1 bg-card border border-border rounded text-foreground text-xs"
           >
@@ -380,55 +427,76 @@ export function TablaMovimientos({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-muted/20">
-          <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-3 border-t border-border bg-muted/20">
+          {/* Info de registros - Izquierda */}
+          <div className="text-xs text-muted-foreground min-w-[140px]">
+            {useServerPagination && serverPagination ? (
+              <span>
+                Mostrando <span className="font-medium text-foreground">{start + 1}-{end}</span> de <span className="font-medium text-foreground">{totalRecords}</span>
+              </span>
+            ) : (
+              <span>
+                Página <span className="font-medium text-foreground">{clampedPage}</span> de <span className="font-medium text-foreground">{totalPages}</span>
+              </span>
+            )}
+          </div>
+
+          {/* Controles de paginación - Centro */}
+          <div className="flex items-center gap-2">
             <button
               onClick={() => goTo(1)}
               disabled={clampedPage === 1}
-              className="p-1.5 text-sm border border-border rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30"
+              className="p-2 border border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Primera página"
             >
-              <ChevronsLeft className="h-3.5 w-3.5" />
+              <ChevronsLeft className="h-4 w-4" />
             </button>
             <button
               onClick={() => goTo(clampedPage - 1)}
               disabled={clampedPage === 1}
-              className="p-1.5 text-sm border border-border rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30"
+              className="p-2 border border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Página anterior"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
-          </div>
 
-          <div className="flex items-center gap-1">
-            {pageNumbers.map((n) => (
-              <button
-                key={n}
-                onClick={() => goTo(n)}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-all ${
-                  n === clampedPage
-                    ? "bg-primary text-primary-foreground glow-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
+            <div className="flex items-center gap-1 px-2">
+              {pageNumbers.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => goTo(n)}
+                  className={`min-w-[32px] h-8 px-3 text-sm font-medium rounded-md transition-all ${
+                    n === clampedPage
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
 
-          <div className="flex items-center gap-1">
             <button
               onClick={() => goTo(clampedPage + 1)}
               disabled={clampedPage === totalPages}
-              className="p-1.5 text-sm border border-border rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30"
+              className="p-2 border border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Página siguiente"
             >
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight className="h-4 w-4" />
             </button>
             <button
               onClick={() => goTo(totalPages)}
               disabled={clampedPage === totalPages}
-              className="p-1.5 text-sm border border-border rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30"
+              className="p-2 border border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Última página"
             >
-              <ChevronsRight className="h-3.5 w-3.5" />
+              <ChevronsRight className="h-4 w-4" />
             </button>
+          </div>
+
+          {/* Selector de límite - Derecha */}
+          <div className="text-xs text-muted-foreground">
+            {/* Spacer para mantener distribución */}
           </div>
         </div>
       )}
