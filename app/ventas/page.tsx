@@ -42,7 +42,7 @@ export default function VentasPage() {
 
   // Filters
   const [busqueda, setBusqueda] = useState("")
-  const [periodo, setPeriodo] = useState("todo")
+  const [periodo, setPeriodo] = useState("mes") // Cambiar de "todo" a "mes" para mostrar tendencia por defecto
   const [metodoPagoFiltro, setMetodoPagoFiltro] = useState("todos")
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
@@ -142,6 +142,7 @@ export default function VentasPage() {
         "mes": "Este Mes",
         "trimestre": "Este Trimestre",
         "anio": "Este Año",
+        "todo": "Todo",
         "personalizado": "Personalizado",
       }
       
@@ -150,14 +151,19 @@ export default function VentasPage() {
         params.periodo = "Personalizado"
         if (fechaInicio) params.fecha_inicio = fechaInicio
         if (fechaFin) params.fecha_fin = fechaFin
-      } else if (periodo !== "todo") {
+      } else {
+        // Siempre enviar el período, incluso cuando es "todo"
         params.periodo = periodoMap[periodo] || periodo
       }
       
       console.log('📊 Cargando análisis de ventas con parámetros:', params)
       const data = await VentasService.getAnalysis(params)
+      console.log('✅ Análisis cargado:', {
+        tendenciaVentas: data.tendenciaVentas.length,
+        primeraFecha: data.tendenciaVentas[0]?.fecha,
+        ultimaFecha: data.tendenciaVentas[data.tendenciaVentas.length - 1]?.fecha,
+      })
       setAnalisisData(data)
-      console.log('✅ Análisis cargado:', data)
     } catch (error: any) {
       console.error('❌ Error al cargar análisis:', error)
       toast({
