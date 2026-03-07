@@ -39,6 +39,13 @@ export default function ReportesPage() {
   const [errorComparaciones, setErrorComparaciones] = useState<string | null>(null)
   const [tabComparacion, setTabComparacion] = useState("mes") // mes, trimestre, semestre, anual
 
+  // Estados para datos del backend - Historial
+  const [loadingHistorial, setLoadingHistorial] = useState(false)
+  const [errorHistorial, setErrorHistorial] = useState<string | null>(null)
+  const [pageHistorial, setPageHistorial] = useState(1)
+  const [limitHistorial] = useState(10)
+  const [refreshHistorial, setRefreshHistorial] = useState(0) // Para forzar recarga
+
   // ------ Debug: Verificar token al montar componente ------
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
@@ -236,6 +243,80 @@ export default function ReportesPage() {
     cargarComparaciones()
   }, [periodo, tabComparacion])
 
+  // ------ Effect para cargar historial de reportes desde backend ------
+  useEffect(() => {
+    console.log('🔄 useEffect historial ejecutado', {
+      activeTab,
+      pageHistorial,
+      limitHistorial,
+      refreshHistorial,
+      seActivara: activeTab === 'historial'
+    })
+
+    const cargarHistorial = async () => {
+      console.log('📥 Iniciando carga de historial...')
+      setLoadingHistorial(true)
+      setErrorHistorial(null)
+
+      try {
+        console.log('📊 Cargando historial de reportes:', {
+          page: pageHistorial,
+          limit: limitHistorial,
+        })
+
+        const response = await ReportesService.getHistorialReportes({
+          page: pageHistorial,
+          limit: limitHistorial,
+        })
+
+        // Si no hay token, mostrar como error
+        if (response.message === 'Sin token de autenticación') {
+          console.warn('⚠️  Sin token: se requiere autenticación')
+          setErrorHistorial('Por favor inicia sesión para ver el historial de reportes')
+          setReportesHistorial([])
+        } else {
+          console.log('🔍 Transformando historial del backend al formato del componente')
+          
+          // Validar que existan reportes
+          if (!response.data?.reportes || response.data.reportes.length === 0) {
+            console.log('ℹ️  No hay reportes en el historial')
+            setReportesHistorial([])
+          } else {
+            // Transformar reportes del backend al formato del componente
+            const reportesTransformados = response.data.reportes.map((reporte) => ({
+              id: reporte.id,
+              nombre: reporte.nombre,
+              tipo: reporte.tipo,
+              periodo: reporte.periodo,
+              fechaGenerado: reporte.fecha_generado,
+              estado: reporte.estado,
+              formato: reporte.formato,
+              resumen: reporte.resumen,
+            }))
+            
+            setReportesHistorial(reportesTransformados)
+            console.log('✅ Historial transformado y cargado exitosamente')
+            console.log('   Total:', response.data.paginacion?.total || 0, 'reportes')
+            console.log('   Página:', response.data.paginacion?.page || 1, 'de', response.data.paginacion?.totalPages || 1)
+          }
+        }
+      } catch (error: any) {
+        console.error('❌ Error cargando historial:', error)
+        setErrorHistorial(error.message || 'Error al cargar el historial de reportes')
+      } finally {
+        setLoadingHistorial(false)
+      }
+    }
+
+    // Solo cargar historial cuando el tab esté activo
+    if (activeTab === 'historial') {
+      console.log('✅ Tab historial activo - Cargando datos...')
+      cargarHistorial()
+    } else {
+      console.log('⏸️  Tab historial no activo - Saltando carga')
+    }
+  }, [activeTab, pageHistorial, limitHistorial, refreshHistorial])
+
   // ------ Handlers ------
   const handleLimpiar = useCallback(() => {
     setPeriodo("mes")
@@ -250,38 +331,123 @@ export default function ReportesPage() {
     alert('Funcionalidad de exportación pendiente de implementar con datos del backend')
   }, [])
 
-  const handleGenerarReporte = useCallback((config: ReporteConfig) => {
-    //TODO: Implementar generación de reporte con backend
-    console.log('🔄 Generar reporte:', config)
-    
-    const newReporte: ReporteHistorial = {
-      id: `RPT-${String(reportesHistorial.length + 1).padStart(4, "0")}`,
-      nombre: config.nombre,
-      tipo: config.tipo === "completo" ? "completo" : config.tipo,
-      periodo: `${config.fechaInicio} a ${config.fechaFin}`,
-      fechaGenerado: new Date().toLocaleString("es-MX"),
-      estado: "generado",
-      formato: "Excel",
-      resumen: {
-        ventas: 0,
-        gastos: 0,
-        utilidad: 0,
-      },
+  const handleGenerarReporte = useCallback(async (config: ReporteConfig) => {
+    try {
+      console.log('🔄 Generando reporte con backend:', config)
+      
+      // Mapear tipo de reporte para el backend
+      let tipoReporteBackend = config.tipo
+      if (config.tipo === "completo") {
+        tipoReporteBackend = "Reporte Completo"
+      } else if (config.tipo === "ventas") {
+        tipoReporteBackend = "Ventas"
+      } else if (config.tipo === "gastos") {
+        tipoReporteBackend = "Gastos"
+      } else if (config.tipo === "utilidad") {
+        tipoReporteBackend = "Utilidad"
+      } else if (config.tipo === "membresias") {
+        tipoReporteBackend = "Membresias"
+      }
+      
+      // Llamar al backend para generar el reporte
+      const response = await ReportesService.generarReporte({
+        nombre: config.nombre,
+        descripcion: config.descripcion,
+        tipoReporte: tipoReporteBackend,
+        formato: "Excel (.csv)",
+        fechaInicio: config.fechaInicio,
+        fechaFin: config.fechaFin,
+        incluirGraficos: config.incluirGraficos,
+        incluirDetalles: config.incluirDetalles,
+      })
+      
+      console.log('✅ Reporte generado exitosamente en el backend')
+      console.log('   Response recibido:', response)
+      
+      // Cerrar modal primero
+      setModalGenerar(false)
+      
+      // Esperar un momento antes de procesar descarga y cambio de tab
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Intentar descargar automáticamente si hay URL o ID
+      if (response?.data?.url_descarga) {
+        console.log('📥 Descargando reporte desde URL:', response.data.url_descarga)
+        window.open(response.data.url_descarga, '_blank')
+      } else if (response?.data?.id) {
+        console.log('📥 Descargando reporte con ID:', response.data.id)
+        try {
+          await ReportesService.descargarReporte(response.data.id)
+        } catch (downloadError: any) {
+          console.warn('⚠️  No se pudo descargar automáticamente:', downloadError.message)
+          // No bloqueamos el flujo si falla la descarga
+        }
+      } else {
+        console.log('ℹ️  Respuesta sin url_descarga ni id, reporte generado pero no descargado')
+      }
+      
+      // Cambiar al tab de historial
+      console.log('🔄 Cambiando a tab historial...')
+      setActiveTab('historial')
+      
+      // Forzar recarga del historial después de cambiar de tab
+      console.log('🔄 Programando recarga del historial en 1 segundo...')
+      setTimeout(() => {
+        console.log('🔄 Ejecutando recarga del historial')
+        setRefreshHistorial(prev => prev + 1)
+      }, 1000)
+      
+      // Mostrar notificación de éxito
+      console.log('✅ Proceso completado exitosamente')
+      alert(`Reporte "${config.nombre}" generado exitosamente`)
+    } catch (error: any) {
+      console.error('❌ Error generando reporte:', error)
+      alert(`Error al generar reporte: ${error.message}`)
     }
-
-    setReportesHistorial((prev) => [newReporte, ...prev])
-    setModalGenerar(false)
-  }, [reportesHistorial.length])
-
-  const handleDescargarReporte = useCallback((reporte: ReporteHistorial) => {
-    setReportesHistorial((prev) =>
-      prev.map((r) => (r.id === reporte.id ? { ...r, estado: "descargado" as const } : r))
-    )
-    console.log('🔄 Descargar reporte:', reporte.id)
   }, [])
 
-  const handleEliminarReporte = useCallback((id: string) => {
-    setReportesHistorial((prev) => prev.filter((r) => r.id !== id))
+  const handleDescargarReporte = useCallback(async (reporte: ReporteHistorial) => {
+    try {
+      console.log('📥 Descargando reporte:', reporte.id)
+      
+      // Llamar al servicio para descargar el reporte
+      await ReportesService.descargarReporte(reporte.id)
+      
+      // Actualizar el estado del reporte a "descargado"
+      setReportesHistorial((prev) =>
+        prev.map((r) => (r.id === reporte.id ? { ...r, estado: "descargado" as const } : r))
+      )
+      
+      console.log('✅ Reporte descargado exitosamente')
+    } catch (error: any) {
+      console.error('❌ Error descargando reporte:', error)
+      alert(`Error al descargar reporte: ${error.message}`)
+    }
+  }, [])
+
+  const handleEliminarReporte = useCallback(async (id: string) => {
+    try {
+      console.log('🗑️  Eliminando reporte:', id)
+      
+      // Confirmar eliminación
+      const confirmDelete = window.confirm('¿Estás seguro de que deseas eliminar este reporte? Esta acción no se puede deshacer.')
+      if (!confirmDelete) {
+        console.log('ℹ️  Eliminación cancelada por el usuario')
+        return
+      }
+      
+      // Llamar al servicio para eliminar el reporte del backend
+      await ReportesService.eliminarReporte(id)
+      
+      // Actualizar el estado local
+      setReportesHistorial((prev) => prev.filter((r) => r.id !== id))
+      
+      console.log('✅ Reporte eliminado exitosamente')
+      alert('Reporte eliminado exitosamente')
+    } catch (error: any) {
+      console.error('❌ Error eliminando reporte:', error)
+      alert(`Error al eliminar reporte: ${error.message}`)
+    }
   }, [])
 
   return (
@@ -463,11 +629,27 @@ export default function ReportesPage() {
 
               {/* ====== HISTORIAL TAB ====== */}
               {activeTab === "historial" && (
-                <HistorialReportes
-                  reportes={reportesHistorial}
-                  onDescargar={handleDescargarReporte}
-                  onEliminar={handleEliminarReporte}
-                />
+                <div>
+                  {loadingHistorial ? (
+                    <div className="flex items-center justify-center py-20">
+                      <div className="text-center space-y-3">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                        <p className="text-sm text-muted-foreground">Cargando historial...</p>
+                      </div>
+                    </div>
+                  ) : errorHistorial ? (
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-6">
+                      <p className="text-sm text-destructive font-medium mb-2">Error al cargar historial</p>
+                      <p className="text-xs text-muted-foreground">{errorHistorial}</p>
+                    </div>
+                  ) : (
+                    <HistorialReportes
+                      reportes={reportesHistorial}
+                      onDescargar={handleDescargarReporte}
+                      onEliminar={handleEliminarReporte}
+                    />
+                  )}
+                </div>
               )}
             </div>
           </div>

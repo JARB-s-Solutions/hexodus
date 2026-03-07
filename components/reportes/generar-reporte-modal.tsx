@@ -16,7 +16,7 @@ import { exportReporteToCSV, type TipoReporte } from "@/lib/reportes-data"
 interface GenerarReporteModalProps {
   open: boolean
   onClose: () => void
-  onGenerar: (config: ReporteConfig) => void
+  onGenerar: (config: ReporteConfig) => void | Promise<void>
 }
 
 export interface ReporteConfig {
@@ -47,26 +47,30 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
 
     setGenerando(true)
 
-    // Simulate generation delay
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    try {
+      await onGenerar({
+        nombre: nombre.trim(),
+        descripcion: descripcion.trim(),
+        tipo,
+        fechaInicio,
+        fechaFin,
+        incluirGraficos,
+        incluirDetalles,
+      })
 
-    onGenerar({
-      nombre: nombre.trim(),
-      descripcion: descripcion.trim(),
-      tipo,
-      fechaInicio,
-      fechaFin,
-      incluirGraficos,
-      incluirDetalles,
-    })
-
-    setGenerando(false)
-    setNombre("")
-    setDescripcion("")
-    setTipo("completo")
-    setFechaInicio("")
-    setFechaFin("")
-    onClose()
+      // Reset form on success
+      setNombre("")
+      setDescripcion("")
+      setTipo("completo")
+      setFechaInicio("")
+      setFechaFin("")
+      onClose()
+    } catch (error) {
+      console.error('Error en modal al generar reporte:', error)
+      // El error ya se maneja en el handler padre
+    } finally {
+      setGenerando(false)
+    }
   }
 
   const tipoLabels: Record<string, string> = {

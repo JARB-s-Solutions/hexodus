@@ -257,7 +257,7 @@ export function mapSocioFromAPI(api: SocioAPI): Socio {
     fechaVencimientoMembresia: api.fecha_fin_membresia,
     estadoPago: 'pagado' as EstadoPago, // Asumimos pagado
     estadoSocio: 'activo' as EstadoSocio, // Calculado según vigencia
-    // Campos adicionales del detalle
+    // Campos adicionales del detalle 
     vigenciaMembresia: api.vigencia_membresia,
     estadoContrato: api.estado_contrato,
     bioRostro: api.biometrico_rostro,
