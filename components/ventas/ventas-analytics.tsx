@@ -35,6 +35,28 @@ interface VentasAnalyticsProps {
 
 const PIE_COLORS = ["#4BB543", "#00BFFF", "#A855F7", "#FFD700"]
 
+/**
+ * Formatea una fecha sin conversión de zona horaria
+ * Evita el problema de que JavaScript interprete "YYYY-MM-DD" como UTC
+ */
+function formatearFechaSinUTC(fechaString: string): string {
+  // Si la fecha ya tiene formato "MM-DD" devolver tal cual
+  if (fechaString.length === 5 && fechaString.includes("-")) {
+    return fechaString
+  }
+  
+  // Si viene en formato completo "YYYY-MM-DD"
+  if (fechaString.includes("-")) {
+    const partes = fechaString.split("T")[0].split("-")
+    if (partes.length === 3) {
+      const [year, month, day] = partes
+      return `${year}-${month}-${day}`
+    }
+  }
+  
+  return fechaString
+}
+
 export function VentasAnalytics({
   analisisData,
   periodoLabel,
@@ -152,7 +174,7 @@ export function VentasAnalytics({
                     fontSize: "12px",
                   }}
                   formatter={(value: number) => [formatCurrency(value), "Ventas"]}
-                  labelFormatter={(label) => `Fecha: ${label}`}
+                  labelFormatter={(label) => `Fecha: ${formatearFechaSinUTC(label)}`}
                 />
                 <Area
                   type="monotone"
