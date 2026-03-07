@@ -14,7 +14,8 @@ export interface ProductoAPI {
   codigo: string
   nombre: string
   marca: string
-  categoria: string
+  categoria: string        // Nombre de la categoría (legacy)
+  categoria_id?: number    // ID de la categoría (REQUERIDO desde backend actualizado)
   precio_compra: number
   precio_venta: number
   stock_actual: number
@@ -30,7 +31,8 @@ export interface ProductoDetalleAPI {
   codigo: string
   nombre: string
   marca: string
-  categoria: string
+  categoria: string        // Nombre de la categoría (legacy)
+  categoria_id?: number    // ID de la categoría (REQUERIDO desde backend actualizado)
   status: 'activo' | 'inactivo'
   precio_venta: number
   precio_compra: number
@@ -122,10 +124,11 @@ export interface UpdateProductoRequest {
   codigo: string
   nombre: string
   marca: string
-  categoria: string  // ⚠️ String, no categoria_id
+  categoria_id: number     // ✅ Usar ID de categoría (actualizado según backend specs)
   precio_compra: number
   precio_venta: number
   stock_actual: number
+  stock_minimo: number
   alerta_stock: boolean
   status: 'activo' | 'inactivo'
   descripcion: string
@@ -151,6 +154,7 @@ export interface Producto {
   nombre: string
   marca: string
   categoria: string
+  categoriaId?: number     // ✅ ID de categoría (si viene del backend)
   precioCompra: number
   precioVenta: number
   stockActual: number
@@ -214,6 +218,7 @@ export function mapProductoFromAPI(apiProducto: ProductoAPI): Producto {
     nombre: apiProducto.nombre,
     marca: apiProducto.marca,
     categoria: apiProducto.categoria,
+    categoriaId: apiProducto.categoria_id,  // ✅ Capturar categoria_id del backend
     precioCompra: apiProducto.precio_compra,
     precioVenta: apiProducto.precio_venta,
     stockActual: apiProducto.stock_actual,
@@ -234,6 +239,7 @@ export function mapProductoDetalleFromAPI(apiProducto: ProductoDetalleAPI): Prod
     nombre: apiProducto.nombre,
     marca: apiProducto.marca,
     categoria: apiProducto.categoria,
+    categoriaId: apiProducto.categoria_id,  // ✅ Capturar categoria_id del backend
     precioCompra: apiProducto.precio_compra,
     precioVenta: apiProducto.precio_venta,
     stockActual: apiProducto.stock_actual,
@@ -295,12 +301,26 @@ export function mapProductoToAPI(
 /**
  * Mapea un producto del frontend al formato del API para actualización
  * @param producto Producto a mapear
+ * @param categoriasMap Mapeo opcional de nombre de categoría a ID (para fallback)
  */
 export function mapProductoToUpdateAPI(
-  producto: Partial<ProductoExtendido>
+  producto: Partial<ProductoExtendido>,
+  categoriasMap?: Record<string, number>
 ): UpdateProductoRequest {
-  if (!producto.id || !producto.codigo || !producto.nombre || !producto.categoria) {
+  if (!producto.id || !producto.codigo || !producto.nombre) {
     throw new Error('Faltan campos requeridos para actualizar el producto')
+  }
+
+  // Determinar categoria_id
+  let categoria_id = producto.categoriaId
+  
+  // Si no tenemos categoriaId, intentar obtenerlo del mapeo
+  if (!categoria_id && producto.categoria && categoriasMap) {
+    categoria_id = categoriasMap[producto.categoria]
+  }
+  
+  if (!categoria_id) {
+    throw new Error('No se pudo determinar el ID de la categoría. Asegúrate de que el producto tiene categoriaId o proporciona categoriasMap')
   }
 
   return {
@@ -308,10 +328,11 @@ export function mapProductoToUpdateAPI(
     codigo: producto.codigo,
     nombre: producto.nombre,
     marca: producto.marca || '',
-    categoria: producto.categoria,  // Nombre de la categoría, no ID
+    categoria_id,  // ✅ Enviar ID de categoría (actualizado según backend specs)
     precio_compra: producto.precioCompra || 0,
     precio_venta: producto.precioVenta || 0,
     stock_actual: producto.stockActual || 0,
+    stock_minimo: producto.stockMinimo || 0,
     alerta_stock: producto.alertaStock || false,
     status: producto.status || 'activo',
     descripcion: producto.descripcion || ''
@@ -333,6 +354,7 @@ export function calcularEstadoStock(stockActual: number, alertaStock: boolean): 
 export function extenderProducto(producto: Producto): ProductoExtendido {
   return {
     ...producto,
+    categoriaId: producto.categoriaId,  // ✅ Preservar categoriaId si existe
     estadoStock: calcularEstadoStock(producto.stockActual, producto.alertaStock),
     stockMinimo: 5, // Valor por defecto, el API no lo retorna
     activo: producto.status === 'activo',
