@@ -93,6 +93,24 @@ export default function InventarioPage() {
     }
   }
 
+  async function cargarCategorias() {
+    try {
+      const categoriasAPI = await CategoriasService.getAll()
+      console.log('✅ Categorías recargadas:', categoriasAPI)
+      setCategorias(categoriasAPI)
+      
+      // Actualizar mapeo de nombre a ID
+      const mapeo: Record<string, number> = {}
+      categoriasAPI.forEach(cat => {
+        mapeo[cat.nombre] = cat.id
+      })
+      setCategoriasMap(mapeo)
+    } catch (error: any) {
+      console.error('❌ Error al cargar categorías:', error)
+      mostrarNotificacion(error.message || 'Error al cargar categorías', 'error')
+    }
+  }
+
   function mostrarNotificacion(msg: string, tipo = "success") {
     setNotificacion({ msg, tipo })
     setTimeout(() => setNotificacion(null), 3500)
@@ -125,7 +143,7 @@ export default function InventarioPage() {
     try {
       if (data.id) {
         // Editar producto existente
-        const productoAPI = mapProductoToUpdateAPI(data)
+        const productoAPI = mapProductoToUpdateAPI(data, categoriasMap)
         console.log('📦 Datos a actualizar:', productoAPI)
         await ProductosService.update(data.id, productoAPI)
         mostrarNotificacion("Producto actualizado exitosamente")
@@ -138,8 +156,12 @@ export default function InventarioPage() {
         mostrarNotificacion(`Producto creado exitosamente. Código: ${result.codigo}`)
       }
       
-      // Recargar la lista
-      await cargarProductos()
+      // Recargar productos y categorías (para actualizar contadores)
+      await Promise.all([
+        cargarProductos(),
+        cargarCategorias()
+      ])
+      
       setProductoModalOpen(false)
       setEditProducto(null)
     } catch (error: any) {
@@ -170,7 +192,12 @@ export default function InventarioPage() {
     try {
       await ProductosService.updateStatus(p.id, 'inactivo')
       mostrarNotificacion("Producto eliminado correctamente")
-      await cargarProductos()
+      
+      // Recargar productos y categorías (para actualizar contadores)
+      await Promise.all([
+        cargarProductos(),
+        cargarCategorias()
+      ])
     } catch (error: any) {
       console.error('❌ Error al eliminar producto:', error)
       mostrarNotificacion(error.message || 'Error al eliminar producto', 'error')
