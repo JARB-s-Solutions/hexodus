@@ -207,12 +207,31 @@ export interface KpisResponse {
 export type ResumenResponse = KpisResponse
 
 /**
- * Item de comparación individual
+ * Item de comparación individual (para uso interno del componente)
  */
 export interface ComparacionItem {
   label: string
   actual: number
   anterior: number
+}
+
+/**
+ * Detalle de una comparación individual del backend
+ */
+export interface ComparacionDetalle {
+  actual: number
+  anterior: number
+  diferencia: number
+  porcentaje: number
+  es_positivo: boolean
+}
+
+/**
+ * Insight generado por el backend
+ */
+export interface Insight {
+  tipo: 'positivo' | 'negativo' | 'neutral'
+  texto: string
 }
 
 /**
@@ -225,7 +244,18 @@ export interface ComparacionesResponse {
     tab_seleccionada: string
   }
   data: {
-    comparaciones: ComparacionItem[]
+    titulo_grafica: string
+    comparaciones: {
+      ventas: ComparacionDetalle
+      gastos: ComparacionDetalle
+      utilidad: ComparacionDetalle
+      membresias: ComparacionDetalle
+    }
+    resumen_indicadores: {
+      positivos: number
+      negativos: number
+    }
+    insights: Insight[]
   }
 }
 
@@ -270,13 +300,14 @@ export function mapTipoReporteToBackend(tipo: string): TipoReporte {
  */
 export function mapTabSeleccionadaToBackend(tab: string): string {
   const mapper: Record<string, string> = {
+    'actual': 'periodo seleccionado',
     'mes': 'mes vs mes anterior',
     'trimestre': 'trimestre vs anterior',
     'semestre': 'semestre vs anterior',
-    'anual': 'año vs anterior',
+    'anual': 'ano vs anterior',
   }
   
-  return mapper[tab.toLowerCase()] || 'mes vs mes anterior'
+  return mapper[tab.toLowerCase()] || 'periodo seleccionado'
 }
 
 // ============================================================
@@ -555,7 +586,18 @@ export class ReportesService {
             tab_seleccionada: tabBackend,
           },
           data: {
-            comparaciones: [],
+            titulo_grafica: '',
+            comparaciones: {
+              ventas: { actual: 0, anterior: 0, diferencia: 0, porcentaje: 0, es_positivo: true },
+              gastos: { actual: 0, anterior: 0, diferencia: 0, porcentaje: 0, es_positivo: true },
+              utilidad: { actual: 0, anterior: 0, diferencia: 0, porcentaje: 0, es_positivo: true },
+              membresias: { actual: 0, anterior: 0, diferencia: 0, porcentaje: 0, es_positivo: true },
+            },
+            resumen_indicadores: {
+              positivos: 0,
+              negativos: 0,
+            },
+            insights: [],
           },
         }
       }
@@ -576,8 +618,15 @@ export class ReportesService {
       const data: ComparacionesResponse = await response.json()
       
       console.log('✅ Comparaciones obtenidas exitosamente')
+      console.log('   Título gráfica:', data.data.titulo_grafica)
       console.log('   Filtros aplicados:', data.filtros_aplicados)
-      console.log('   Comparaciones:', data.data.comparaciones.length, 'items')
+      console.log('   Resumen indicadores:', data.data.resumen_indicadores)
+      console.log('   Insights:', data.data.insights.length, 'items')
+      console.log('   Comparaciones:')
+      console.log('     - Ventas:', data.data.comparaciones.ventas.actual, 'vs', data.data.comparaciones.ventas.anterior)
+      console.log('     - Gastos:', data.data.comparaciones.gastos.actual, 'vs', data.data.comparaciones.gastos.anterior)
+      console.log('     - Utilidad:', data.data.comparaciones.utilidad.actual, 'vs', data.data.comparaciones.utilidad.anterior)
+      console.log('     - Membresías:', data.data.comparaciones.membresias.actual, 'vs', data.data.comparaciones.membresias.anterior)
 
       return data
     } catch (error: any) {
