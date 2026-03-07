@@ -64,7 +64,28 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   const [metodoPagoNombre, setMetodoPagoNombre] = useState<string>("") // Nombre del método de pago
   const [datosTemporales, setDatosTemporales] = useState<CreateSocioRequest | null>(null)
 
-  // ===== Función para formatear fechas sin problemas de zona horaria =====
+  // ===== Funciones auxiliares para manejo de fechas =====
+  // Obtener fecha actual en formato YYYY-MM-DD
+  const obtenerFechaActual = () => {
+    const hoy = new Date()
+    const year = hoy.getFullYear()
+    const month = String(hoy.getMonth() + 1).padStart(2, '0')
+    const day = String(hoy.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // Calcular fecha + 1 año en formato YYYY-MM-DD
+  const calcularFechaUnAnoDespues = (fechaInicio: string) => {
+    if (!fechaInicio) return ""
+    const fecha = new Date(fechaInicio + 'T00:00:00') // Evitar problemas de zona horaria
+    fecha.setFullYear(fecha.getFullYear() + 1)
+    const year = fecha.getFullYear()
+    const month = String(fecha.getMonth() + 1).padStart(2, '0')
+    const day = String(fecha.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // Formatear fechas sin problemas de zona horaria
   const formatFecha = (fecha: string | undefined) => {
     if (!fecha) return "-"
     
@@ -203,8 +224,10 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       
       cargarDatosCompletos()
     } else if (open) {
-      // Modo creación: resetear todo
+      // Modo creación: resetear todo y establecer fecha actual por defecto
       console.log('✨ Modo CREACIÓN - Formulario limpio')
+      
+      const fechaActual = obtenerFechaActual()
       
       setLoadingSocioData(false)
       setNombre("")
@@ -213,7 +236,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       setTelefono("")
       setMembresiaId(null)
       setNombrePlanOriginal(null)
-      setFechaInicio("")
+      setFechaInicio(fechaActual) // Fecha actual por defecto
       setFechaVencimiento("")
       setEditarMembresia(false)
       setFirmoContrato(false)
@@ -756,7 +779,23 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
                         <input
                           type="checkbox"
                           checked={firmoContrato}
-                          onChange={(e) => setFirmoContrato(e.target.checked)}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            setFirmoContrato(checked)
+                            
+                            // Si se activa el contrato, establecer fechas por defecto
+                            if (checked) {
+                              const fechaActual = obtenerFechaActual()
+                              const fechaFin = calcularFechaUnAnoDespues(fechaActual)
+                              setContratoInicio(fechaActual)
+                              setContratoFin(fechaFin)
+                              console.log('📅 Contrato activado - Inicio:', fechaActual, 'Fin:', fechaFin)
+                            } else {
+                              // Si se desactiva, limpiar fechas
+                              setContratoInicio("")
+                              setContratoFin("")
+                            }
+                          }}
                           className="sr-only peer"
                         />
                         <span className="absolute inset-0 rounded-full bg-muted border border-border peer-checked:bg-accent/30 peer-checked:border-accent/60 transition-all" />
@@ -769,7 +808,17 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
                         <input
                           type="date"
                           value={contratoInicio}
-                          onChange={(e) => setContratoInicio(e.target.value)}
+                          onChange={(e) => {
+                            const nuevaFechaInicio = e.target.value
+                            setContratoInicio(nuevaFechaInicio)
+                            
+                            // Calcular automáticamente fecha fin (+1 año)
+                            if (nuevaFechaInicio) {
+                              const fechaFin = calcularFechaUnAnoDespues(nuevaFechaInicio)
+                              setContratoFin(fechaFin)
+                              console.log('📅 Fecha inicio cambiada - Nuevo fin:', fechaFin)
+                            }
+                          }}
                           className={inputClass}
                         />
                       </div>
