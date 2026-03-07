@@ -191,8 +191,39 @@ export default function ReportesPage() {
           setErrorComparaciones('Por favor inicia sesión para ver las comparaciones financieras')
           setComparacionesData(null)
         } else {
-          setComparacionesData(response.data.comparaciones)
-          console.log('✅ Comparaciones cargadas exitosamente')
+          console.log('🔍 Transformando comparaciones del backend al formato del componente')
+          
+          // Transformar objeto de comparaciones a array para el componente
+          const comparaciones = response.data.comparaciones
+          const arrayComparaciones = [
+            {
+              label: 'Ventas Totales',
+              actual: comparaciones.ventas.actual,
+              anterior: comparaciones.ventas.anterior,
+            },
+            {
+              label: 'Gastos Totales',
+              actual: comparaciones.gastos.actual,
+              anterior: comparaciones.gastos.anterior,
+            },
+            {
+              label: 'Utilidad Neta',
+              actual: comparaciones.utilidad.actual,
+              anterior: comparaciones.utilidad.anterior,
+            },
+            {
+              label: 'Membresías',
+              actual: comparaciones.membresias.actual,
+              anterior: comparaciones.membresias.anterior,
+            },
+          ]
+          
+          setComparacionesData(arrayComparaciones)
+          console.log('✅ Comparaciones transformadas y cargadas exitosamente')
+          console.log('   Título:', response.data.titulo_grafica)
+          console.log('   Positivos:', response.data.resumen_indicadores.positivos)
+          console.log('   Negativos:', response.data.resumen_indicadores.negativos)
+          console.log('   Insights:', response.data.insights.length)
         }
       } catch (error: any) {
         console.error('❌ Error cargando comparaciones:', error)
