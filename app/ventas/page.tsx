@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/sidebar"
 import { VentasHeader } from "@/components/ventas/ventas-header"
 import { KpiCards } from "@/components/ventas/kpi-cards"
 import { VentasToolbar } from "@/components/ventas/ventas-toolbar"
+import { AnalyticsToolbar } from "@/components/ventas/analytics-toolbar"
 import { VentasTable } from "@/components/ventas/ventas-table"
 import { VentasAnalytics } from "@/components/ventas/ventas-analytics"
 import { CorteCaja } from "@/components/ventas/corte-caja"
@@ -133,13 +134,24 @@ export default function VentasPage() {
       setAnalisisLoading(true)
       const params: any = {}
       
+      // Mapear períodos en español a formato del backend
+      const periodoMap: Record<string, string> = {
+        "hoy": "Hoy",
+        "ayer": "Ayer",
+        "semana": "Esta Semana",
+        "mes": "Este Mes",
+        "trimestre": "Este Trimestre",
+        "anio": "Este Año",
+        "personalizado": "Personalizado",
+      }
+      
       // Filtro por período
       if (periodo === "personalizado") {
         params.periodo = "Personalizado"
         if (fechaInicio) params.fecha_inicio = fechaInicio
         if (fechaFin) params.fecha_fin = fechaFin
       } else if (periodo !== "todo") {
-        params.periodo = periodo
+        params.periodo = periodoMap[periodo] || periodo
       }
       
       console.log('📊 Cargando análisis de ventas con parámetros:', params)
@@ -392,6 +404,18 @@ export default function VentasPage() {
 
             {activeTab === "analytics" && (
               <>
+                {/* Toolbar de filtros para análisis */}
+                <AnalyticsToolbar
+                  periodo={periodo}
+                  onPeriodoChange={setPeriodo}
+                  fechaInicio={fechaInicio}
+                  onFechaInicioChange={setFechaInicio}
+                  fechaFin={fechaFin}
+                  onFechaFinChange={setFechaFin}
+                  onActualizar={cargarAnalisis}
+                  loading={analisisLoading}
+                />
+
                 {analisisData ? (
                   <VentasAnalytics
                     analisisData={analisisData}

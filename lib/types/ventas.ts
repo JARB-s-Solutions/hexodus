@@ -387,12 +387,41 @@ export function mapVentasDataFromAPI(apiResponse: GetVentasResponse): VentasData
 }
 
 /**
+ * Corrige una fecha que viene en formato "YYYY-MM-DD" del backend
+ * Evita el problema de conversión de zona horaria UTC restando un día
+ */
+function corregirFechaUTC(fechaString: string): string {
+  if (!fechaString || !fechaString.includes('-')) return fechaString
+  
+  // El backend devuelve fechas con un día de adelanto debido a conversión UTC
+  // Necesitamos restar un día para mostrar la fecha correcta
+  const partes = fechaString.split('T')[0].split('-')
+  if (partes.length === 3) {
+    const [year, month, day] = partes.map(Number)
+    // Crear fecha en UTC (como viene del backend)
+    const fecha = new Date(Date.UTC(year, month - 1, day))
+    // Restar un día (corregir el adelanto)
+    fecha.setUTCDate(fecha.getUTCDate() - 1)
+    // Retornar en formato YYYY-MM-DD
+    const y = fecha.getUTCFullYear()
+    const m = String(fecha.getUTCMonth() + 1).padStart(2, '0')
+    const d = String(fecha.getUTCDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  
+  return fechaString
+}
+
+/**
  * Mapea la respuesta del análisis de ventas
  */
 export function mapAnalisisVentasFromAPI(apiResponse: AnalisisVentasResponse): AnalisisVentasData {
   return {
     comparacionActual: apiResponse.data.comparacion_actual,
-    tendenciaVentas: apiResponse.data.tendencia_ventas,
+    tendenciaVentas: apiResponse.data.tendencia_ventas.map(item => ({
+      fecha: corregirFechaUTC(item.fecha),
+      total: item.total,
+    })),
     topProductos: apiResponse.data.top_productos,
     metodosPago: apiResponse.data.metodos_pago,
     insights: apiResponse.data.insights,
