@@ -11,7 +11,7 @@ import type {
   GetCategoriaStatsResponse,
   CategoriaFormData
 } from '@/lib/types/categorias'
-import { mapCategoriaFromAPI, generarPrefijoAutomatico } from '@/lib/types/categorias'
+import { mapCategoriaFromAPI, mapCategoriaToAPI } from '@/lib/types/categorias'
 
 /**
  * Servicio para gestionar categorías
@@ -54,87 +54,50 @@ export class CategoriasService {
 
   /**
    * Crear nueva categoría
-   * NOTA: El backend solo acepta { nombre }, pero el frontend maneja campos adicionales
+   * El backend ya acepta todos los campos: nombre, prefijo, color, descripcion, estado
    */
   static async create(formData: CategoriaFormData): Promise<Categoria> {
     console.log('🔄 POST /api/categorias - Creando categoría', formData)
     
-    // El backend solo acepta nombre
-    const requestData: CreateCategoriaRequest = {
-      nombre: formData.nombre.trim()
-    }
+    // Mapear datos del formulario al formato del API
+    const requestData: CreateCategoriaRequest = mapCategoriaToAPI(formData)
     
     console.log('  Enviando al backend:', requestData)
     
     const response = await apiPost<CategoriaResponse>('/categorias', requestData)
-    console.log('✅ Categoría creada en backend:', response.data)
+    console.log('✅ Categoría creada:', response.data)
     
-    // Mapear respuesta y agregar valores del frontend
+    // Mapear respuesta del backend
     const categoria = mapCategoriaFromAPI(response.data)
-    
-    // Aplicar valores del formulario que no vienen del backend
-    if (formData.prefijo) {
-      categoria.prefijo = formData.prefijo.toUpperCase()
-    } else {
-      // Generar prefijo automático basado en el nombre
-      categoria.prefijo = generarPrefijoAutomatico(formData.nombre)
-    }
-    
-    if (formData.color) {
-      categoria.color = formData.color
-    }
-    
-    if (formData.descripcion) {
-      categoria.descripcion = formData.descripcion.trim()
-    }
-    
-    if (formData.estado) {
-      categoria.estado = formData.estado
-    }
-    
-    console.log('✅ Categoría enriquecida con datos del frontend:', categoria)
+    console.log('✅ Categoría mapeada:', categoria)
     
     return categoria
   }
 
   /**
    * Actualizar categoría existente
-   * NOTA: El backend solo acepta { nombre }, pero el frontend maneja campos adicionales
+   * El backend ya acepta todos los campos: nombre, prefijo, color, descripcion, estado
    */
   static async update(id: number, formData: CategoriaFormData): Promise<Categoria> {
     console.log(`🔄 PUT /api/categorias/${id} - Actualizando categoría`, formData)
     
-    // El backend solo acepta nombre
+    // Mapear datos del formulario al formato del API
     const requestData: UpdateCategoriaRequest = {
-      nombre: formData.nombre?.trim()
+      nombre: formData.nombre?.trim(),
+      prefijo: formData.prefijo?.trim().toUpperCase(),
+      color: formData.color,
+      descripcion: formData.descripcion?.trim(),
+      estado: formData.estado,
     }
     
     console.log('  Enviando al backend:', requestData)
     
     const response = await apiPut<CategoriaResponse>(`/categorias/${id}`, requestData)
-    console.log('✅ Categoría actualizada en backend:', response.data)
+    console.log('✅ Categoría actualizada:', response.data)
     
-    // Mapear respuesta y aplicar valores del frontend
+    // Mapear respuesta del backend
     const categoria = mapCategoriaFromAPI(response.data)
-    
-    // Aplicar valores del formulario que no vienen del backend
-    if (formData.prefijo) {
-      categoria.prefijo = formData.prefijo.toUpperCase()
-    }
-    
-    if (formData.color) {
-      categoria.color = formData.color
-    }
-    
-    if (formData.descripcion !== undefined) {
-      categoria.descripcion = formData.descripcion.trim() || undefined
-    }
-    
-    if (formData.estado) {
-      categoria.estado = formData.estado
-    }
-    
-    console.log('✅ Categoría enriquecida con datos del frontend:', categoria)
+    console.log('✅ Categoría mapeada:', categoria)
     
     return categoria
   }
