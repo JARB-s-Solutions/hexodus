@@ -9,6 +9,7 @@ import { SociosTable } from "@/components/socios/socios-table"
 import { SocioModal } from "@/components/socios/socio-modal"
 import { DetalleSocioModal } from "@/components/socios/detalle-socio-modal"
 import { EliminarSocioModal } from "@/components/socios/eliminar-socio-modal"
+import { CobrarMembresiaModal } from "@/components/socios/cobrar-membresia-modal"
 import { SociosService } from "@/lib/services/socios"
 import { toast } from "@/hooks/use-toast"
 import type { Socio } from "@/lib/types/socios"
@@ -44,6 +45,8 @@ export default function SociosPage() {
   const [detalleSocioId, setDetalleSocioId] = useState<number | null>(null)
   const [modalEliminarOpen, setModalEliminarOpen] = useState(false)
   const [socioAEliminar, setSocioAEliminar] = useState<Socio | SocioMock | null>(null)
+  const [modalCobrarOpen, setModalCobrarOpen] = useState(false)
+  const [socioACobrar, setSocioACobrar] = useState<Socio | SocioMock | null>(null)
 
   // ===== Cargar socios desde la API =====
   const cargarSocios = useCallback(async () => {
@@ -299,6 +302,19 @@ export default function SociosPage() {
     }
   }, [socioAEliminar, useMockData, cargarSocios, getSocioField])
 
+  const handleCobrar = useCallback((s: Socio | SocioMock) => {
+    console.log('💳 Abriendo modal de cobro para:', s)
+    setSocioACobrar(s)
+    setModalCobrarOpen(true)
+  }, [])
+
+  const handleSuccessCobro = useCallback(() => {
+    // Recargar socios después de cobrar exitosamente
+    cargarSocios()
+    setModalCobrarOpen(false)
+    setSocioACobrar(null)
+  }, [cargarSocios])
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar activePage="socios" />
@@ -342,6 +358,7 @@ export default function SociosPage() {
             onVerDetalle={(socio) => setDetalleSocioId(socio.id)}
             onEditar={handleEditar}
             onEliminar={handleEliminar}
+            onCobrar={handleCobrar}
           />
         </div>
       </main>
@@ -372,6 +389,16 @@ export default function SociosPage() {
         }}
         socio={socioAEliminar as Socio | null}
         onConfirmar={handleConfirmarEliminacion}
+      />
+
+      <CobrarMembresiaModal
+        open={modalCobrarOpen}
+        onClose={() => {
+          setModalCobrarOpen(false)
+          setSocioACobrar(null)
+        }}
+        socio={socioACobrar as Socio | null}
+        onSuccess={handleSuccessCobro}
       />
     </div>
   )
