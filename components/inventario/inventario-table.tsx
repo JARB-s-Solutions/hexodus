@@ -139,7 +139,11 @@ export function InventarioTable({
               </tr>
             ) : (
               productosPagina.map((p) => {
-                const cat = categoriaInfo[p.categoria]
+                const cat = categoriaInfo[p.categoria] || { 
+                  nombre: p.categoria, 
+                  color: "text-gray-300", 
+                  bg: "bg-gray-500/15" 
+                }
                 const est = estadoStockInfo[p.estadoStock]
 
                 return (
