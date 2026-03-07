@@ -119,8 +119,43 @@ export default function ReportesPage() {
           setErrorResumen('Por favor inicia sesión para ver los KPIs financieros')
           setResumenData(null)
         } else {
-          setResumenData(response.data)
-          console.log('✅ Resumen cargado exitosamente')
+          console.log('🔍 Analizando estructura de respuesta:', response)
+          
+          // Verificar si tiene la estructura kpis_superiores (nueva)
+          if (response.data.kpis_superiores) {
+            console.log('✅ Estructura kpis_superiores detectada')
+            
+            // Transformar datos del backend al formato esperado por el componente
+            const kpis = response.data.kpis_superiores
+            const desglose = response.data.desglose_ingresos
+            
+            // Calcular valores anteriores a partir del porcentaje de cambio
+            const calcularAnterior = (actual: number, porcentaje: number): number => {
+              if (porcentaje === 0) return actual
+              return actual / (1 + porcentaje / 100)
+            }
+            
+            setResumenData({
+              ventas_actual: desglose.grafica.ventas.total,
+              ventas_anterior: calcularAnterior(
+                desglose.grafica.ventas.total, 
+                desglose.grafica.ventas.porcentaje_vs_anterior
+              ),
+              gastos_actual: kpis.gastos.total,
+              gastos_anterior: calcularAnterior(kpis.gastos.total, kpis.gastos.porcentaje),
+              utilidad_actual: kpis.utilidad_neta.total,
+              utilidad_anterior: calcularAnterior(kpis.utilidad_neta.total, kpis.utilidad_neta.porcentaje),
+              membresias_actual: kpis.membresias.total,
+              membresias_anterior: calcularAnterior(kpis.membresias.total, kpis.membresias.porcentaje),
+              socios_activos: kpis.membresias.socios_activos,
+            })
+          } else {
+            // Formato legacy o diferente
+            console.log('ℹ️  Usando estructura directa de response.data')
+            setResumenData(response.data)
+          }
+          
+          console.log('✅ KPIs transformados y cargados exitosamente')
         }
       } catch (error: any) {
         console.error('❌ Error cargando resumen:', error)

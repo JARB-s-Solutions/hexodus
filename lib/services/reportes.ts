@@ -107,26 +107,104 @@ export interface GraficasResponse {
 }
 
 /**
- * Respuesta de endpoint de resumen (KPIs financieros)
+ * Respuesta de endpoint de KPIs financieros
  */
-export interface ResumenResponse {
+export interface KpisResponse {
   message: string
   filtros_aplicados: {
     periodo: string
     tipo_reporte: string
   }
   data: {
-    ventas_actual: number
-    ventas_anterior: number
-    gastos_actual: number
-    gastos_anterior: number
-    utilidad_actual: number
-    utilidad_anterior: number
-    membresias_actual: number
-    membresias_anterior: number
-    socios_activos: number
+    kpis_superiores: {
+      ingresos: {
+        total: number
+        porcentaje: number
+      }
+      gastos: {
+        total: number
+        porcentaje: number
+      }
+      utilidad_neta: {
+        total: number
+        porcentaje: number
+      }
+      membresias: {
+        total: number
+        porcentaje: number
+        socios_activos: number
+      }
+    }
+    desglose_ingresos: {
+      mostrar: boolean
+      total_ingresos: number
+      saldo_neto: number
+      grafica: {
+        ventas: {
+          total: number
+          porcentaje_grafica: number
+          porcentaje_vs_anterior: number
+        }
+        membresias: {
+          total: number
+          porcentaje_grafica: number
+          porcentaje_vs_anterior: number
+        }
+      }
+    }
+    tarjetas_detalle: {
+      ventas: {
+        mostrar: boolean
+        total: number
+        transacciones: number
+        porcentaje_vs_anterior: number
+        anterior_texto: string
+      }
+      gastos: {
+        mostrar: boolean
+        total: number
+        movimientos: number
+        porcentaje_vs_anterior: number
+        anterior_texto: string
+      }
+      utilidad: {
+        mostrar: boolean
+        total: number
+        margen: number
+        porcentaje_vs_anterior: number
+        anterior_texto: string
+      }
+      membresias: {
+        mostrar: boolean
+        total: number
+        socios_activos: number
+        porcentaje_vs_anterior: number
+        anterior_texto: string
+      }
+    }
+    top_gastos?: Array<{
+      categoria: string
+      monto: number
+    }>
+    rendimiento_planes?: Array<{
+      plan: string
+      cantidad: number
+    }>
+    insights?: Array<{
+      tipo: string
+      texto: string
+    }>
+    barra_inferior?: {
+      periodo_texto: string
+      rango_fechas: string
+      ingresos_totales: number
+      utilidad_neta: number
+    }
   }
 }
+
+// Legacy type alias for backwards compatibility
+export type ResumenResponse = KpisResponse
 
 /**
  * Item de comparación individual
@@ -361,15 +439,27 @@ export class ReportesService {
             tipo_reporte: tipoReporteBackend,
           },
           data: {
-            ventas_actual: 0,
-            ventas_anterior: 0,
-            gastos_actual: 0,
-            gastos_anterior: 0,
-            utilidad_actual: 0,
-            utilidad_anterior: 0,
-            membresias_actual: 0,
-            membresias_anterior: 0,
-            socios_activos: 0,
+            kpis_superiores: {
+              ingresos: { total: 0, porcentaje: 0 },
+              gastos: { total: 0, porcentaje: 0 },
+              utilidad_neta: { total: 0, porcentaje: 0 },
+              membresias: { total: 0, porcentaje: 0, socios_activos: 0 }
+            },
+            desglose_ingresos: {
+              mostrar: false,
+              total_ingresos: 0,
+              saldo_neto: 0,
+              grafica: {
+                ventas: { total: 0, porcentaje_grafica: 0, porcentaje_vs_anterior: 0 },
+                membresias: { total: 0, porcentaje_grafica: 0, porcentaje_vs_anterior: 0 }
+              }
+            },
+            tarjetas_detalle: {
+              ventas: { mostrar: false, total: 0, transacciones: 0, porcentaje_vs_anterior: 0, anterior_texto: "" },
+              gastos: { mostrar: false, total: 0, movimientos: 0, porcentaje_vs_anterior: 0, anterior_texto: "" },
+              utilidad: { mostrar: false, total: 0, margen: 0, porcentaje_vs_anterior: 0, anterior_texto: "" },
+              membresias: { mostrar: false, total: 0, socios_activos: 0, porcentaje_vs_anterior: 0, anterior_texto: "" }
+            }
           },
         }
       }
@@ -387,21 +477,43 @@ export class ReportesService {
         throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
       }
 
-      const data: ResumenResponse = await response.json()
+      const data: KpisResponse = await response.json()
       
       console.log('✅ Resumen obtenido exitosamente')
+      console.log('   Response completo:', JSON.stringify(data, null, 2))
       console.log('   Filtros aplicados:', data.filtros_aplicados)
-      console.log('   Ventas actual:', data.data.ventas_actual)
-      console.log('   Gastos actual:', data.data.gastos_actual)
-      console.log('   Utilidad actual:', data.data.utilidad_actual)
-      console.log('   Membresías actual:', data.data.membresias_actual)
-      console.log('   Socios activos:', data.data.socios_activos)
+      
+      // Verificar si la respuesta tiene la estructura esperada
+      if (data.data.kpis_superiores) {
+        console.log('   Estructura: kpis_superiores detectada')
+        console.log('   Ingresos:', data.data.kpis_superiores.ingresos.total)
+        console.log('   Gastos:', data.data.kpis_superiores.gastos.total)
+        console.log('   Utilidad neta:', data.data.kpis_superiores.utilidad_neta.total)
+        console.log('   Membresías:', data.data.kpis_superiores.membresias.total)
+        console.log('   Socios activos:', data.data.kpis_superiores.membresias.socios_activos)
+      } else {
+        console.log('   Estructura: formato desconocido')
+        console.log('   Data keys:', Object.keys(data.data))
+      }
 
       return data
     } catch (error: any) {
-      console.error('❌ Error obteniendo resumen:', error)
+      console.error('❌ Error obteniendo KPIs:', error)
       throw error
     }
+  }
+
+  /**
+   * Alias para getResumen() - Obtener KPIs financieros
+   * Usa el endpoint /api/financiero/kpis
+   */
+  static async getKpis(params: {
+    periodo: string
+    tipoReporte?: string
+    fechaInicio?: string
+    fechaFin?: string
+  }): Promise<KpisResponse> {
+    return this.getResumen(params)
   }
 
   /**
