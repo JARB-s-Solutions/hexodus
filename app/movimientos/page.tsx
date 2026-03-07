@@ -59,13 +59,39 @@ export default function MovimientosPage() {
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
 
+  // Log cambios de filtros
+  useEffect(() => {
+    console.log("🛠️ Filtros actualizados:", {
+      busqueda,
+      tipo,
+      tipoPago,
+      fechaInicio,
+      fechaFin,
+    })
+  }, [busqueda, tipo, tipoPago, fechaInicio, fechaFin])
+
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<"crear" | "editar" | "ver">("crear")
   const [selectedMov, setSelectedMov] = useState<Movimiento | null>(null)
 
+  // Log cambios de modal
+  useEffect(() => {
+    console.log("📝 Modal state cambio:", {
+      open: modalOpen,
+      mode: modalMode,
+      hasSelection: !!selectedMov,
+      selectedFolio: selectedMov?.folio,
+    })
+  }, [modalOpen, modalMode, selectedMov])
+
   // Tab state
   const [activeTab, setActiveTab] = useState<"historial" | "comparaciones" | "conceptos">("historial")
+
+  // Log cambios de tab
+  useEffect(() => {
+    console.log("📂 Tab activo cambio:", activeTab)
+  }, [activeTab])
 
   // Modal conceptos state
   const [modalConceptoOpen, setModalConceptoOpen] = useState(false)
@@ -174,23 +200,80 @@ export default function MovimientosPage() {
 
   // Cargar movimientos al montar y cuando cambien los filtros
   useEffect(() => {
+    console.log("🔄 useEffect cargarMovimientos ejecutándose...")
+    console.log("  - Filtros actuales:", {
+      page: pagination.current_page,
+      limit: pagination.limit,
+      tipo,
+      tipoPago,
+      busqueda,
+      fechaInicio,
+      fechaFin,
+    })
     cargarMovimientos()
   }, [cargarMovimientos])
 
   // Filtered list (ya viene filtrado del backend, pero mantenemos para compatibilidad)
-  const filtered = useMemo(() => movimientos, [movimientos])
+  const filtered = useMemo(() => {
+    console.log("🔍 Recalculando filtered list...")
+    console.log("  Movimientos actuales:", movimientos.length)
+    return movimientos
+  }, [movimientos])
 
   // Actions
+  // Handlers de paginación
+  const handlePageChange = useCallback((newPage: number) => {
+    console.log("📄 Cambiando a página:", newPage)
+    setPagination((prev) => ({ ...prev, current_page: newPage }))
+  }, [])
+
+  const handleLimitChange = useCallback((newLimit: number) => {
+    console.log("🔢 Cambiando límite a:", newLimit)
+    setPagination((prev) => ({ ...prev, limit: newLimit, current_page: 1 }))
+  }, [])
+
+  // Wrappers de filtros que resetean la página
+  const handleBusquedaChange = useCallback((value: string) => {
+    setBusqueda(value)
+    setPagination((prev) => ({ ...prev, current_page: 1 }))
+  }, [])
+
+  const handleTipoChange = useCallback((value: string) => {
+    setTipo(value)
+    setPagination((prev) => ({ ...prev, current_page: 1 }))
+  }, [])
+
+  const handleTipoPagoChange = useCallback((value: string) => {
+    setTipoPago(value)
+    setPagination((prev) => ({ ...prev, current_page: 1 }))
+  }, [])
+
+  const handleFechaInicioChange = useCallback((value: string) => {
+    setFechaInicio(value)
+    setPagination((prev) => ({ ...prev, current_page: 1 }))
+  }, [])
+
+  const handleFechaFinChange = useCallback((value: string) => {
+    setFechaFin(value)
+    setPagination((prev) => ({ ...prev, current_page: 1 }))
+  }, [])
+
   const handleLimpiar = useCallback(() => {
+    console.log("🧹 Limpiando filtros...")
     setBusqueda("")
     setTipo("todos")
     setTipoPago("")
     setFechaInicio("")
     setFechaFin("")
     setPagination((prev) => ({ ...prev, current_page: 1 }))
+    console.log("✅ Filtros limpiados")
   }, [])
 
   const handleExportar = useCallback(() => {
+    console.log("📤 Exportando movimientos a CSV...")
+    console.log("  - Movimientos a exportar:", filtered.length)
+    console.log("  - KPIs:", kpis)
+    
     let label = "todos"
     if (fechaInicio && fechaFin) {
       label = `${fechaInicio}_a_${fechaFin}`
@@ -199,22 +282,38 @@ export default function MovimientosPage() {
     } else if (fechaFin) {
       label = `hasta_${fechaFin}`
     }
+    
+    console.log("  - Label del archivo:", label)
     exportMovimientosCSV(filtered, kpis, label)
+    console.log("✅ Exportación completada")
   }, [filtered, kpis, fechaInicio, fechaFin])
 
   const handleNuevo = useCallback(() => {
+    console.log("➕ Abriendo modal para crear nuevo movimiento")
     setSelectedMov(null)
     setModalMode("crear")
     setModalOpen(true)
   }, [])
 
   const handleVer = useCallback((m: Movimiento) => {
+    console.log("👁️ Abriendo modal para ver movimiento:", {
+      folio: m.folio,
+      tipo: m.tipo,
+      concepto: m.concepto,
+      total: m.total,
+    })
     setSelectedMov(m)
     setModalMode("ver")
     setModalOpen(true)
   }, [])
 
   const handleEditar = useCallback((m: Movimiento) => {
+    console.log("✏️ Abriendo modal para editar movimiento:", {
+      folio: m.folio,
+      tipo: m.tipo,
+      concepto: m.concepto,
+      total: m.total,
+    })
     setSelectedMov(m)
     setModalMode("editar")
     setModalOpen(true)
@@ -437,15 +536,15 @@ export default function MovimientosPage() {
                 <div className="sticky top-0">
                   <FiltrosMovimientos
                     busqueda={busqueda}
-                    onBusquedaChange={setBusqueda}
+                    onBusquedaChange={handleBusquedaChange}
                     tipo={tipo}
-                    onTipoChange={setTipo}
+                    onTipoChange={handleTipoChange}
                     tipoPago={tipoPago}
-                    onTipoPagoChange={setTipoPago}
+                    onTipoPagoChange={handleTipoPagoChange}
                     fechaInicio={fechaInicio}
-                    onFechaInicioChange={setFechaInicio}
+                    onFechaInicioChange={handleFechaInicioChange}
                     fechaFin={fechaFin}
-                    onFechaFinChange={setFechaFin}
+                    onFechaFinChange={handleFechaFinChange}
                     onLimpiar={handleLimpiar}
                     onExportar={handleExportar}
                     metodosPago={metodosPago}
@@ -482,6 +581,9 @@ export default function MovimientosPage() {
                     onVer={handleVer}
                     onEditar={handleEditar}
                     onEliminar={handleEliminar}
+                    serverPagination={pagination}
+                    onPageChange={handlePageChange}
+                    onLimitChange={handleLimitChange}
                   />
                 )}
               </div>
@@ -534,15 +636,15 @@ export default function MovimientosPage() {
             <div className="p-4">
               <FiltrosMovimientos
                 busqueda={busqueda}
-                onBusquedaChange={setBusqueda}
+                onBusquedaChange={handleBusquedaChange}
                 tipo={tipo}
-                onTipoChange={setTipo}
+                onTipoChange={handleTipoChange}
                 tipoPago={tipoPago}
-                onTipoPagoChange={setTipoPago}
+                onTipoPagoChange={handleTipoPagoChange}
                 fechaInicio={fechaInicio}
-                onFechaInicioChange={setFechaInicio}
+                onFechaInicioChange={handleFechaInicioChange}
                 fechaFin={fechaFin}
-                onFechaFinChange={setFechaFin}
+                onFechaFinChange={handleFechaFinChange}
                 onLimpiar={handleLimpiar}
                 onExportar={handleExportar}
                 metodosPago={metodosPago}
