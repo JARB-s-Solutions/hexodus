@@ -7,6 +7,16 @@ import type { Categoria } from "@/lib/types/categorias"
 import { CategoriasService } from "@/lib/services/categorias"
 import { CategoriaModal } from "./categoria-modal"
 import { CategoriasTable } from "./categorias-table"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface CategoriasTabProps {
   categorias: Categoria[]
@@ -24,6 +34,8 @@ export function CategoriasTab({
   const [modalOpen, setModalOpen] = useState(false)
   const [editCategoria, setEditCategoria] = useState<Categoria | null>(null)
   const [loading, setLoading] = useState(false)
+  const [categoriaToDelete, setCategoriaToDelete] = useState<Categoria | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   // Filtrar categorías
   const categoriasFiltradas = useMemo(() => {
@@ -74,16 +86,20 @@ export function CategoriasTab({
       return
     }
 
-    if (!confirm(`¿Estás seguro de eliminar la categoría "${categoria.nombre}"?`)) {
-      return
-    }
+    // Abrir modal de confirmación
+    setCategoriaToDelete(categoria)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmarEliminacion = async () => {
+    if (!categoriaToDelete) return
 
     setLoading(true)
     try {
-      await CategoriasService.delete(categoria.id)
+      await CategoriasService.delete(categoriaToDelete.id)
       toast({
         title: "Categoría eliminada",
-        description: `La categoría "${categoria.nombre}" se eliminó correctamente`,
+        description: `La categoría "${categoriaToDelete.nombre}" se eliminó correctamente`,
       })
       await onRefresh()
     } catch (error: any) {
@@ -95,6 +111,8 @@ export function CategoriasTab({
       })
     } finally {
       setLoading(false)
+      setDeleteDialogOpen(false)
+      setCategoriaToDelete(null)
     }
   }
 
@@ -219,6 +237,28 @@ export function CategoriasTab({
         onSuccess={handleSuccess}
         categoria={editCategoria}
       />
+
+      {/* Modal de Confirmación de Eliminación */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro de eliminar la categoría "{categoriaToDelete?.nombre}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. La categoría será eliminada permanentemente del sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmarEliminacion}
+              disabled={loading}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {loading ? "Eliminando..." : "Aceptar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
