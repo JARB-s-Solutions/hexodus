@@ -73,6 +73,22 @@ export default function SociosPage() {
     cargarSocios()
   }, [])
 
+  // ===== Helper para extraer tipo de membresía desde el nombre del plan =====
+  const extraerTipoMembresia = (nombrePlan: string | undefined): TipoMembresia | null => {
+    if (!nombrePlan) return null
+    
+    const nombreLower = nombrePlan.toLowerCase()
+    
+    // Buscar en orden de especificidad (más específico primero)
+    if (nombreLower.includes('trimestral') || nombreLower.includes('trimestre') || nombreLower.includes('3 mes')) return 'trimestral'
+    if (nombreLower.includes('anual') || nombreLower.includes('año') || nombreLower.includes('12 mes')) return 'anual'
+    if (nombreLower.includes('mensual') || nombreLower.includes('1 mes')) return 'mensual'
+    if (nombreLower.includes('semanal') || nombreLower.includes('semana') || nombreLower.includes('7 día')) return 'semanal'
+    if (nombreLower.includes('diaria') || nombreLower.includes('dia') || nombreLower.includes('1 día')) return 'diaria'
+    
+    return null
+  }
+
   // ===== Helper para acceder a campos de forma uniforme =====
   const isSocioAPI = (s: Socio | SocioMock): s is Socio => {
     // El Socio de API tiene 'fechaVencimientoMembresia', el mock tiene 'fechaFin'
@@ -86,7 +102,7 @@ export default function SociosPage() {
         case 'nombre': return s.nombre
         case 'correo': return s.correo
         case 'telefono': return s.telefono
-        case 'membresia': return s.nombrePlan // TODO: mapear a TipoMembresia si es necesario
+        case 'membresia': return extraerTipoMembresia(s.nombrePlan) // Extraer tipo desde nombre
         case 'fechaFin': return s.fechaVencimientoMembresia
         case 'genero': {
           // Mapear Genero API a Genero Mock

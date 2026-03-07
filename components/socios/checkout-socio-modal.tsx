@@ -52,6 +52,21 @@ export function CheckoutSocioModal({
 
   const { nombre_plan, duracion_dias, fecha_inicio, fecha_vencimiento, desglose_cobro } = cotizacion
 
+  // Función auxiliar para formatear fechas sin problemas de zona horaria
+  const formatearFecha = (fechaString: string) => {
+    // Extraer componentes de la fecha (YYYY-MM-DD) sin conversión de zona horaria
+    const [year, month, day] = fechaString.split('T')[0].split('-').map(Number)
+    
+    // Crear fecha en zona horaria local directamente
+    const fecha = new Date(year, month - 1, day)
+    
+    return fecha.toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    })
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -140,11 +155,7 @@ export function CheckoutSocioModal({
                 <div>
                   <p className="text-muted-foreground">Inicio</p>
                   <p className="font-semibold text-foreground">
-                    {new Date(fecha_inicio).toLocaleDateString('es-MX', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric'
-                    })}
+                    {formatearFecha(fecha_inicio)}
                   </p>
                 </div>
               </div>
@@ -153,11 +164,7 @@ export function CheckoutSocioModal({
                 <div>
                   <p className="text-muted-foreground">Vencimiento</p>
                   <p className="font-semibold text-foreground">
-                    {new Date(fecha_vencimiento).toLocaleDateString('es-MX', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric'
-                    })}
+                    {formatearFecha(fecha_vencimiento)}
                   </p>
                 </div>
               </div>
