@@ -14,6 +14,39 @@ import { toast } from "@/hooks/use-toast"
 import type { Socio, CreateSocioRequest, CotizacionResponse } from "@/lib/types/socios"
 import type { Membresia } from "@/lib/types/membresias"
 
+// ============================================================
+// HELPER: Validar estado de pago de forma segura
+// ============================================================
+/**
+ * Valida y normaliza el estado_pago para evitar estados inválidos.
+ * CRÍTICO para cambios de plan y actualizaciones de membresía.
+ * 
+ * @param estadoPago - Estado de pago recibido (puede ser undefined, null o inválido)
+ * @param contexto - Contexto de donde viene (para logs de depuración)
+ * @returns Estado de pago válido ('pagado' | 'sin_pagar')
+ */
+function validarEstadoPago(
+  estadoPago: string | undefined | null,
+  contexto: string
+): 'pagado' | 'sin_pagar' {
+  const estadosValidos = ['pagado', 'sin_pagar']
+  
+  if (!estadoPago) {
+    console.warn(`⚠️ [${contexto}] Estado de pago undefined/null → Usando default: sin_pagar`)
+    return 'sin_pagar'
+  }
+  
+  if (!estadosValidos.includes(estadoPago)) {
+    console.error(`❌ [${contexto}] Estado de pago inválido: "${estadoPago}"`)
+    console.error(`   Estados válidos: ${estadosValidos.join(', ')}`)
+    console.error(`   → Usando default seguro: sin_pagar`)
+    return 'sin_pagar'
+  }
+  
+  console.log(`✅ [${contexto}] Estado de pago válido: ${estadoPago}`)
+  return estadoPago as 'pagado' | 'sin_pagar'
+}
+
 interface SocioModalProps {
   open: boolean
   onClose: () => void
@@ -336,9 +369,14 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       membresia: {
         plan_id: membresiaId,
         fecha_inicio: fechaInicio,
-        estado_pago: "sin_pagar",
+        estado_pago: "sin_pagar", // 🔒 Default seguro inicial (se cambiará en checkout)
       },
     }
+
+    console.log('📝 Datos temporales preparados (antes de cotizar):')
+    console.log('   Plan ID:', membresiaId)
+    console.log('   Fecha inicio:', fechaInicio)
+    console.log('   Estado pago inicial:', 'sin_pagar (temporal)')
 
     setDatosTemporales(datosCompletos)
 
@@ -398,15 +436,43 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       
       // SOLO incluir membresía si el toggle está activado
       if (editarMembresia && membresiaId) {
+        // ⚠️ VALIDACIÓN CRÍTICA: Determinar estado_pago de forma segura
+        const estadoPagoSeguro = validarEstadoPago(
+          socio.estadoPago,
+          'Actualización de Socio'
+        )
+        
+        // 🔍 VERIFICACIÓN ADICIONAL: ¿Es cambio de plan?
+        const esCambioDePlan = socio.planId !== membresiaId
+        if (esCambioDePlan) {
+          console.warn('🔄 CAMBIO DE PLAN DETECTADO:')
+          console.warn('   Socio ID:', socio.id)
+          console.warn('   Plan anterior:', socio.planId)
+          console.warn('   Plan nuevo:', membresiaId)
+          console.warn('   Estado pago actual:', socio.estadoPago)
+          console.warn('   Estado pago que se enviará:', estadoPagoSeguro)
+          console.warn('   ⚠️ CRÍTICO: Backend DEBE:')
+          console.warn('      1. Calcular diferencia de precio')
+          console.warn('      2. Devolver monto anterior si corresponde')
+          console.warn('      3. Cobrar nuevo plan SOLO si estado_pago=pagado')
+          console.warn('      4. NO cobrar si estado_pago=sin_pagar')
+          
+          // MEJORA FUTURA: Aquí podrías mostrar un modal de confirmación
+          // preguntando: "¿Desea cobrar la nueva membresía ahora?"
+          // y permitir al usuario cambiar el estado_pago explícitamente
+        }
+        
         console.log('📝 Incluyendo membresía en actualización:', {
           plan_id: membresiaId,
           fecha_inicio: fechaInicio,
-          // Nota: fechaVencimiento se preserva automáticamente por el backend
+          estado_pago: estadoPagoSeguro,
+          es_cambio_de_plan: esCambioDePlan,
         })
+        
         datosActualizados.membresia = {
           plan_id: membresiaId,
           fecha_inicio: fechaInicio,
-          estado_pago: socio.estadoPago || 'pagado', // Preservar estado de pago
+          estado_pago: estadoPagoSeguro,
         }
       } else {
         console.log('⏭️ Membresía NO incluida en actualización (preservando existente)')
@@ -437,16 +503,26 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   const handleConfirmarPago = async (metodoPagoId: number, nombreMetodoPago: string) => {
     if (!datosTemporales || !cotizacion) return
     
+    console.log('💳 Confirmando pago para nuevo socio:')
+    console.log('   Método de pago ID:', metodoPagoId)
+    console.log('   Método de pago:', nombreMetodoPago)
+    console.log('   Total a cobrar:', cotizacion.total_a_pagar)
+    console.log('   Plan:', cotizacion.plan_nombre)
+    
     setLoading(true)
     try {
       const datosFinales: CreateSocioRequest = {
         ...datosTemporales,
         membresia: {
           ...datosTemporales.membresia,
-          estado_pago: "pagado",
+          estado_pago: "pagado", // ✅ EXPlÍCITO: Usuario confirmó pago
           metodo_pago_id: metodoPagoId,
         },
       }
+      
+      console.log('📤 Enviando registro con pago confirmado')
+      console.log('   estado_pago:', 'pagado')
+      console.log('   metodo_pago_id:', metodoPagoId)
       
       const response = await SociosService.create(datosFinales)
       
@@ -494,16 +570,26 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   const handleInscribirSinPago = async () => {
     if (!datosTemporales || !cotizacion) return
     
+    console.log('⚠️ Inscribiendo socio SIN PAGO:')
+    console.log('   Nombre:', nombre)
+    console.log('   Plan:', cotizacion.plan_nombre)
+    console.log('   Monto pendiente:', cotizacion.total_a_pagar)
+    console.warn('   💵 El cobro quedará PENDIENTE')
+    
     setLoading(true)
     try {
       const datosFinales: CreateSocioRequest = {
         ...datosTemporales,
         membresia: {
           ...datosTemporales.membresia,
-          estado_pago: "sin_pagar",
+          estado_pago: "sin_pagar", // ⚠️ EXPlÍCITO: Usuario eligió pagar después
           // No se envía metodo_pago_id
         },
       }
+      
+      console.log('📤 Enviando registro sin pago')
+      console.log('   estado_pago:', 'sin_pagar')
+      console.log('   metodo_pago_id:', 'undefined (no se envía)')
       
       await SociosService.create(datosFinales)
       
