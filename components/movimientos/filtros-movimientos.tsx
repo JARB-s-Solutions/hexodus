@@ -39,6 +39,15 @@ export function FiltrosMovimientos({
   onExportar,
   metodosPago = [],
 }: FiltrosMovimientosProps) {
+  console.log("🔍 FiltrosMovimientos - Estado actual:", {
+    busqueda,
+    tipo,
+    tipoPago,
+    fechaInicio,
+    fechaFin,
+    metodosPagoDisponibles: metodosPago.length,
+  })
+
   const hasFilters = busqueda || tipo !== "todos" || tipoPago !== "" || fechaInicio || fechaFin
 
   // Métodos de pago por defecto si no se cargan del API
@@ -84,7 +93,10 @@ export function FiltrosMovimientos({
               id="buscar-mov"
               type="text"
               value={busqueda}
-              onChange={(e) => onBusquedaChange(e.target.value)}
+              onChange={(e) => {
+                console.log("🔍 Busqueda cambió:", e.target.value)
+                onBusquedaChange(e.target.value)
+              }}
               placeholder="Concepto, folio, usuario..."
               className="w-full pl-9 pr-4 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
             />
@@ -112,7 +124,10 @@ export function FiltrosMovimientos({
             ].map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => onTipoChange(opt.value)}
+                onClick={() => {
+                  console.log("📊 Tipo cambió:", opt.value)
+                  onTipoChange(opt.value)
+                }}
                 className={`py-2 rounded-lg text-xs font-medium border transition-all duration-200 ${
                   tipo === opt.value
                     ? "bg-accent/15 border-accent/40 text-accent"
@@ -133,7 +148,10 @@ export function FiltrosMovimientos({
           <div className="grid grid-cols-2 gap-1.5">
             {/* Botón "Todos" */}
             <button
-              onClick={() => onTipoPagoChange("")}
+              onClick={() => {
+                console.log("💳 Tipo de pago cambió: (Todos)")
+                onTipoPagoChange("")
+              }}
               className={`py-2 rounded-lg text-xs font-medium border transition-all duration-200 ${
                 tipoPago === ""
                   ? "bg-accent/15 border-accent/40 text-accent"
