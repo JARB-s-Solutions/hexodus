@@ -45,10 +45,26 @@ interface GraficasReportesProps {
   tipoReporte: string
 }
 
-function formatMonth(mes: string): string {
-  const [year, month] = mes.split("-")
+/**
+ * Formatea fechas del backend (YYYY-MM-DD o YYYY-MM) a formato legible
+ */
+function formatMonth(fecha: string): string {
+  const parts = fecha.split("-")
   const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-  return `${months[parseInt(month, 10) - 1]} ${year.slice(2)}`
+  
+  if (parts.length === 3) {
+    // Formato completo: YYYY-MM-DD
+    const [year, month, day] = parts
+    const monthName = months[parseInt(month, 10) - 1]
+    return `${parseInt(day, 10)} ${monthName}`
+  } else if (parts.length === 2) {
+    // Formato mensual: YYYY-MM
+    const [year, month] = parts
+    const monthName = months[parseInt(month, 10) - 1]
+    return `${monthName} ${year.slice(2)}`
+  }
+  
+  return fecha
 }
 
 export function GraficasReportes({
