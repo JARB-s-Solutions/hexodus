@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import {
   Eye, Pencil, Trash2, ListChecks, ChevronsLeft, ChevronLeft,
-  ChevronRight, ChevronsRight, ChevronsUpDown,
+  ChevronRight, ChevronsRight, ChevronsUpDown, DollarSign,
 } from "lucide-react"
 import type { Socio } from "@/lib/socios-data"
 import {
@@ -17,12 +17,13 @@ interface SociosTableProps {
   onVerDetalle: (s: Socio) => void
   onEditar: (s: Socio) => void
   onEliminar: (s: Socio) => void
+  onCobrar?: (s: Socio) => void
 }
 
 type SortKey = "id" | "nombre" | "vencimiento"
 type SortDir = "asc" | "desc"
 
-export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: SociosTableProps) {
+export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobrar }: SociosTableProps) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(25)
   const [sortKey, setSortKey] = useState<SortKey>("id")
@@ -53,6 +54,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: Soci
         case 'contratoFin': return s.finContrato
         case 'bioRostro': return !!s.faceEncoding
         case 'bioHuella': return !!s.fingerprintTemplate
+        case 'estadoPago': return s.estadoPago || 'pagado'
         default: return s[field]
       }
     } else {
@@ -123,6 +125,18 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: Soci
     M: "bg-accent/15 text-accent",
     F: "bg-primary/15 text-primary",
     O: "bg-muted text-muted-foreground",
+  }
+
+  const estadoPagoColors = {
+    pagado: "bg-[#22C55E]/15 text-[#22C55E]",
+    sin_pagar: "bg-amber-500/15 text-amber-500",
+    pendiente: "bg-[#FFD700]/15 text-[#FFD700]",
+  }
+
+  const estadoPagoLabels = {
+    pagado: "Pagado",
+    sin_pagar: "Sin pagar",
+    pendiente: "Pendiente",
   }
 
   // Pagination range
@@ -232,6 +246,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: Soci
                 const bioRostro = getSocioField(s, 'bioRostro') || false
                 const bioHuella = getSocioField(s, 'bioHuella') || false
                 const estadoSocio = getSocioField(s, 'estadoSocio') || 'activo'
+                const estadoPago = getSocioField(s, 'estadoPago') || 'pagado'
                 
                 const iniciales = getIniciales(nombre)
                 const vigencia = getVigenciaMembresia(fechaFin)
@@ -292,10 +307,15 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: Soci
                       <div>{telefono}</div>
                     </td>
                     {/* Membresia */}
-                    <td className="px-4 py-3 text-sm font-medium text-foreground">
-                      {typeof membresia === 'string' && membresiaLabels[membresia as keyof typeof membresiaLabels] 
-                        ? membresiaLabels[membresia as keyof typeof membresiaLabels]
-                        : membresia || 'N/A'}
+                    <td className="px-4 py-3">
+                      <div className="text-sm font-medium text-foreground">
+                        {typeof membresia === 'string' && membresiaLabels[membresia as keyof typeof membresiaLabels] 
+                          ? membresiaLabels[membresia as keyof typeof membresiaLabels]
+                          : membresia || 'N/A'}
+                      </div>
+                      <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full font-medium ${estadoPagoColors[estadoPago as keyof typeof estadoPagoColors] || estadoPagoColors['pagado']}`}>
+                        {estadoPagoLabels[estadoPago as keyof typeof estadoPagoLabels] || estadoPago}
+                      </span>
                     </td>
                     {/* Vencimiento */}
                     <td className="px-4 py-3">
@@ -325,6 +345,16 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar }: Soci
                     {/* Acciones */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
+                        {/* Botón de cobrar solo si el estado de pago es "sin_pagar" */}
+                        {estadoPago === 'sin_pagar' && onCobrar && (
+                          <button
+                            onClick={() => onCobrar(s)}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-all"
+                            title="Cobrar membresía"
+                          >
+                            <DollarSign className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => onVerDetalle(s)}
                           className="p-1.5 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-all"
