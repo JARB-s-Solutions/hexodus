@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { ReportesHeader } from "@/components/reportes/reportes-header"
 import { KpiReportes } from "@/components/reportes/kpi-reportes"
@@ -11,61 +11,8 @@ import { InsightsReportes } from "@/components/reportes/insights-reportes"
 import { DesgloseIngresos } from "@/components/reportes/desglose-ingresos"
 import { HistorialReportes, type ReporteHistorial } from "@/components/reportes/historial-reportes"
 import { GenerarReporteModal, type ReporteConfig } from "@/components/reportes/generar-reporte-modal"
-import { TrendingUp, TrendingDown } from "lucide-react"
-import {
-  generateGastos,
-  generateMembresias,
-  getDateRange,
-  filterByDateRange,
-  sumField,
-  aggregateByMonth,
-  aggregateGastosByCategoria,
-  aggregateMembresiasByPlan,
-  exportReporteToCSV,
-  formatCurrency,
-  calcCambio,
-  type TipoReporte,
-} from "@/lib/reportes-data"
-import {
-  generateVentas,
-  getTotalVentas,
-} from "@/lib/ventas-data"
-
-// ------- Generate all demo data with fixed reference dates for SSR safety -------
-const FIXED_REF = new Date(Date.UTC(2026, 1, 21, 12, 0, 0))
-const oneYearAgo = new Date(Date.UTC(2025, 1, 1))
-const allVentas = generateVentas(500, FIXED_REF)
-const allGastos = generateGastos(300, oneYearAgo, FIXED_REF)
-const allMembresias = generateMembresias(400, oneYearAgo, FIXED_REF)
-
-// Helper to compute comparison items for a given period
-function buildComparacionItems(
-  ventasArr: typeof allVentas,
-  gastosArr: typeof allGastos,
-  membresiasArr: typeof allMembresias,
-  range: ReturnType<typeof getDateRange>
-) {
-  const vAct = ventasArr.filter((v) => v.fecha >= range.inicio && v.fecha <= range.fin)
-  const vAnt = ventasArr.filter((v) => v.fecha >= range.anteriorInicio && v.fecha <= range.anteriorFin)
-  const gAct = filterByDateRange(gastosArr, range.inicio, range.fin)
-  const gAnt = filterByDateRange(gastosArr, range.anteriorInicio, range.anteriorFin)
-  const mAct = filterByDateRange(membresiasArr, range.inicio, range.fin)
-  const mAnt = filterByDateRange(membresiasArr, range.anteriorInicio, range.anteriorFin)
-
-  const tV = getTotalVentas(vAct)
-  const tVa = getTotalVentas(vAnt)
-  const tG = sumField(gAct, (g) => g.monto)
-  const tGa = sumField(gAnt, (g) => g.monto)
-  const tM = sumField(mAct, (m) => m.monto)
-  const tMa = sumField(mAnt, (m) => m.monto)
-
-  return [
-    { label: "Ventas Totales", actual: tV, anterior: tVa },
-    { label: "Gastos Totales", actual: tG, anterior: tGa },
-    { label: "Utilidad Neta", actual: tV + tM - tG, anterior: tVa + tMa - tGa },
-    { label: "Ingresos Membresias", actual: tM, anterior: tMa },
-  ]
-}
+import { formatCurrency, type TipoReporte } from "@/lib/reportes-data"
+import { ReportesService } from "@/lib/services/reportes"
 
 export default function ReportesPage() {
   const [periodo, setPeriodo] = useState("mes")
@@ -76,106 +23,152 @@ export default function ReportesPage() {
   const [modalGenerar, setModalGenerar] = useState(false)
   const [reportesHistorial, setReportesHistorial] = useState<ReporteHistorial[]>([])
 
-  // Date ranges
-  const dateRange = useMemo(
-    () => getDateRange(periodo, fechaInicio, fechaFin),
-    [periodo, fechaInicio, fechaFin]
-  )
+  // Estados para datos del backend - Gráficas
+  const [graficasData, setGraficasData] = useState<any>(null)
+  const [loadingGraficas, setLoadingGraficas] = useState(false)
+  const [errorGraficas, setErrorGraficas] = useState<string | null>(null)
 
-  // ------ Current period data ------
-  const ventasPeriodo = useMemo(
-    () => allVentas.filter((v) => v.fecha >= dateRange.inicio && v.fecha <= dateRange.fin),
-    [dateRange]
-  )
-  const gastosPeriodo = useMemo(
-    () => filterByDateRange(allGastos, dateRange.inicio, dateRange.fin),
-    [dateRange]
-  )
-  const membresiasPeriodo = useMemo(
-    () => filterByDateRange(allMembresias, dateRange.inicio, dateRange.fin),
-    [dateRange]
-  )
+  // Estados para datos del backend - Resumen (KPIs)
+  const [resumenData, setResumenData] = useState<any>(null)
+  const [loadingResumen, setLoadingResumen] = useState(false)
+  const [errorResumen, setErrorResumen] = useState<string | null>(null)
 
-  // ------ Previous period data ------
-  const ventasAnterior = useMemo(
-    () => allVentas.filter((v) => v.fecha >= dateRange.anteriorInicio && v.fecha <= dateRange.anteriorFin),
-    [dateRange]
-  )
-  const gastosAnterior = useMemo(
-    () => filterByDateRange(allGastos, dateRange.anteriorInicio, dateRange.anteriorFin),
-    [dateRange]
-  )
-  const membresiasAnterior = useMemo(
-    () => filterByDateRange(allMembresias, dateRange.anteriorInicio, dateRange.anteriorFin),
-    [dateRange]
-  )
+  // Estados para datos del backend - Comparaciones
+  const [comparacionesData, setComparacionesData] = useState<any>(null)
+  const [loadingComparaciones, setLoadingComparaciones] = useState(false)
+  const [errorComparaciones, setErrorComparaciones] = useState<string | null>(null)
+  const [tabComparacion, setTabComparacion] = useState("mes") // mes, trimestre, semestre, anual
 
-  // ------ Totals ------
-  const totalVentas = useMemo(() => getTotalVentas(ventasPeriodo), [ventasPeriodo])
-  const totalGastos = useMemo(() => sumField(gastosPeriodo, (g) => g.monto), [gastosPeriodo])
-  const totalMembresias = useMemo(() => sumField(membresiasPeriodo, (m) => m.monto), [membresiasPeriodo])
-  const totalUtilidad = totalVentas + totalMembresias - totalGastos
+  // ------ Debug: Verificar token al montar componente ------
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+    if (!token) {
+      console.error('🔒 NO HAY TOKEN DE AUTENTICACIÓN GUARDADO')
+      console.info('💡 Por favor inicia sesión para ver los datos financieros')
+    } else {
+      console.log('🔑 Token encontrado:', token.substring(0, 20) + '...')
+    }
+  }, [])
 
-  const totalVentasAnt = useMemo(() => getTotalVentas(ventasAnterior), [ventasAnterior])
-  const totalGastosAnt = useMemo(() => sumField(gastosAnterior, (g) => g.monto), [gastosAnterior])
-  const totalMembresiasAnt = useMemo(() => sumField(membresiasAnterior, (m) => m.monto), [membresiasAnterior])
-  const totalUtilidadAnt = totalVentasAnt + totalMembresiasAnt - totalGastosAnt
+  // ------ Effect para cargar gráficas desde backend ------
+  useEffect(() => {
+    const cargarGraficas = async () => {
+      setLoadingGraficas(true)
+      setErrorGraficas(null)
 
-  // ------ Aggregations for charts ------
-  const ventasMensuales = useMemo(() => {
-    const mapped = ventasPeriodo.map((v) => ({ fecha: v.fecha, monto: v.total }))
-    return aggregateByMonth(mapped)
-  }, [ventasPeriodo])
+      try {
+        console.log('📊 Cargando gráficas con filtros:', {
+          periodo,
+          tipoReporte,
+          fechaInicio,
+          fechaFin,
+        })
 
-  const gastosMensuales = useMemo(() => {
-    const mapped = gastosPeriodo.map((g) => ({ fecha: g.fecha, monto: g.monto }))
-    return aggregateByMonth(mapped)
-  }, [gastosPeriodo])
+        const response = await ReportesService.getGraficas({
+          periodo,
+          tipoReporte: tipoReporte === 'todos' ? undefined : tipoReporte,
+          fechaInicio: periodo === 'personalizado' ? fechaInicio : undefined,
+          fechaFin: periodo === 'personalizado' ? fechaFin : undefined,
+        })
 
-  const membresiasMensuales = useMemo(() => {
-    const mapped = membresiasPeriodo.map((m) => ({ fecha: m.fecha, monto: m.monto }))
-    return aggregateByMonth(mapped)
-  }, [membresiasPeriodo])
-
-  const gastosPorCategoria = useMemo(
-    () => aggregateGastosByCategoria(gastosPeriodo),
-    [gastosPeriodo]
-  )
-
-  const membresiasPorPlan = useMemo(
-    () => aggregateMembresiasByPlan(membresiasPeriodo),
-    [membresiasPeriodo]
-  )
-
-  // Unique socios
-  const sociosActivos = useMemo(() => {
-    const unique = new Set(membresiasPeriodo.map((m) => m.socio))
-    return unique.size
-  }, [membresiasPeriodo])
-
-  // Top gasto category
-  const topGasto = gastosPorCategoria[0]
-  const topPlan = membresiasPorPlan[0]
-
-  // ------ Multi-period comparisons ------
-  const comparacionesPeriodos = useMemo(() => {
-    const periods = [
-      { tipo: "mes", label: "Mes vs Mes Anterior" },
-      { tipo: "trimestre", label: "Trimestre vs Anterior" },
-      { tipo: "semestre", label: "Semestre vs Anterior" },
-      { tipo: "anual", label: "Ano vs Anterior" },
-    ].filter((p) => p.tipo !== periodo)
-
-    return periods.map((p) => {
-      const range = getDateRange(p.tipo)
-      return {
-        tipo: p.tipo,
-        label: p.label,
-        labelAnterior: range.labelAnterior,
-        items: buildComparacionItems(allVentas, allGastos, allMembresias, range),
+        // Si no hay token, mostrar como error para que el usuario sepa
+        if (response.message === 'Sin token de autenticación') {
+          console.warn('⚠️  Sin token: se requiere autenticación')
+          setErrorGraficas('Por favor inicia sesión para ver las gráficas financieras')
+          setGraficasData(null)
+        } else {
+          const transformed = ReportesService.transformGraficasData(response)
+          setGraficasData(transformed)
+          console.log('✅ Gráficas cargadas y transformadas exitosamente')
+        }
+      } catch (error: any) {
+        console.error('❌ Error cargando gráficas:', error)
+        setErrorGraficas(error.message || 'Error al cargar las gráficas')
+      } finally {
+        setLoadingGraficas(false)
       }
-    })
-  }, [periodo])
+    }
+
+    cargarGraficas()
+  }, [periodo, tipoReporte, fechaInicio, fechaFin])
+
+  // ------ Effect para cargar resumen (KPIs) desde backend ------
+  useEffect(() => {
+    const cargarResumen = async () => {
+      setLoadingResumen(true)
+      setErrorResumen(null)
+
+      try {
+        console.log('📊 Cargando resumen con filtros:', {
+          periodo,
+          tipoReporte,
+          fechaInicio,
+          fechaFin,
+        })
+
+        const response = await ReportesService.getResumen({
+          periodo,
+          tipoReporte: tipoReporte === 'todos' ? undefined : tipoReporte,
+          fechaInicio: periodo === 'personalizado' ? fechaInicio : undefined,
+          fechaFin: periodo === 'personalizado' ? fechaFin : undefined,
+        })
+
+        // Si no hay token, mostrar como error
+        if (response.message === 'Sin token de autenticación') {
+          console.warn('⚠️  Sin token: se requiere autenticación')
+          setErrorResumen('Por favor inicia sesión para ver los KPIs financieros')
+          setResumenData(null)
+        } else {
+          setResumenData(response.data)
+          console.log('✅ Resumen cargado exitosamente')
+        }
+      } catch (error: any) {
+        console.error('❌ Error cargando resumen:', error)
+        setErrorResumen(error.message || 'Error al cargar el resumen')
+      } finally {
+        setLoadingResumen(false)
+      }
+    }
+
+    cargarResumen()
+  }, [periodo, tipoReporte, fechaInicio, fechaFin])
+
+  // ------ Effect para cargar comparaciones desde backend ------
+  useEffect(() => {
+    const cargarComparaciones = async () => {
+      setLoadingComparaciones(true)
+      setErrorComparaciones(null)
+
+      try {
+        console.log('📊 Cargando comparaciones con filtros:', {
+          periodo,
+          tabComparacion,
+        })
+
+        const response = await ReportesService.getComparaciones({
+          periodo,
+          tabSeleccionada: tabComparacion,
+        })
+
+        // Si no hay token, mostrar como error
+        if (response.message === 'Sin token de autenticación') {
+          console.warn('⚠️  Sin token: se requiere autenticación')
+          setErrorComparaciones('Por favor inicia sesión para ver las comparaciones financieras')
+          setComparacionesData(null)
+        } else {
+          setComparacionesData(response.data.comparaciones)
+          console.log('✅ Comparaciones cargadas exitosamente')
+        }
+      } catch (error: any) {
+        console.error('❌ Error cargando comparaciones:', error)
+        setErrorComparaciones(error.message || 'Error al cargar las comparaciones')
+      } finally {
+        setLoadingComparaciones(false)
+      }
+    }
+
+    cargarComparaciones()
+  }, [periodo, tabComparacion])
 
   // ------ Handlers ------
   const handleLimpiar = useCallback(() => {
@@ -186,46 +179,15 @@ export default function ReportesPage() {
   }, [])
 
   const handleExportar = useCallback(() => {
-    exportReporteToCSV(
-      {
-        ventasPorMes: ventasMensuales,
-        gastosPorMes: gastosMensuales,
-        membresiasPorMes: membresiasMensuales,
-        gastosPorCategoria,
-        membresiasPorPlan,
-        resumen: {
-          ventas: totalVentas,
-          gastos: totalGastos,
-          utilidad: totalUtilidad,
-          membresias: totalMembresias,
-          socios: sociosActivos,
-        },
-      },
-      dateRange.label
-    )
-  }, [
-    ventasMensuales,
-    gastosMensuales,
-    membresiasMensuales,
-    gastosPorCategoria,
-    membresiasPorPlan,
-    totalVentas,
-    totalGastos,
-    totalUtilidad,
-    totalMembresias,
-    sociosActivos,
-    dateRange.label,
-  ])
+    // TODO: Implementar exportación con datos del backend
+    console.log('🔄 Exportar reporte')
+    alert('Funcionalidad de exportación pendiente de implementar con datos del backend')
+  }, [])
 
   const handleGenerarReporte = useCallback((config: ReporteConfig) => {
-    const range = getDateRange("personalizado", config.fechaInicio, config.fechaFin)
-    const vAct = allVentas.filter((v) => v.fecha >= range.inicio && v.fecha <= range.fin)
-    const gAct = filterByDateRange(allGastos, range.inicio, range.fin)
-    const mAct = filterByDateRange(allMembresias, range.inicio, range.fin)
-    const tV = getTotalVentas(vAct)
-    const tG = sumField(gAct, (g) => g.monto)
-    const tM = sumField(mAct, (m) => m.monto)
-
+    //TODO: Implementar generación de reporte con backend
+    console.log('🔄 Generar reporte:', config)
+    
     const newReporte: ReporteHistorial = {
       id: `RPT-${String(reportesHistorial.length + 1).padStart(4, "0")}`,
       nombre: config.nombre,
@@ -235,46 +197,22 @@ export default function ReportesPage() {
       estado: "generado",
       formato: "Excel",
       resumen: {
-        ventas: tV,
-        gastos: tG,
-        utilidad: tV + tM - tG,
+        ventas: 0,
+        gastos: 0,
+        utilidad: 0,
       },
     }
 
     setReportesHistorial((prev) => [newReporte, ...prev])
-
-    // Auto export the CSV
-    const ventasMapped = vAct.map((v) => ({ fecha: v.fecha, monto: v.total }))
-    const gastosMapped = gAct.map((g) => ({ fecha: g.fecha, monto: g.monto }))
-    const membMapped = mAct.map((m) => ({ fecha: m.fecha, monto: m.monto }))
-    const uniqueSocios = new Set(mAct.map((m) => m.socio))
-
-    exportReporteToCSV(
-      {
-        ventasPorMes: aggregateByMonth(ventasMapped),
-        gastosPorMes: aggregateByMonth(gastosMapped),
-        membresiasPorMes: aggregateByMonth(membMapped),
-        gastosPorCategoria: aggregateGastosByCategoria(gAct),
-        membresiasPorPlan: aggregateMembresiasByPlan(mAct),
-        resumen: {
-          ventas: tV,
-          gastos: tG,
-          utilidad: tV + tM - tG,
-          membresias: tM,
-          socios: uniqueSocios.size,
-        },
-      },
-      config.nombre
-    )
+    setModalGenerar(false)
   }, [reportesHistorial.length])
 
   const handleDescargarReporte = useCallback((reporte: ReporteHistorial) => {
     setReportesHistorial((prev) =>
       prev.map((r) => (r.id === reporte.id ? { ...r, estado: "descargado" as const } : r))
     )
-    // Re-trigger the export for this period
-    handleExportar()
-  }, [handleExportar])
+    console.log('🔄 Descargar reporte:', reporte.id)
+  }, [])
 
   const handleEliminarReporte = useCallback((id: string) => {
     setReportesHistorial((prev) => prev.filter((r) => r.id !== id))
@@ -289,18 +227,39 @@ export default function ReportesPage() {
 
         <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6 space-y-5">
           {/* KPIs */}
-          <KpiReportes
-            ventas={totalVentas}
-            ventasAnterior={totalVentasAnt}
-            gastos={totalGastos}
-            gastosAnterior={totalGastosAnt}
-            utilidad={totalUtilidad}
-            utilidadAnterior={totalUtilidadAnt}
-            membresias={totalMembresias}
-            membresiasAnterior={totalMembresiasAnt}
-            socios={sociosActivos}
-            labelAnterior={dateRange.labelAnterior}
-          />
+          {loadingResumen ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="bg-card rounded-xl p-5 animate-pulse"
+                  style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
+                >
+                  <div className="h-4 bg-muted rounded w-1/2 mb-3"></div>
+                  <div className="h-8 bg-muted rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-muted rounded w-1/3"></div>
+                </div>
+              ))}
+            </div>
+          ) : errorResumen ? (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4">
+              <p className="text-sm text-destructive font-medium">Error al cargar KPIs</p>
+              <p className="text-xs text-muted-foreground mt-1">{errorResumen}</p>
+            </div>
+          ) : (
+            <KpiReportes
+              ventas={resumenData?.ventas_actual ?? 0}
+              ventasAnterior={resumenData?.ventas_anterior ?? 0}
+              gastos={resumenData?.gastos_actual ?? 0}
+              gastosAnterior={resumenData?.gastos_anterior ?? 0}
+              utilidad={resumenData?.utilidad_actual ?? 0}
+              utilidadAnterior={resumenData?.utilidad_anterior ?? 0}
+              membresias={resumenData?.membresias_actual ?? 0}
+              membresiasAnterior={resumenData?.membresias_anterior ?? 0}
+              socios={resumenData?.socios_activos ?? 0}
+              labelAnterior="Período anterior"
+            />
+          )}
 
           {/* Tabs */}
           <div
@@ -353,193 +312,86 @@ export default function ReportesPage() {
               {/* ====== RESUMEN GENERAL TAB ====== */}
               {activeTab === "resumen" && (
                 <div className="space-y-5">
-                  {/* Income Breakdown - always show on "todos" or relevant types */}
-                  {(tipoReporte === "todos" || tipoReporte === "ventas" || tipoReporte === "membresias") && (
-                    <DesgloseIngresos
-                      totalVentas={totalVentas}
-                      totalMembresias={totalMembresias}
-                      totalVentasAnt={totalVentasAnt}
-                      totalMembresiasAnt={totalMembresiasAnt}
-                      totalGastos={totalGastos}
-                      labelAnterior={dateRange.labelAnterior}
-                    />
-                  )}
-
-                  {/* Summary cards grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {(tipoReporte === "todos" || tipoReporte === "ventas") && (
-                      <SummaryCard
-                        title="Ventas"
-                        total={totalVentas}
-                        anterior={totalVentasAnt}
-                        count={ventasPeriodo.length}
-                        countLabel="transacciones"
-                        color="success"
-                        labelAnterior={dateRange.labelAnterior}
-                      />
-                    )}
-                    {(tipoReporte === "todos" || tipoReporte === "gastos") && (
-                      <SummaryCard
-                        title="Gastos"
-                        total={totalGastos}
-                        anterior={totalGastosAnt}
-                        count={gastosPeriodo.length}
-                        countLabel="movimientos"
-                        color="primary"
-                        invertChange
-                        labelAnterior={dateRange.labelAnterior}
-                      />
-                    )}
-                    {(tipoReporte === "todos" || tipoReporte === "utilidad") && (
-                      <SummaryCard
-                        title="Utilidad Neta"
-                        total={totalUtilidad}
-                        anterior={totalUtilidadAnt}
-                        count={null}
-                        countLabel=""
-                        color={totalUtilidad >= 0 ? "accent" : "destructive"}
-                        extra={`Margen: ${totalVentas > 0 ? ((totalUtilidad / totalVentas) * 100).toFixed(1) : "0"}%`}
-                        labelAnterior={dateRange.labelAnterior}
-                      />
-                    )}
-                    {(tipoReporte === "todos" || tipoReporte === "membresias") && (
-                      <SummaryCard
-                        title="Membresias"
-                        total={totalMembresias}
-                        anterior={totalMembresiasAnt}
-                        count={sociosActivos}
-                        countLabel="socios activos"
-                        color="accent"
-                        labelAnterior={dateRange.labelAnterior}
-                      />
-                    )}
+                  <div className="bg-card rounded-xl p-8 text-center" style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}>
+                    <h3 className="text-lg font-semibold text-foreground mb-2">Tab de Resumen</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Esta sección está en proceso de migración a datos del backend.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Por favor, utiliza los tabs de "Gráficas" y "Comparaciones" que ya están integrados con el backend.
+                    </p>
                   </div>
-
-                  {/* Insights */}
-                  <InsightsReportes
-                    ventas={totalVentas}
-                    ventasAnterior={totalVentasAnt}
-                    gastos={totalGastos}
-                    gastosAnterior={totalGastosAnt}
-                    utilidad={totalUtilidad}
-                    utilidadAnterior={totalUtilidadAnt}
-                    membresias={totalMembresias}
-                    membresiasAnterior={totalMembresiasAnt}
-                    socios={sociosActivos}
-                    topGasto={topGasto?.categoria || "N/A"}
-                    topGastoMonto={topGasto?.total || 0}
-                    topPlan={topPlan?.plan || "N/A"}
-                    topPlanSocios={topPlan?.cantidad || 0}
-                    periodo={periodo}
-                  />
-
-                  {/* Quick breakdown tables */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    {(tipoReporte === "todos" || tipoReporte === "gastos") && (
-                      <div
-                        className="bg-card rounded-xl p-5"
-                        style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
-                      >
-                        <h3 className="text-sm font-semibold text-foreground mb-4">Top Categorias de Gasto</h3>
-                        <div className="space-y-3">
-                          {gastosPorCategoria.slice(0, 5).map((g) => {
-                            const maxTotal = gastosPorCategoria[0]?.total || 1
-                            const pct = (g.total / maxTotal) * 100
-                            return (
-                              <div key={g.categoria}>
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs text-foreground">{g.categoria}</span>
-                                  <span className="text-xs font-medium text-primary">{formatCurrency(g.total)}</span>
-                                </div>
-                                <div className="h-1.5 bg-background rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-primary rounded-full transition-all duration-500"
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {(tipoReporte === "todos" || tipoReporte === "membresias") && (
-                      <div
-                        className="bg-card rounded-xl p-5"
-                        style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
-                      >
-                        <h3 className="text-sm font-semibold text-foreground mb-4">Planes de Membresia</h3>
-                        <div className="space-y-3">
-                          {membresiasPorPlan.slice(0, 5).map((mp) => {
-                            const maxTotal = membresiasPorPlan[0]?.total || 1
-                            const pct = (mp.total / maxTotal) * 100
-                            return (
-                              <div key={mp.plan}>
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs text-foreground truncate flex-1 mr-2">{mp.plan}</span>
-                                  <span className="text-xs text-muted-foreground mr-2">{mp.cantidad} socios</span>
-                                  <span className="text-xs font-medium text-accent">{formatCurrency(mp.total)}</span>
-                                </div>
-                                <div className="h-1.5 bg-background rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-accent rounded-full transition-all duration-500"
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  
+                  {/* TODO: Implementar resumen con endpoints del backend
+                  - Desglose de ingresos
+                  - Cards de resumen
+                  - Insights
+                  - Top categorías y planes
+                  */}
                 </div>
               )}
 
               {/* ====== GRAFICAS TAB ====== */}
               {activeTab === "graficas" && (
-                <GraficasReportes
-                  ventasPorMes={ventasMensuales}
-                  gastosPorMes={gastosMensuales}
-                  membresiasPorMes={membresiasMensuales}
-                  gastosPorCategoria={gastosPorCategoria}
-                  membresiasPorPlan={membresiasPorPlan}
-                  tipoReporte={tipoReporte}
-                />
+                <div>
+                  {loadingGraficas ? (
+                    <div className="flex items-center justify-center py-20">
+                      <div className="text-center space-y-3">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                        <p className="text-sm text-muted-foreground">Cargando gráficas...</p>
+                      </div>
+                    </div>
+                  ) : errorGraficas ? (
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-6">
+                      <p className="text-sm text-destructive font-medium mb-2">Error al cargar gráficas</p>
+                      <p className="text-xs text-muted-foreground">{errorGraficas}</p>
+                    </div>
+                  ) : graficasData ? (
+                    <GraficasReportes
+                      ventasPorMes={graficasData.ventasPorMes}
+                      gastosPorMes={graficasData.gastosPorMes}
+                      membresiasPorMes={graficasData.membresiasPorMes}
+                      gastosPorCategoria={graficasData.gastosPorCategoria}
+                      membresiasPorPlan={graficasData.membresiasPorPlan}
+                      tipoReporte={tipoReporte}
+                    />
+                  ) : (
+                    <div className="text-center py-20">
+                      <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* ====== COMPARACIONES TAB ====== */}
               {activeTab === "comparaciones" && (
                 <div className="space-y-5">
-                  <Comparaciones
-                    items={[
-                      { label: "Ventas Totales", actual: totalVentas, anterior: totalVentasAnt },
-                      { label: "Gastos Totales", actual: totalGastos, anterior: totalGastosAnt },
-                      { label: "Utilidad Neta", actual: totalUtilidad, anterior: totalUtilidadAnt },
-                      { label: "Ingresos Membresias", actual: totalMembresias, anterior: totalMembresiasAnt },
-                    ]}
-                    labelActual={dateRange.label}
-                    labelAnterior={dateRange.labelAnterior}
-                    comparacionesPeriodos={comparacionesPeriodos}
-                  />
-
-                  <InsightsReportes
-                    ventas={totalVentas}
-                    ventasAnterior={totalVentasAnt}
-                    gastos={totalGastos}
-                    gastosAnterior={totalGastosAnt}
-                    utilidad={totalUtilidad}
-                    utilidadAnterior={totalUtilidadAnt}
-                    membresias={totalMembresias}
-                    membresiasAnterior={totalMembresiasAnt}
-                    socios={sociosActivos}
-                    topGasto={topGasto?.categoria || "N/A"}
-                    topGastoMonto={topGasto?.total || 0}
-                    topPlan={topPlan?.plan || "N/A"}
-                    topPlanSocios={topPlan?.cantidad || 0}
-                    periodo={periodo}
-                  />
+                  {loadingComparaciones ? (
+                    <div className="flex items-center justify-center py-20">
+                      <div className="text-center space-y-3">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                        <p className="text-sm text-muted-foreground">Cargando comparaciones...</p>
+                      </div>
+                    </div>
+                  ) : errorComparaciones ? (
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-6">
+                      <p className="text-sm text-destructive font-medium mb-2">Error al cargar comparaciones</p>
+                      <p className="text-xs text-muted-foreground">{errorComparaciones}</p>
+                    </div>
+                  ) : comparacionesData && comparacionesData.length > 0 ? (
+                    <>
+                      <Comparaciones
+                        items={comparacionesData}
+                        labelActual="Período actual"
+                        labelAnterior="Período anterior"
+                      />
+                      {/* TODO: Agregar InsightsReportes con datos reales cuando endpoint esté disponible */}
+                    </>
+                  ) : (
+                    <div className="text-center py-20">
+                      <p className="text-sm text-muted-foreground">No hay datos de comparaciones disponibles</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -554,33 +406,17 @@ export default function ReportesPage() {
             </div>
           </div>
 
-          {/* Summary footer */}
-          <div
+          {/* Summary footer - TODO: Actualizar con datos reales del backend */}
+          {/* <div
             className="bg-card rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3"
             style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
           >
             <div className="flex items-center gap-6 text-xs flex-wrap">
               <span className="text-muted-foreground">
-                Periodo: <span className="text-foreground font-medium">{dateRange.label}</span>
-              </span>
-              <span className="text-muted-foreground">
-                Rango: <span className="text-foreground font-medium">{dateRange.inicio}</span> a{" "}
-                <span className="text-foreground font-medium">{dateRange.fin}</span>
-              </span>
-              <span className="text-muted-foreground">
-                Ingresos:{" "}
-                <span className="text-accent font-bold">
-                  {formatCurrency(totalVentas + totalMembresias)}
-                </span>
-              </span>
-              <span className="text-muted-foreground">
-                Utilidad:{" "}
-                <span className={`font-bold ${totalUtilidad >= 0 ? "text-success" : "text-destructive"}`}>
-                  {formatCurrency(totalUtilidad)}
-                </span>
+                Periodo: <span className="text-foreground font-medium">{periodo}</span>
               </span>
             </div>
-          </div>
+          </div> */}
         </div>
       </main>
 
@@ -590,80 +426,6 @@ export default function ReportesPage() {
         onClose={() => setModalGenerar(false)}
         onGenerar={handleGenerarReporte}
       />
-    </div>
-  )
-}
-
-// ======= Summary Card Sub-component =======
-
-function SummaryCard({
-  title,
-  total,
-  anterior,
-  count,
-  countLabel,
-  color,
-  invertChange,
-  extra,
-  labelAnterior,
-}: {
-  title: string
-  total: number
-  anterior: number
-  count: number | null
-  countLabel: string
-  color: string
-  invertChange?: boolean
-  extra?: string
-  labelAnterior: string
-}) {
-  const cambio = calcCambio(total, anterior)
-  const isPositive = invertChange ? cambio <= 0 : cambio >= 0
-
-  const colorClasses: Record<string, string> = {
-    success: "border-success/30",
-    primary: "border-primary/30",
-    accent: "border-accent/30",
-    destructive: "border-destructive/30",
-  }
-
-  const titleColors: Record<string, string> = {
-    success: "text-success",
-    primary: "text-primary",
-    accent: "text-accent",
-    destructive: "text-destructive",
-  }
-
-  return (
-    <div
-      className={`bg-card rounded-xl p-5 border-l-4 ${colorClasses[color] || "border-border"}`}
-      style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
-    >
-      <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${titleColors[color] || "text-foreground"}`}>
-        {title}
-      </p>
-      <p className="text-2xl font-bold text-foreground mb-1">{formatCurrency(total)}</p>
-
-      <div className="flex items-center justify-between">
-        <div>
-          {count !== null && (
-            <p className="text-xs text-muted-foreground">{count} {countLabel}</p>
-          )}
-          {extra && <p className="text-xs text-muted-foreground">{extra}</p>}
-        </div>
-        <div
-          className={`flex items-center gap-1 text-xs font-semibold ${
-            isPositive ? "text-success" : "text-destructive"
-          }`}
-        >
-          {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-          {cambio >= 0 ? "+" : ""}{cambio.toFixed(1)}%
-        </div>
-      </div>
-
-      <p className="text-[10px] text-muted-foreground mt-1">
-        vs {labelAnterior}: {formatCurrency(anterior)}
-      </p>
     </div>
   )
 }
