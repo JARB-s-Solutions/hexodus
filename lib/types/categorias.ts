@@ -12,12 +12,13 @@
 export interface CategoriaAPI {
   id: number
   nombre: string
-  prefijo?: string // Prefijo para códigos de productos (ej: "PROT", "CREAT")
+  prefijo?: string | null // Prefijo para códigos de productos (ej: "PROT", "CREAT")
   color?: string // Color identificador (hex)
-  descripcion?: string
+  descripcion?: string | null
   estado?: "activa" | "inactiva"
   created_at?: string
   updated_at?: string
+  total_productos?: number // Total de productos asociados a esta categoría
 }
 
 /**
@@ -37,14 +38,19 @@ export interface GetCategoriaResponse {
 }
 
 /**
- * Request para crear categoría (Backend solo acepta nombre)
+ * Request para crear categoría (Backend ahora acepta todos los campos)
  */
 export interface CreateCategoriaRequest {
   nombre: string
+  prefijo?: string
+  color?: string
+  descripcion?: string
+  estado?: "activa" | "inactiva"
 }
 
 /**
- * Request extendido para el frontend (incluye campos adicionales)
+ * Request extendido (DEPRECADO - usar CreateCategoriaRequest)
+ * @deprecated Usar CreateCategoriaRequest directamente
  */
 export interface CreateCategoriaRequestExtended {
   nombre: string
@@ -55,10 +61,14 @@ export interface CreateCategoriaRequestExtended {
 }
 
 /**
- * Request para actualizar categoría (Backend solo acepta nombre)
+ * Request para actualizar categoría (Backend ahora acepta todos los campos)
  */
 export interface UpdateCategoriaRequest {
   nombre?: string
+  prefijo?: string
+  color?: string
+  descripcion?: string
+  estado?: "activa" | "inactiva"
 }
 
 /**
@@ -224,19 +234,24 @@ export function mapCategoriaFromAPI(categoria: CategoriaAPI): Categoria {
     nombre: categoria.nombre,
     prefijo: categoria.prefijo || 'GEN',
     color: categoria.color || '#6B7280',
-    descripcion: categoria.descripcion,
+    descripcion: categoria.descripcion || undefined,
     estado: categoria.estado || 'activa',
     createdAt: categoria.created_at,
     updatedAt: categoria.updated_at,
+    totalProductos: categoria.total_productos || 0,
   }
 }
 
 /**
- * Mapea datos de formulario a request de API (solo nombre para backend)
+ * Mapea datos de formulario a request de API (todos los campos)
  */
 export function mapCategoriaToAPI(data: CategoriaFormData): CreateCategoriaRequest {
   return {
     nombre: data.nombre.trim(),
+    prefijo: data.prefijo.trim().toUpperCase(),
+    color: data.color || '#6B7280',
+    descripcion: data.descripcion?.trim() || undefined,
+    estado: data.estado || 'activa',
   }
 }
 
