@@ -201,7 +201,7 @@ export function DatosTicketTab({ config, onChange }: DatosTicketTabProps) {
           
           <div className="flex items-center gap-2 mb-3 text-sm text-green-600 dark:text-green-500">
             <AlertCircle className="h-4 w-4" />
-            <p>El logo se almacena localmente y se imprime en blanco/negro (sin problemas de CORS).</p>
+            <p>El logo se almacena localmente y se imprime en blanco/negro.</p>
           </div>
           
           {/* Simulación de ticket térmico real - 58mm = 32 caracteres */}
