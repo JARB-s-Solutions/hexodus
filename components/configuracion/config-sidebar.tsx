@@ -7,9 +7,10 @@ interface ConfigSidebarProps {
   loading: boolean
   onGuardar: () => void
   onRestablecer: () => void
+  hideGuardar?: boolean // Nueva prop para ocultar botón guardar en tabs que guardan automáticamente
 }
 
-export function ConfigSidebar({ hasChanges, loading, onGuardar, onRestablecer }: ConfigSidebarProps) {
+export function ConfigSidebar({ hasChanges, loading, onGuardar, onRestablecer, hideGuardar = false }: ConfigSidebarProps) {
   return (
     <div className="flex flex-col gap-6">
       {/* Save Card */}
@@ -20,39 +21,46 @@ export function ConfigSidebar({ hasChanges, loading, onGuardar, onRestablecer }:
         >
           <Save className="h-6 w-6 text-primary" style={{ filter: "drop-shadow(0 0 4px rgba(255,59,59,0.5))" }} />
         </div>
-        <h2 className="text-lg font-semibold text-foreground mb-2">Guardar Configuracion</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-2">
+          {hideGuardar ? "Opciones" : "Guardar Configuracion"}
+        </h2>
         <p className="text-sm text-muted-foreground text-center mb-5">
-          Aplicar todos los cambios realizados al sistema.
+          {hideGuardar 
+            ? "Los cambios se aplican automáticamente en tiempo real."
+            : "Aplicar todos los cambios realizados al sistema."
+          }
         </p>
 
-        <button
-          onClick={onGuardar}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold uppercase tracking-wide transition-all duration-300 text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{
-            backgroundColor: hasChanges ? "#22c55e" : "var(--primary)",
-            boxShadow: hasChanges
-              ? "0 0 12px rgba(34,197,94,0.5)"
-              : "0 0 10px rgba(255,59,59,0.5)",
-          }}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Guardando...
-            </>
-          ) : (
-            <>
-              <Check className="h-5 w-5" />
-              {hasChanges ? "Guardar Cambios" : "Aplicar Cambios"}
-            </>
-          )}
-        </button>
+        {!hideGuardar && (
+          <button
+            onClick={onGuardar}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold uppercase tracking-wide transition-all duration-300 text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: hasChanges ? "#22c55e" : "var(--primary)",
+              boxShadow: hasChanges
+                ? "0 0 12px rgba(34,197,94,0.5)"
+                : "0 0 10px rgba(255,59,59,0.5)",
+            }}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              <>
+                <Check className="h-5 w-5" />
+                {hasChanges ? "Guardar Cambios" : "Aplicar Cambios"}
+              </>
+            )}
+          </button>
+        )}
 
         <button
           onClick={onRestablecer}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-3 mt-3 rounded-lg text-sm font-bold uppercase tracking-wide border border-accent text-accent hover:bg-accent/10 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+          className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold uppercase tracking-wide border border-accent text-accent hover:bg-accent/10 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${hideGuardar ? '' : 'mt-3'}`}
         >
           <RefreshCw className="h-5 w-5" />
           Restablecer
