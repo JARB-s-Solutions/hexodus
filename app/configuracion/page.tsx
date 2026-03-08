@@ -6,13 +6,14 @@ import { ConfigHeader } from "@/components/configuracion/config-header"
 import { ConfigTabs, type ConfigTab } from "@/components/configuracion/config-tabs"
 import { ConfigSidebar } from "@/components/configuracion/config-sidebar"
 import { AparienciaTab } from "@/components/configuracion/apariencia-tab"
-import { IdiomaTab } from "@/components/configuracion/idioma-tab"
+import { RolesTab } from "@/components/configuracion/roles-tab"
 import { NotificacionesTab } from "@/components/configuracion/notificaciones-tab"
 import { AvanzadoTab } from "@/components/configuracion/avanzado-tab"
 import { MetodosPagoTab } from "@/components/configuracion/metodos-pago-tab"
 import { DatosTicketTab } from "@/components/configuracion/datos-ticket-tab"
 import { defaultConfig, type ConfigState } from "@/components/configuracion/config-types"
 import { ConfiguracionService } from "@/lib/services/configuracion"
+import { ThemeService } from "@/lib/services/theme"
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<ConfigTab>("apariencia")
@@ -96,11 +97,27 @@ export default function ConfiguracionPage() {
   }, [config, activeTab])
 
   const handleRestablecer = useCallback(() => {
+    // Si estamos en el tab de apariencia, usar el servicio de tema
+    if (activeTab === "apariencia") {
+      ThemeService.restablecerTema()
+      setNotification({ message: "Tema restablecido a valores por defecto", type: "info" })
+      setTimeout(() => setNotification(null), 3000)
+      return
+    }
+    
+    // Si estamos en el tab de roles, no hacer nada (el tab maneja su propia lógica)
+    if (activeTab === "roles") {
+      setNotification({ message: "Los roles del sistema no se pueden restablecer", type: "info" })
+      setTimeout(() => setNotification(null), 3000)
+      return
+    }
+    
+    // Para otros tabs, restablecer config normal
     setConfig({ ...defaultConfig })
     setSavedConfig({ ...defaultConfig })
     setNotification({ message: "Configuracion restablecida a valores por defecto", type: "info" })
     setTimeout(() => setNotification(null), 3000)
-  }, [])
+  }, [activeTab])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -122,16 +139,17 @@ export default function ConfiguracionPage() {
                 loading={loading}
                 onGuardar={handleGuardar}
                 onRestablecer={handleRestablecer}
+                hideGuardar={activeTab === "apariencia" || activeTab === "roles"}
               />
             </div>
 
             {/* Right column - Tab Content */}
             <div className="lg:col-span-2 order-1 lg:order-2">
               {activeTab === "apariencia" && (
-                <AparienciaTab config={config} onChange={handleChange} />
+                <AparienciaTab />
               )}
-              {activeTab === "idioma" && (
-                <IdiomaTab config={config} onChange={handleChange} />
+              {activeTab === "roles" && (
+                <RolesTab />
               )}
               {activeTab === "notificaciones" && (
                 <NotificacionesTab config={config} onChange={handleChange} />
