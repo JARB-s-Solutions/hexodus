@@ -21,6 +21,7 @@ import {
 import { AuthService } from "@/lib/auth"
 import type { User as UserType } from "@/lib/types/auth"
 import { useToast } from "@/hooks/use-toast"
+import { useTheme } from "@/components/theme-provider-custom"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -50,6 +51,7 @@ interface SidebarProps {
 export function Sidebar({ activePage = "dashboard" }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [user, setUser] = useState<UserType | null>(null)
+  const { theme } = useTheme()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -118,15 +120,29 @@ export function Sidebar({ activePage = "dashboard" }: SidebarProps) {
           {/* Logo */}
           <div className="flex items-center gap-3 mb-2">
             <div className="h-10 w-10 flex items-center justify-center overflow-hidden">
-              <img 
-                src="/assets/images/icon.png" 
-                alt="Hexodus" 
-                className="h-8 w-8 object-contain" 
-              />
+              {theme.logoSistema ? (
+                <img 
+                  src={theme.logoSistema} 
+                  alt={theme.nombreSistema} 
+                  className="h-8 w-8 object-contain" 
+                />
+              ) : (
+                <div 
+                  className="h-8 w-8 rounded-lg flex items-center justify-center text-sm font-bold"
+                  style={{ 
+                    backgroundColor: `${theme.colorPrincipal}20`, 
+                    color: theme.colorPrincipal 
+                  }}
+                >
+                  {theme.nombreSistema.charAt(0)}
+                </div>
+              )}
             </div>
-            <span className="text-xl font-bold tracking-widest uppercase text-primary"
-              style={{ filter: "drop-shadow(0 0 4px rgba(255,59,59,0.5))" }}>
-              HEXODUS
+            <span 
+              className="text-xl font-bold tracking-widest uppercase text-primary"
+              style={{ filter: `drop-shadow(0 0 4px ${theme.colorPrincipal}80)` }}
+            >
+              {theme.nombreSistema}
             </span>
             {/* Mobile close */}
             <button
