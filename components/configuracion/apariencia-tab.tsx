@@ -1,13 +1,50 @@
 "use client"
 
-import type { ConfigState } from "./config-types"
+import { useRef, useState } from "react"
+import { Upload, X, Image as ImageIcon } from "lucide-react"
+import { useTheme } from "@/components/theme-provider-custom"
+import { useToast } from "@/hooks/use-toast"
 
-interface AparienciaTabProps {
-  config: ConfigState
-  onChange: (updates: Partial<ConfigState>) => void
-}
+export function AparienciaTab() {
+  const { theme, actualizarTema, subirLogo, eliminarLogo } = useTheme()
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
 
-export function AparienciaTab({ config, onChange }: AparienciaTabProps) {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingLogo(true)
+
+    try {
+      await subirLogo(file)
+      toast({
+        title: "Logo actualizado",
+        description: "El logo se ha actualizado correctamente",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error al subir logo",
+        description: error.message || "No se pudo subir el logo",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploadingLogo(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    }
+  }
+
+  const handleEliminarLogo = () => {
+    eliminarLogo()
+    toast({
+      title: "Logo eliminado",
+      description: "Se ha eliminado el logo personalizado",
+    })
+  }
+
   return (
     <div className="bg-card rounded-xl p-6 border border-border animate-fade-in-up">
       <div className="flex items-center gap-2 mb-6">
@@ -30,16 +67,16 @@ export function AparienciaTab({ config, onChange }: AparienciaTabProps) {
             <div className="flex items-center gap-3">
               <input
                 type="color"
-                value={config.colorPrincipal}
-                onChange={(e) => onChange({ colorPrincipal: e.target.value })}
+                value={theme.colorPrincipal}
+                onChange={(e) => actualizarTema({ colorPrincipal: e.target.value })}
                 className="w-12 h-10 rounded-lg border-2 border-border cursor-pointer hover:border-accent transition-colors bg-transparent"
               />
               <input
                 type="text"
-                value={config.colorPrincipal}
+                value={theme.colorPrincipal}
                 onChange={(e) => {
                   if (/^#[0-9A-F]{0,6}$/i.test(e.target.value) || e.target.value === "#") {
-                    onChange({ colorPrincipal: e.target.value })
+                    actualizarTema({ colorPrincipal: e.target.value })
                   }
                 }}
                 className="flex-1 px-3 py-2.5 bg-muted/50 border border-border rounded-lg text-foreground text-sm focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all"
@@ -55,16 +92,16 @@ export function AparienciaTab({ config, onChange }: AparienciaTabProps) {
             <div className="flex items-center gap-3">
               <input
                 type="color"
-                value={config.colorSecundario}
-                onChange={(e) => onChange({ colorSecundario: e.target.value })}
+                value={theme.colorSecundario}
+                onChange={(e) => actualizarTema({ colorSecundario: e.target.value })}
                 className="w-12 h-10 rounded-lg border-2 border-border cursor-pointer hover:border-accent transition-colors bg-transparent"
               />
               <input
                 type="text"
-                value={config.colorSecundario}
+                value={theme.colorSecundario}
                 onChange={(e) => {
                   if (/^#[0-9A-F]{0,6}$/i.test(e.target.value) || e.target.value === "#") {
-                    onChange({ colorSecundario: e.target.value })
+                    actualizarTema({ colorSecundario: e.target.value })
                   }
                 }}
                 className="flex-1 px-3 py-2.5 bg-muted/50 border border-border rounded-lg text-foreground text-sm focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all"
@@ -78,8 +115,8 @@ export function AparienciaTab({ config, onChange }: AparienciaTabProps) {
               Modo de Tema
             </label>
             <select
-              value={config.modoTema}
-              onChange={(e) => onChange({ modoTema: e.target.value as ConfigState["modoTema"] })}
+              value={theme.modoTema}
+              onChange={(e) => actualizarTema({ modoTema: e.target.value as any })}
               className="w-full px-4 py-3 bg-muted/50 border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all cursor-pointer"
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2300BFFF' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
@@ -90,7 +127,7 @@ export function AparienciaTab({ config, onChange }: AparienciaTabProps) {
             >
               <option value="dark">Modo Oscuro</option>
               <option value="light">Modo Claro</option>
-              <option value="auto">Automatico</option>
+              <option value="auto">Automático</option>
             </select>
           </div>
         </div>
@@ -103,17 +140,25 @@ export function AparienciaTab({ config, onChange }: AparienciaTabProps) {
           <div className="bg-muted/30 p-4 rounded-lg border border-accent/20">
             <p className="text-xs text-muted-foreground mb-3">Vista Previa:</p>
             <div className="flex items-center gap-3 p-3 bg-accent/10 border border-accent/20 rounded-lg">
-              <div
-                className="h-10 w-10 rounded-lg flex items-center justify-center text-lg font-bold"
-                style={{ backgroundColor: `${config.colorPrincipal}20`, color: config.colorPrincipal }}
-              >
-                {config.nombreSistema.charAt(0)}
-              </div>
+              {theme.logoSistema ? (
+                <img 
+                  src={theme.logoSistema} 
+                  alt="Logo" 
+                  className="h-10 w-10 object-contain rounded-lg"
+                />
+              ) : (
+                <div
+                  className="h-10 w-10 rounded-lg flex items-center justify-center text-lg font-bold"
+                  style={{ backgroundColor: `${theme.colorPrincipal}20`, color: theme.colorPrincipal }}
+                >
+                  {theme.nombreSistema.charAt(0)}
+                </div>
+              )}
               <span
                 className="text-xl font-bold tracking-widest uppercase"
-                style={{ color: config.colorPrincipal }}
+                style={{ color: theme.colorPrincipal }}
               >
-                {config.nombreSistema}
+                {theme.nombreSistema}
               </span>
             </div>
           </div>
@@ -121,13 +166,59 @@ export function AparienciaTab({ config, onChange }: AparienciaTabProps) {
           {/* Upload Logo */}
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-2">
-              Cambiar Logo
+              {theme.logoSistema ? 'Cambiar Logo' : 'Subir Logo'}
             </label>
+            
+            {theme.logoSistema && (
+              <div className="mb-3 flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border">
+                <img 
+                  src={theme.logoSistema} 
+                  alt="Logo actual" 
+                  className="h-12 w-12 object-contain rounded-lg bg-background p-1"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">Logo actual</p>
+                  <p className="text-xs text-muted-foreground">Personalizado</p>
+                </div>
+                <button
+                  onClick={handleEliminarLogo}
+                  className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
+                  title="Eliminar logo"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
             <input
+              ref={fileInputRef}
               type="file"
               accept="image/*"
-              className="w-full px-3 py-2.5 bg-muted/50 border border-border rounded-lg text-foreground text-sm file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-accent/20 file:text-accent file:text-sm file:font-medium file:cursor-pointer cursor-pointer focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all"
+              onChange={handleLogoChange}
+              disabled={isUploadingLogo}
+              className="hidden"
             />
+            
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingLogo}
+              className="w-full px-4 py-3 bg-muted/50 border border-border rounded-lg text-foreground text-sm hover:bg-muted hover:border-accent transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isUploadingLogo ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-accent"></div>
+                  <span>Subiendo...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  <span>Seleccionar archivo</span>
+                </>
+              )}
+            </button>
+            <p className="text-xs text-muted-foreground mt-2">
+              Formatos: JPG, PNG, GIF. Máximo 2MB
+            </p>
           </div>
 
           {/* System Name */}
@@ -137,9 +228,10 @@ export function AparienciaTab({ config, onChange }: AparienciaTabProps) {
             </label>
             <input
               type="text"
-              value={config.nombreSistema}
-              onChange={(e) => onChange({ nombreSistema: e.target.value })}
+              value={theme.nombreSistema}
+              onChange={(e) => actualizarTema({ nombreSistema: e.target.value })}
               className="w-full px-3 py-2.5 bg-muted/50 border border-border rounded-lg text-foreground text-sm focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all"
+              placeholder="HEXODUS"
             />
           </div>
         </div>

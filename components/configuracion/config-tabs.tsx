@@ -1,12 +1,12 @@
 "use client"
 
-import { Palette, Globe, Bell, Settings, CreditCard, Receipt } from "lucide-react"
+import { Palette, Shield, Bell, Settings, CreditCard, Receipt } from "lucide-react"
 
-export type ConfigTab = "apariencia" | "idioma" | "notificaciones" | "avanzado" | "metodosPago" | "datosTicket"
+export type ConfigTab = "apariencia" | "roles" | "notificaciones" | "avanzado" | "metodosPago" | "datosTicket"
 
 const tabs: { id: ConfigTab; label: string; icon: typeof Palette }[] = [
   { id: "apariencia", label: "Apariencia", icon: Palette },
-  { id: "idioma", label: "Idioma y Region", icon: Globe },
+  { id: "roles", label: "Roles y Permisos", icon: Shield },
   { id: "notificaciones", label: "Notificaciones", icon: Bell },
   { id: "datosTicket", label: "Datos del Ticket", icon: Receipt },
   { id: "avanzado", label: "Avanzado", icon: Settings },
