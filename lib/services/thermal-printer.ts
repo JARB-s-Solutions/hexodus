@@ -4,6 +4,8 @@
  * Works in both development and production environments
  */
 
+import { ConfiguracionService, type ConfiguracionGimnasio } from './configuracion'
+
 // ============================================================================
 // ESC/POS COMMANDS
 // ============================================================================
@@ -41,6 +43,212 @@ const COMMANDS = {
   
   // Open cash drawer (if connected)
   OPEN_DRAWER: [ESC, 0x70, 0x00, 0x19, 0xfa],
+}
+
+// ============================================================================
+// IMAGE PROCESSING UTILITIES
+// ============================================================================
+
+/**
+ * Load image from URL and convert to HTMLImageElement
+ */
+async function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    
+    // Detectar tipo de URL
+    const isBase64 = url.startsWith('data:')
+    const isExternalUrl = url.startsWith('http://') || url.startsWith('https://')
+    
+    // Solo usar crossOrigin para URLs externas (no para base64 ni rutas locales)
+    if (isExternalUrl) {
+      img.crossOrigin = 'anonymous'
+    }
+    
+    img.onload = () => {
+      console.log('✅ Imagen cargada exitosamente')
+      resolve(img)
+    }
+    
+    img.onerror = () => {
+      if (isExternalUrl) {
+        console.warn('⚠️ Error con CORS, intentando sin crossOrigin...')
+        
+        // Retry without crossOrigin for external URLs
+        const img2 = new Image()
+        img2.onload = () => {
+          console.log('✅ Imagen cargada sin CORS')
+          resolve(img2)
+        }
+        img2.onerror = () => {
+          console.error('❌ Error cargando imagen:', url)
+          reject(new Error('No se pudo cargar la imagen. Verifica la URL y que sea accesible públicamente.'))
+        }
+        img2.src = url
+      } else {
+        console.error('❌ Error cargando imagen:', url)
+        reject(new Error('No se pudo cargar la imagen. Verifica que el archivo sea válido.'))
+      }
+    }
+    
+    img.src = url
+  })
+}
+
+/**
+ * Convert image to monochrome bitmap for thermal printer
+ * @param imageUrl URL of the image
+ * @param maxWidth Maximum width in pixels (default 384 for 58mm printer)
+ */
+async function imageToThermalBitmap(imageUrl: string, maxWidth: number = 384): Promise<number[]> {
+  try {
+    // Normalizar URL: si es una URL completa de nuestros assets, convertirla a ruta local
+    let processedUrl = imageUrl
+    
+    // Detectar si es una URL completa que apunta a nuestros assets del proyecto
+    if (imageUrl.includes('/assets/') || imageUrl.includes('/public/')) {
+      // Extraer solo la ruta después del dominio
+      const urlObj = new URL(imageUrl, window.location.origin)
+      processedUrl = urlObj.pathname
+      console.log('🔄 URL externa detectada, extrayendo ruta local:', processedUrl)
+    }
+    
+    // Si es una ruta local (empieza con /), convertirla a base64 primero para evitar CORS
+    if (processedUrl.startsWith('/') && !processedUrl.startsWith('//')) {
+      console.log('🔄 Convirtiendo ruta local a base64...')
+      try {
+        const response = await fetch(processedUrl)
+        const blob = await response.blob()
+        processedUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        })
+        console.log('✅ Ruta local convertida a base64')
+      } catch (fetchError) {
+        console.error('❌ Error convirtiendo ruta local:', fetchError)
+        throw new Error('No se pudo cargar la imagen local')
+      }
+    }
+    
+    // Load image
+    const img = await loadImage(processedUrl)
+    
+    // Calculate scaled dimensions (maintain aspect ratio)
+    let width = img.width
+    let height = img.height
+    
+    if (width > maxWidth) {
+      height = Math.floor((height * maxWidth) / width)
+      width = maxWidth
+    }
+    
+    console.log(`🖼️ Logo: ${img.width}x${img.height} → ${width}x${height}`)
+    
+    // Create canvas and draw image with high quality smoothing
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    
+    if (!ctx) {
+      throw new Error('No se pudo crear contexto de canvas')
+    }
+    
+    // Enable high quality image smoothing
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    
+    // Draw image scaled
+    ctx.drawImage(img, 0, 0, width, height)
+    
+    // Get image data
+    const imageData = ctx.getImageData(0, 0, width, height)
+    const pixels = imageData.data
+    
+    // Convert to grayscale with proper luminance formula and handle transparency
+    const grayPixels: number[] = []
+    for (let i = 0; i < pixels.length; i += 4) {
+      const r = pixels[i]
+      const g = pixels[i + 1]
+      const b = pixels[i + 2]
+      const a = pixels[i + 3]
+      
+      // Use luminance formula for better grayscale conversion
+      let gray = 0.299 * r + 0.587 * g + 0.114 * b
+      
+      // Handle transparency - consider white background
+      if (a < 255) {
+        const alpha = a / 255
+        gray = gray * alpha + 255 * (1 - alpha)
+      }
+      
+      grayPixels.push(gray)
+    }
+    
+    // Apply Floyd-Steinberg dithering for better quality
+    const monochrome: number[][] = []
+    for (let y = 0; y < height; y++) {
+      const row: number[] = []
+      for (let x = 0; x < width; x++) {
+        const idx = y * width + x
+        const oldPixel = grayPixels[idx]
+        const newPixel = oldPixel < 128 ? 0 : 255
+        row.push(newPixel === 0 ? 1 : 0) // 1 = black, 0 = white
+        
+        // Calculate error
+        const error = oldPixel - newPixel
+        
+        // Distribute error to neighboring pixels (Floyd-Steinberg)
+        if (x + 1 < width) {
+          grayPixels[idx + 1] += error * 7 / 16
+        }
+        if (y + 1 < height) {
+          if (x > 0) {
+            grayPixels[idx + width - 1] += error * 3 / 16
+          }
+          grayPixels[idx + width] += error * 5 / 16
+          if (x + 1 < width) {
+            grayPixels[idx + width + 1] += error * 1 / 16
+          }
+        }
+      }
+      monochrome.push(row)
+    }
+    
+    // Convert monochrome matrix to bitmap bytes
+    const bytesPerLine = Math.ceil(width / 8)
+    const bitmap: number[] = []
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < bytesPerLine; x++) {
+        let byte = 0
+        
+        for (let bit = 0; bit < 8; bit++) {
+          const pixelX = x * 8 + bit
+          
+          if (pixelX < width && monochrome[y][pixelX] === 1) {
+            byte |= (1 << (7 - bit))
+          }
+        }
+        
+        bitmap.push(byte)
+      }
+    }
+    
+    // Return ESC/POS bitmap command: GS v 0 m xL xH yL yH [data]
+    // IMPORTANTE: xL xH es el ancho en BYTES, no en píxeles
+    const xL = bytesPerLine & 0xff
+    const xH = (bytesPerLine >> 8) & 0xff
+    const yL = height & 0xff
+    const yH = (height >> 8) & 0xff
+    
+    return [GS, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...bitmap]
+  } catch (error) {
+    console.error('Error convirtiendo imagen a bitmap:', error)
+    return []
+  }
 }
 
 // ============================================================================
@@ -123,6 +331,42 @@ export interface PrinterInfo {
 export class ThermalPrinter {
   private device: USBDevice | null = null
   private endpoint: USBEndpoint | null = null
+  private configuracionGimnasio: ConfiguracionGimnasio | null = null
+  
+  /**
+   * Obtener configuración del gimnasio (con cache)
+   */
+  private async obtenerConfiguracion(): Promise<ConfiguracionGimnasio> {
+    // Si ya tenemos la configuración cacheada, usarla
+    if (this.configuracionGimnasio) {
+      return this.configuracionGimnasio
+    }
+    
+    try {
+      const response = await ConfiguracionService.obtenerConfiguracion()
+      this.configuracionGimnasio = response.data
+      return this.configuracionGimnasio
+    } catch (error) {
+      console.warn('⚠️ No se pudo obtener configuración del gimnasio, usando valores por defecto')
+      // Valores por defecto si falla la carga
+      return {
+        gimnasioNombre: 'GYM FITNESS',
+        gimnasioDomicilio: 'Av. Principal #123',
+        gimnasioTelefono: '+52 123 456 7890',
+        gimnasioRFC: 'GYM123456ABC',
+        gimnasioLogo: '/assets/images/icon-printers.png',
+        ticketFooter: '¡Gracias por tu visita!',
+        ticketMensajeAgradecimiento: 'Te esperamos pronto'
+      }
+    }
+  }
+  
+  /**
+   * Limpiar cache de configuración (útil después de guardar cambios)
+   */
+  public limpiarCacheConfiguracion(): void {
+    this.configuracionGimnasio = null
+  }
   
   /**
    * Request access to thermal printer via WebUSB
@@ -380,6 +624,66 @@ export class ThermalPrinter {
   }
   
   /**
+   * Print image from URL (converted to bitmap)
+   */
+  private async printImage(imageUrl: string, maxWidth: number = 384): Promise<boolean> {
+    try {
+      console.log('🖼️ Procesando imagen para impresión...', imageUrl)
+      
+      // Convert image to thermal bitmap
+      const bitmap = await imageToThermalBitmap(imageUrl, maxWidth)
+      
+      if (bitmap.length === 0) {
+        console.warn('⚠️ No se pudo convertir la imagen, continuando sin logo...')
+        return false
+      }
+      
+      console.log(`📊 Tamaño del bitmap: ${bitmap.length} bytes`)
+      
+      // Center alignment for image
+      await this.sendCommand(COMMANDS.ALIGN_CENTER)
+      
+      // Send bitmap data in chunks to avoid buffer overflow
+      const CHUNK_SIZE = 1024 // 1KB chunks
+      const CHUNK_DELAY = 20 // 20ms between chunks
+      
+      // Send command header first
+      const headerSize = 8 // GS v 0 m xL xH yL yH = 8 bytes
+      const header = bitmap.slice(0, headerSize)
+      await this.sendBytes(header)
+      await new Promise(resolve => setTimeout(resolve, 10)) // Initial delay
+      
+      // Send image data in chunks
+      for (let i = headerSize; i < bitmap.length; i += CHUNK_SIZE) {
+        const chunk = bitmap.slice(i, Math.min(i + CHUNK_SIZE, bitmap.length))
+        await this.sendBytes(chunk)
+        
+        // Delay between chunks
+        if (i + CHUNK_SIZE < bitmap.length) {
+          await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY))
+        }
+      }
+      
+      // Wait for image to finish processing
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Add line feed after image
+      await this.sendCommand(COMMANDS.LINE_FEED)
+      
+      // Reset alignment
+      await this.sendCommand(COMMANDS.ALIGN_LEFT)
+      
+      console.log('✅ Imagen enviada a la impresora')
+      return true
+    } catch (error) {
+      console.error('❌ Error imprimiendo imagen:', error)
+      console.warn('⚠️ Continuando impresión sin logo...')
+      // Continue printing even if image fails
+      return false
+    }
+  }
+  
+  /**
    * Print ticket for membership purchase
    */
   async printTicket(data: TicketData): Promise<void> {
@@ -390,19 +694,30 @@ export class ThermalPrinter {
       
       console.log('🖨️ Imprimiendo ticket...', data)
       
+      // Obtener configuración del gimnasio
+      const config = await this.obtenerConfiguracion()
+      
       // Initialize printer
       await this.sendCommand(COMMANDS.INIT)
       
-      // Header - Company name
-      await this.sendCommand(COMMANDS.DOUBLE_SIZE, COMMANDS.BOLD_ON)
-      await this.printCentered(data.empresaNombre)
-      await this.sendCommand(COMMANDS.NORMAL, COMMANDS.BOLD_OFF)
-      
-      if (data.empresaDireccion) {
-        await this.printCentered(data.empresaDireccion)
+      // Print logo if exists (usando GS v 0 con dithering Floyd-Steinberg)
+      if (config.gimnasioLogo) {
+        await this.printImage(config.gimnasioLogo, 150)
       }
-      if (data.empresaTelefono) {
-        await this.printCentered(`Tel: ${data.empresaTelefono}`)
+      
+      // Header - Company name (usar configuración) - TAMAÑO NORMAL BOLD
+      await this.sendCommand(COMMANDS.BOLD_ON)
+      await this.printCentered(config.gimnasioNombre)
+      await this.sendCommand(COMMANDS.BOLD_OFF)
+      
+      if (config.gimnasioDomicilio) {
+        await this.printCentered(config.gimnasioDomicilio)
+      }
+      if (config.gimnasioTelefono) {
+        await this.printCentered(`Tel: ${config.gimnasioTelefono}`)
+      }
+      if (config.gimnasioRFC) {
+        await this.printCentered(`RFC: ${config.gimnasioRFC}`)
       }
       
       await this.sendCommand(COMMANDS.LINE_FEED)
@@ -457,14 +772,16 @@ export class ThermalPrinter {
       
       await this.printSeparator('=', 32)
       
-      // Footer message
-      if (data.mensajeFinal) {
-        await this.sendCommand(COMMANDS.LINE_FEED)
-        await this.printCentered(data.mensajeFinal)
+      // Footer message (usar configuración)
+      await this.sendCommand(COMMANDS.LINE_FEED)
+      
+      if (config.ticketFooter) {
+        await this.printCentered(config.ticketFooter)
       }
       
-      await this.printCentered('¡Gracias por su preferencia!')
-      await this.printCentered('www.hexodus.com')
+      if (config.ticketMensajeAgradecimiento) {
+        await this.printCentered(config.ticketMensajeAgradecimiento)
+      }
       
       // Feed and cut
       await this.sendCommand(
@@ -490,19 +807,30 @@ export class ThermalPrinter {
     }
     
     try {
+      // Obtener configuración del gimnasio
+      const config = await this.obtenerConfiguracion()
+      
       // Initialize
       await this.sendCommand(COMMANDS.INIT)
       
-      // Header
-      await this.sendCommand(COMMANDS.DOUBLE_SIZE, COMMANDS.BOLD_ON)
-      await this.printCentered(data.empresaNombre)
-      await this.sendCommand(COMMANDS.NORMAL, COMMANDS.BOLD_OFF)
-      
-      if (data.empresaDireccion) {
-        await this.printCentered(data.empresaDireccion)
+      // Print logo if exists (usando GS v 0 con dithering Floyd-Steinberg)
+      if (config.gimnasioLogo) {
+        await this.printImage(config.gimnasioLogo, 150)
       }
-      if (data.empresaTelefono) {
-        await this.printCentered(`Tel: ${data.empresaTelefono}`)
+      
+      // Header (usar configuración) - TAMAÑO NORMAL BOLD
+      await this.sendCommand(COMMANDS.BOLD_ON)
+      await this.printCentered(config.gimnasioNombre)
+      await this.sendCommand(COMMANDS.BOLD_OFF)
+      
+      if (config.gimnasioDomicilio) {
+        await this.printCentered(config.gimnasioDomicilio)
+      }
+      if (config.gimnasioTelefono) {
+        await this.printCentered(`Tel: ${config.gimnasioTelefono}`)
+      }
+      if (config.gimnasioRFC) {
+        await this.printCentered(`RFC: ${config.gimnasioRFC}`)
       }
       
       await this.printSeparator('=', 32)
@@ -553,14 +881,16 @@ export class ThermalPrinter {
       
       await this.printSeparator('=', 32)
       
-      // Footer message
-      if (data.mensajeFinal) {
-        await this.sendCommand(COMMANDS.LINE_FEED)
-        await this.printCentered(data.mensajeFinal)
+      // Footer message (usar configuración)
+      await this.sendCommand(COMMANDS.LINE_FEED)
+      
+      if (config.ticketFooter) {
+        await this.printCentered(config.ticketFooter)
       }
       
-      await this.printCentered('¡Gracias por su compra!')
-      await this.printCentered('www.hexodus.com')
+      if (config.ticketMensajeAgradecimiento) {
+        await this.printCentered(config.ticketMensajeAgradecimiento)
+      }
       
       // Feed and cut
       await this.sendCommand(

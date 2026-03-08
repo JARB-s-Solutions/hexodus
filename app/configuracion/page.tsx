@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { ConfigHeader } from "@/components/configuracion/config-header"
 import { ConfigTabs, type ConfigTab } from "@/components/configuracion/config-tabs"
@@ -10,25 +10,90 @@ import { IdiomaTab } from "@/components/configuracion/idioma-tab"
 import { NotificacionesTab } from "@/components/configuracion/notificaciones-tab"
 import { AvanzadoTab } from "@/components/configuracion/avanzado-tab"
 import { MetodosPagoTab } from "@/components/configuracion/metodos-pago-tab"
+import { DatosTicketTab } from "@/components/configuracion/datos-ticket-tab"
 import { defaultConfig, type ConfigState } from "@/components/configuracion/config-types"
+import { ConfiguracionService } from "@/lib/services/configuracion"
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<ConfigTab>("apariencia")
   const [config, setConfig] = useState<ConfigState>({ ...defaultConfig })
   const [savedConfig, setSavedConfig] = useState<ConfigState>({ ...defaultConfig })
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null)
+  const [loading, setLoading] = useState(false)
 
   const hasChanges = JSON.stringify(config) !== JSON.stringify(savedConfig)
+
+  // Cargar configuración del gimnasio desde el backend
+  useEffect(() => {
+    const cargarConfiguracion = async () => {
+      try {
+        const response = await ConfiguracionService.obtenerConfiguracion()
+        const configGimnasio = response.data
+        
+        setConfig((prev) => ({
+          ...prev,
+          gimnasioNombre: configGimnasio.gimnasioNombre,
+          gimnasioDomicilio: configGimnasio.gimnasioDomicilio,
+          gimnasioTelefono: configGimnasio.gimnasioTelefono,
+          gimnasioRFC: configGimnasio.gimnasioRFC,
+          gimnasioLogo: configGimnasio.gimnasioLogo,
+          ticketFooter: configGimnasio.ticketFooter,
+          ticketMensajeAgradecimiento: configGimnasio.ticketMensajeAgradecimiento,
+        }))
+        
+        setSavedConfig((prev) => ({
+          ...prev,
+          gimnasioNombre: configGimnasio.gimnasioNombre,
+          gimnasioDomicilio: configGimnasio.gimnasioDomicilio,
+          gimnasioTelefono: configGimnasio.gimnasioTelefono,
+          gimnasioRFC: configGimnasio.gimnasioRFC,
+          gimnasioLogo: configGimnasio.gimnasioLogo,
+          ticketFooter: configGimnasio.ticketFooter,
+          ticketMensajeAgradecimiento: configGimnasio.ticketMensajeAgradecimiento,
+        }))
+      } catch (error) {
+        console.error('Error cargando configuración del gimnasio:', error)
+        // No mostrar error, usar valores por defecto
+      }
+    }
+
+    cargarConfiguracion()
+  }, [])
 
   const handleChange = useCallback((updates: Partial<ConfigState>) => {
     setConfig((prev) => ({ ...prev, ...updates }))
   }, [])
 
-  const handleGuardar = useCallback(() => {
-    setSavedConfig({ ...config })
-    setNotification({ message: "Configuracion guardada exitosamente", type: "success" })
-    setTimeout(() => setNotification(null), 3000)
-  }, [config])
+  const handleGuardar = useCallback(async () => {
+    setLoading(true)
+    
+    try {
+      // Si estamos en el tab de Datos del Ticket, guardar en el backend
+      if (activeTab === "datosTicket") {
+        const configGimnasio = {
+          gimnasioNombre: config.gimnasioNombre,
+          gimnasioDomicilio: config.gimnasioDomicilio,
+          gimnasioTelefono: config.gimnasioTelefono,
+          gimnasioRFC: config.gimnasioRFC,
+          gimnasioLogo: config.gimnasioLogo,
+          ticketFooter: config.ticketFooter,
+          ticketMensajeAgradecimiento: config.ticketMensajeAgradecimiento,
+        }
+        
+        await ConfiguracionService.guardarConfiguracion(configGimnasio)
+      }
+      
+      // Guardar en estado local
+      setSavedConfig({ ...config })
+      setNotification({ message: "Configuracion guardada exitosamente", type: "success" })
+    } catch (error: any) {
+      console.error('Error guardando configuración:', error)
+      setNotification({ message: error.message || "Error al guardar la configuracion", type: "error" })
+    } finally {
+      setLoading(false)
+      setTimeout(() => setNotification(null), 3000)
+    }
+  }, [config, activeTab])
 
   const handleRestablecer = useCallback(() => {
     setConfig({ ...defaultConfig })
@@ -54,6 +119,7 @@ export default function ConfiguracionPage() {
             <div className="lg:col-span-1 order-2 lg:order-1">
               <ConfigSidebar
                 hasChanges={hasChanges}
+                loading={loading}
                 onGuardar={handleGuardar}
                 onRestablecer={handleRestablecer}
               />
@@ -69,6 +135,9 @@ export default function ConfiguracionPage() {
               )}
               {activeTab === "notificaciones" && (
                 <NotificacionesTab config={config} onChange={handleChange} />
+              )}
+              {activeTab === "datosTicket" && (
+                <DatosTicketTab config={config} onChange={handleChange} />
               )}
               {activeTab === "avanzado" && (
                 <AvanzadoTab config={config} onChange={handleChange} />

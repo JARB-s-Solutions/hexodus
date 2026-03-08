@@ -259,6 +259,40 @@ export interface ComparacionesResponse {
   }
 }
 
+/**
+ * Reporte del historial del backend
+ */
+export interface ReporteHistorialBackend {
+  id: string
+  nombre: string
+  tipo: string
+  periodo: string
+  fecha_generado: string
+  estado: 'generado' | 'descargado'
+  formato: 'Excel'
+  resumen: {
+    ventas: number
+    gastos: number
+    utilidad: number
+  }
+}
+
+/**
+ * Respuesta de endpoint de historial de reportes
+ */
+export interface HistorialResponse {
+  message: string
+  data: {
+    reportes: ReporteHistorialBackend[]
+    paginacion: {
+      total: number
+      page: number
+      limit: number
+      totalPages: number
+    }
+  }
+}
+
 // ============================================================
 // MAPPERS - Frontend → Backend
 // ============================================================
@@ -631,6 +665,290 @@ export class ReportesService {
       return data
     } catch (error: any) {
       console.error('❌ Error obteniendo comparaciones:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Obtener historial de reportes
+   */
+  static async getHistorialReportes(params: {
+    page?: number
+    limit?: number
+  }): Promise<HistorialResponse> {
+    try {
+      const page = params.page || 1
+      const limit = params.limit || 10
+
+      // Construir query params
+      const queryParams = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+      })
+
+      const url = `${API_BASE_URL}/financiero/historial-reportes?${queryParams.toString()}`
+      
+      console.log('📊 GET /api/financiero/historial-reportes')
+      console.log('   Parámetros:', { page, limit })
+      console.log('   URL:', url)
+
+      // Obtener token de autenticación
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        console.warn('⚠️  No hay token de autenticación. Saltando petición.')
+        // Retornar estructura vacía en lugar de lanzar error
+        return {
+          message: 'Sin token de autenticación',
+          data: {
+            reportes: [],
+            paginacion: {
+              total: 0,
+              page: 1,
+              limit: 10,
+              totalPages: 0,
+            },
+          },
+        }
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+      }
+
+      const data: HistorialResponse = await response.json()
+      
+      console.log('✅ Historial de reportes obtenido exitosamente')
+      console.log('   Response completo:', JSON.stringify(data, null, 2))
+      console.log('   Tipo de data:', typeof data)
+      console.log('   Es array?', Array.isArray(data))
+      
+      // Manejar respuesta directa de array (API sin estructura completa)
+      if (Array.isArray(data)) {
+        console.warn('⚠️  Respuesta es array directo, creando estructura wrapper')
+        return {
+          message: 'Historial obtenido',
+          data: {
+            reportes: data,
+            paginacion: {
+              total: data.length,
+              page: 1,
+              limit: data.length,
+              totalPages: 1,
+            },
+          },
+        }
+      }
+      
+      console.log('   data.data existe?', !!data.data)
+      console.log('   data.data.paginacion existe?', !!data.data?.paginacion)
+      console.log('   data.data.reportes existe?', !!data.data?.reportes)
+      
+      // Validar estructura de respuesta
+      if (!data.data) {
+        console.warn('⚠️  Respuesta sin data, usando estructura vacía')
+        return {
+          message: data.message || 'Sin datos',
+          data: {
+            reportes: [],
+            paginacion: {
+              total: 0,
+              page: 1,
+              limit: 10,
+              totalPages: 0,
+            },
+          },
+        }
+      }
+      
+      if (!data.data.paginacion) {
+        console.warn('⚠️  Respuesta sin paginación, creando estructura por defecto')
+        data.data.paginacion = {
+          total: data.data.reportes?.length || 0,
+          page: 1,
+          limit: 10,
+          totalPages: 1,
+        }
+      }
+      
+      console.log('   Total reportes:', data.data?.paginacion?.total || 0)
+      console.log('   Página actual:', data.data?.paginacion?.page || 1, 'de', data.data?.paginacion?.totalPages || 1)
+      console.log('   Reportes en esta página:', data.data?.reportes?.length || 0)
+
+      return data
+    } catch (error: any) {
+      console.error('❌ Error obteniendo historial de reportes:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Generar un nuevo reporte
+   */
+  static async generarReporte(config: {
+    nombre: string
+    descripcion: string
+    tipoReporte: string
+    formato: string
+    fechaInicio: string
+    fechaFin: string
+    incluirGraficos: boolean
+    incluirDetalles: boolean
+  }): Promise<any> {
+    try {
+      const url = `${API_BASE_URL}/financiero/generar-reporte`
+      
+      console.log('📊 POST /api/financiero/generar-reporte')
+      console.log('   Configuración:', config)
+
+      // Obtener token de autenticación
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        throw new Error('No hay token de autenticación. Por favor inicia sesión.')
+      }
+
+      const body = {
+        nombre: config.nombre,
+        descripcion: config.descripcion,
+        tipo_reporte: config.tipoReporte,
+        formato: config.formato,
+        fecha_inicio: config.fechaInicio,
+        fecha_fin: config.fechaFin,
+        incluir_graficos: config.incluirGraficos,
+        incluir_detalles: config.incluirDetalles,
+      }
+
+      console.log('   Body:', JSON.stringify(body, null, 2))
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      
+      console.log('✅ Reporte generado exitosamente')
+      console.log('   Response completo:', JSON.stringify(data, null, 2))
+      console.log('   Tiene data?', !!data.data)
+      console.log('   Tiene data.id?', !!data.data?.id)
+      console.log('   Tiene data.url_descarga?', !!data.data?.url_descarga)
+
+      return data
+    } catch (error: any) {
+      console.error('❌ Error generando reporte:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Descargar un reporte del historial
+   */
+  static async descargarReporte(reporteId: string): Promise<void> {
+    try {
+      const url = `${API_BASE_URL}/financiero/descargar-reporte/${reporteId}`
+      
+      console.log('📥 GET /api/financiero/descargar-reporte/' + reporteId)
+
+      // Obtener token de autenticación
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        throw new Error('No hay token de autenticación. Por favor inicia sesión.')
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+      }
+
+      // Descargar archivo como blob
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      
+      // Obtener nombre del archivo del header Content-Disposition o usar uno por defecto
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = `reporte_${reporteId}.csv`
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+      
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+      
+      console.log('✅ Reporte descargado:', filename)
+    } catch (error: any) {
+      console.error('❌ Error descargando reporte:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Eliminar un reporte del historial
+   */
+  static async eliminarReporte(reporteId: string): Promise<void> {
+    try {
+      const url = `${API_BASE_URL}/financiero/eliminar-reporte/${reporteId}`
+      
+      console.log('🗑️  DELETE /api/financiero/eliminar-reporte/' + reporteId)
+
+      // Obtener token de autenticación
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        throw new Error('No hay token de autenticación. Por favor inicia sesión.')
+      }
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      
+      console.log('✅ Reporte eliminado exitosamente')
+      console.log('   Response:', JSON.stringify(data, null, 2))
+
+      return data
+    } catch (error: any) {
+      console.error('❌ Error eliminando reporte:', error)
       throw error
     }
   }

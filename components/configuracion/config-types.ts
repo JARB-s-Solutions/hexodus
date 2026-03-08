@@ -25,6 +25,15 @@ export interface ConfigState {
   cacheSistema: boolean
   compresion: boolean
   lazyLoading: boolean
+
+  // Datos del Ticket / Gimnasio
+  gimnasioNombre: string
+  gimnasioDomicilio: string
+  gimnasioTelefono: string
+  gimnasioRFC: string
+  gimnasioLogo: string  // URL del logo
+  ticketFooter: string
+  ticketMensajeAgradecimiento: string
 }
 
 export const defaultConfig: ConfigState = {
@@ -50,4 +59,12 @@ export const defaultConfig: ConfigState = {
   cacheSistema: true,
   compresion: true,
   lazyLoading: true,
+
+  gimnasioNombre: "GYM FITNESS",
+  gimnasioDomicilio: "Av. Principal #123, Col. Centro, CP 12345",
+  gimnasioTelefono: "+52 123 456 7890",
+  gimnasioRFC: "GYM123456ABC",
+  gimnasioLogo: "/assets/images/icon.png",
+  ticketFooter: "¡Gracias por tu visita!",
+  ticketMensajeAgradecimiento: "Te esperamos pronto",
 }
