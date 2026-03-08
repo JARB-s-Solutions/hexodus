@@ -1,14 +1,15 @@
 "use client"
 
-import { Save, Check, RefreshCw, Info } from "lucide-react"
+import { Save, Check, RefreshCw, Info, Loader2 } from "lucide-react"
 
 interface ConfigSidebarProps {
   hasChanges: boolean
+  loading: boolean
   onGuardar: () => void
   onRestablecer: () => void
 }
 
-export function ConfigSidebar({ hasChanges, onGuardar, onRestablecer }: ConfigSidebarProps) {
+export function ConfigSidebar({ hasChanges, loading, onGuardar, onRestablecer }: ConfigSidebarProps) {
   return (
     <div className="flex flex-col gap-6">
       {/* Save Card */}
@@ -26,7 +27,8 @@ export function ConfigSidebar({ hasChanges, onGuardar, onRestablecer }: ConfigSi
 
         <button
           onClick={onGuardar}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold uppercase tracking-wide transition-all duration-300 text-primary-foreground"
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold uppercase tracking-wide transition-all duration-300 text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed"
           style={{
             backgroundColor: hasChanges ? "#22c55e" : "var(--primary)",
             boxShadow: hasChanges
@@ -34,13 +36,23 @@ export function ConfigSidebar({ hasChanges, onGuardar, onRestablecer }: ConfigSi
               : "0 0 10px rgba(255,59,59,0.5)",
           }}
         >
-          <Check className="h-5 w-5" />
-          {hasChanges ? "Guardar Cambios" : "Aplicar Cambios"}
+          {loading ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Guardando...
+            </>
+          ) : (
+            <>
+              <Check className="h-5 w-5" />
+              {hasChanges ? "Guardar Cambios" : "Aplicar Cambios"}
+            </>
+          )}
         </button>
 
         <button
           onClick={onRestablecer}
-          className="w-full flex items-center justify-center gap-2 py-3 mt-3 rounded-lg text-sm font-bold uppercase tracking-wide border border-accent text-accent hover:bg-accent/10 transition-all duration-300"
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 py-3 mt-3 rounded-lg text-sm font-bold uppercase tracking-wide border border-accent text-accent hover:bg-accent/10 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <RefreshCw className="h-5 w-5" />
           Restablecer
