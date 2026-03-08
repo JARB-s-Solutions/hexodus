@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/toaster'
 import { CajaGuard } from '@/components/caja/caja-guard'
+import { ThemeProvider } from '@/components/theme-provider-custom'
 import './globals.css'
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -31,11 +32,13 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${inter.variable} font-sans antialiased`}>
-        <CajaGuard>
-          {children}
-        </CajaGuard>
-        <Toaster />
-        <Analytics />
+        <ThemeProvider>
+          <CajaGuard>
+            {children}
+          </CajaGuard>
+          <Toaster />
+          <Analytics />
+        </ThemeProvider>
       </body>
     </html>
   )
