@@ -1,13 +1,14 @@
 "use client"
 
-import { Palette, Shield, Bell, Settings, CreditCard, Receipt } from "lucide-react"
+import { Palette, Shield, Bell, Settings, CreditCard, Receipt, Database } from "lucide-react"
 
-export type ConfigTab = "apariencia" | "roles" | "notificaciones" | "avanzado" | "metodosPago" | "datosTicket"
+export type ConfigTab = "apariencia" | "roles" | "notificaciones" | "backups" | "avanzado" | "metodosPago" | "datosTicket"
 
 const tabs: { id: ConfigTab; label: string; icon: typeof Palette }[] = [
   { id: "apariencia", label: "Apariencia", icon: Palette },
   { id: "roles", label: "Roles y Permisos", icon: Shield },
-  { id: "notificaciones", label: "Notificaciones", icon: Bell },
+  { id: "notificaciones", label: "Alertas", icon: Bell },
+  { id: "backups", label: "Respaldos", icon: Database },
   { id: "datosTicket", label: "Datos del Ticket", icon: Receipt },
   { id: "avanzado", label: "Avanzado", icon: Settings },
   { id: "metodosPago", label: "Métodos de Pago", icon: CreditCard },
