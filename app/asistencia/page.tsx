@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { AsistenciaHeader } from "@/components/asistencia/asistencia-header"
 import { KpiAsistenciaCards } from "@/components/asistencia/kpi-asistencia"
@@ -19,6 +20,9 @@ import {
 } from "@/lib/asistencia-data"
 
 export default function AsistenciaPage() {
+  const router = useRouter()
+  const { toast } = useToast()
+  
   // Estados para tab activo
   const [tabActivo, setTabActivo] = useState<"hoy" | "historial" | "socio">("hoy")
   
@@ -69,7 +73,6 @@ export default function AsistenciaPage() {
   const [errorKpis, setErrorKpis] = useState<string | null>(null)
   
   const ventanaRef = useRef<Window | null>(null)
-  const { toast } = useToast()
 
   // Cargar asistencias del día actual (endpoint /hoy con campo 'hora')
   const cargarAsistenciasHoy = useCallback(async () => {
@@ -494,6 +497,7 @@ export default function AsistenciaPage() {
       <main className="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-5">
         <AsistenciaHeader 
           onRegistroManual={() => setModalRegistroManual(true)}
+          onRegistroHuella={() => router.push('/asistencia/huella')}
         />
 
         {/* KPIs */}

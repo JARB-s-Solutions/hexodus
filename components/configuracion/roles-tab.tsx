@@ -1,19 +1,45 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Shield, Plus, Users, ChevronRight, Trash2, Edit2, Copy } from "lucide-react"
-import type { Rol } from "@/lib/types/permissions"
-import { RolesService } from "@/lib/services/roles"
+import { Shield, Plus, Users, ChevronRight, Trash2, Edit2, Copy, X, Check } from "lucide-react"
+import { RolesService, type RolAPI } from "@/lib/services/roles"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface RolesTabProps {
   // Placeholder para compatibilidad con otros tabs
 }
 
+// Definición de módulos y permisos del sistema
+const MODULOS_SISTEMA = [
+  { id: 'dashboard', nombre: 'Dashboard', icono: '📊', acciones: ['ver'] },
+  { id: 'membresias', nombre: 'Membresías', icono: '🎫', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
+  { id: 'socios', nombre: 'Socios', icono: '👥', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
+  { id: 'asistencia', nombre: 'Asistencia', icono: '📝', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
+  { id: 'ventas', nombre: 'Ventas', icono: '💰', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
+  { id: 'inventario', nombre: 'Inventario', icono: '📦', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
+  { id: 'movimientos', nombre: 'Movimientos', icono: '💸', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
+  { id: 'reportes', nombre: 'Reportes', icono: '📈', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
+  { id: 'usuarios', nombre: 'Usuarios', icono: '👤', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
+  { id: 'configuracion', nombre: 'Configuración', icono: '⚙️', acciones: ['ver', 'editar'] },
+]
+
 export function RolesTab({}: RolesTabProps) {
-  const [roles, setRoles] = useState<Rol[]>([])
-  const [selectedRol, setSelectedRol] = useState<Rol | null>(null)
+  const [roles, setRoles] = useState<RolAPI[]>([])
+  const [selectedRol, setSelectedRol] = useState<RolAPI | null>(null)
   const [loading, setLoading] = useState(true)
+  const [modalCrearAbierto, setModalCrearAbierto] = useState(false)
+  const { toast } = useToast()
 
   // Cargar roles
   useEffect(() => {
@@ -30,8 +56,13 @@ export function RolesTab({}: RolesTabProps) {
       if (rolesData.length > 0 && !selectedRol) {
         setSelectedRol(rolesData[0])
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error cargando roles:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'No se pudieron cargar los roles'
+      })
     } finally {
       setLoading(false)
     }
@@ -60,6 +91,7 @@ export function RolesTab({}: RolesTabProps) {
         </div>
         
         <button
+          onClick={() => setModalCrearAbierto(true)}
           className="flex items-center gap-2 px-6 py-3 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium transition-all hover:scale-105"
         >
           <Plus className="h-5 w-5" />
@@ -93,19 +125,26 @@ export function RolesTab({}: RolesTabProps) {
                   {/* Color Badge */}
                   <div
                     className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: rol.color }}
+                    style={{ backgroundColor: rol.color || '#6b7280' }}
                   />
                   
                   {/* Nombre */}
                   <div className="flex-1 min-w-0 text-left">
                     <div className="font-medium truncate flex items-center gap-2">
-                      {rol.icono && <span>{rol.icono}</span>}
                       <span>{rol.nombre}</span>
                     </div>
-                    {rol.esAdministrador && (
-                      <div className="text-xs text-muted-foreground">Acceso total</div>
+                    {rol.esSistema && (
+                      <div className="text-xs text-muted-foreground">Rol del sistema</div>
                     )}
                   </div>
+                  
+                  {/* Badge de usuarios activos */}
+                  {rol.usuariosActivos > 0 && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Users className="h-3 w-3" />
+                      <span>{rol.usuariosActivos}</span>
+                    </div>
+                  )}
                 </div>
 
                 <ChevronRight className={cn(
@@ -140,11 +179,13 @@ export function RolesTab({}: RolesTabProps) {
 // ============================================================================
 
 interface RolDetailsProps {
-  rol: Rol
+  rol: RolAPI
   onUpdate: () => void
 }
 
 function RolDetails({ rol, onUpdate }: RolDetailsProps) {
+  const esAdministrador = rol.permisos?.todo === 'absoluto'
+  
   return (
     <div className="p-6 space-y-6">
       {/* Header del Rol */}
@@ -153,18 +194,21 @@ function RolDetails({ rol, onUpdate }: RolDetailsProps) {
           {/* Color Badge Grande */}
           <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
-            style={{ backgroundColor: `${rol.color}20`, border: `2px solid ${rol.color}` }}
+            style={{ 
+              backgroundColor: `${rol.color || '#6b7280'}20`, 
+              border: `2px solid ${rol.color || '#6b7280'}` 
+            }}
           >
-            {rol.icono || <Shield className="h-8 w-8" style={{ color: rol.color }} />}
+            <Shield className="h-8 w-8" style={{ color: rol.color || '#6b7280' }} />
           </div>
           
           <div>
             <h3 className="text-2xl font-bold">{rol.nombre}</h3>
-            <p className="text-muted-foreground mt-1">{rol.descripcion}</p>
+            <p className="text-muted-foreground mt-1">{rol.descripcion || 'Sin descripción'}</p>
             
             {/* Badges */}
             <div className="flex items-center gap-2 mt-3">
-              {rol.esAdministrador && (
+              {esAdministrador && (
                 <span className="px-3 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full border border-green-500/20">
                   👑 Administrador
                 </span>
@@ -172,6 +216,12 @@ function RolDetails({ rol, onUpdate }: RolDetailsProps) {
               {rol.esSistema && (
                 <span className="px-3 py-1 bg-blue-500/10 text-blue-500 text-xs font-medium rounded-full border border-blue-500/20">
                   🔒 Rol del Sistema
+                </span>
+              )}
+              {rol.usuariosActivos > 0 && (
+                <span className="px-3 py-1 bg-accent/10 text-accent text-xs font-medium rounded-full border border-accent/20">
+                  <Users className="h-3 w-3 inline mr-1" />
+                  {rol.usuariosActivos} usuario{rol.usuariosActivos !== 1 ? 's' : ''}
                 </span>
               )}
             </div>
@@ -200,77 +250,119 @@ function RolDetails({ rol, onUpdate }: RolDetailsProps) {
       <div className="border-t border-border pt-6">
         <h4 className="text-lg font-semibold mb-4">Permisos</h4>
         
-        <div className="space-y-4">
-          {/* Dashboard */}
-          <PermisoModulo
-            modulo="Dashboard"
-            permisos={rol.permisos.dashboard}
-            icono="📊"
-          />
-          
-          {/* Membresías */}
-          <PermisoModulo
-            modulo="Membresías"
-            permisos={rol.permisos.membresias}
-            icono="🎫"
-          />
-          
-          {/* Socios */}
-          <PermisoModulo
-            modulo="Socios"
-            permisos={rol.permisos.socios}
-            icono="👥"
-          />
-          
-          {/* Asistencia */}
-          <PermisoModulo
-            modulo="Asistencia"
-            permisos={rol.permisos.asistencia}
-            icono="📝"
-          />
-          
-          {/* Ventas */}
-          <PermisoModulo
-            modulo="Ventas"
-            permisos={rol.permisos.ventas}
-            icono="💰"
-          />
-          
-          {/* Inventario */}
-          <PermisoModulo
-            modulo="Inventario"
-            permisos={rol.permisos.inventario}
-            icono="📦"
-          />
-          
-          {/* Movimientos */}
-          <PermisoModulo
-            modulo="Movimientos"
-            permisos={rol.permisos.movimientos}
-            icono="💸"
-          />
-          
-          {/* Reportes */}
-          <PermisoModulo
-            modulo="Reportes"
-            permisos={rol.permisos.reportes}
-            icono="📈"
-          />
-          
-          {/* Usuarios */}
-          <PermisoModulo
-            modulo="Usuarios"
-            permisos={rol.permisos.usuarios}
-            icono="👤"
-          />
-          
-          {/* Configuración */}
-          <PermisoModulo
-            modulo="Configuración"
-            permisos={rol.permisos.configuracion}
-            icono="⚙️"
-          />
-        </div>
+        {esAdministrador ? (
+          <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-6 text-center">
+            <div className="text-4xl mb-3">👑</div>
+            <h5 className="text-lg font-semibold text-green-500 mb-2">Acceso Total</h5>
+            <p className="text-sm text-muted-foreground">
+              Este rol tiene acceso completo a todas las funcionalidades del sistema
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {Object.keys(rol.permisos).length === 0 ? (
+              <div className="bg-muted/30 border border-border rounded-lg p-6 text-center">
+                <div className="text-4xl mb-3">🚫</div>
+                <h5 className="text-lg font-semibold mb-2">Sin permisos asignados</h5>
+                <p className="text-sm text-muted-foreground">
+                  Este rol no tiene permisos configurados
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Dashboard */}
+                {rol.permisos.dashboard && (
+                  <PermisoModulo
+                    modulo="Dashboard"
+                    permisos={rol.permisos.dashboard}
+                    icono="📊"
+                  />
+                )}
+                
+                {/* Membresías */}
+                {rol.permisos.membresias && (
+                  <PermisoModulo
+                    modulo="Membresías"
+                    permisos={rol.permisos.membresias}
+                    icono="🎫"
+                  />
+                )}
+                
+                {/* Socios */}
+                {rol.permisos.socios && (
+                  <PermisoModulo
+                    modulo="Socios"
+                    permisos={rol.permisos.socios}
+                    icono="👥"
+                  />
+                )}
+                
+                {/* Asistencia */}
+                {rol.permisos.asistencia && (
+                  <PermisoModulo
+                    modulo="Asistencia"
+                    permisos={rol.permisos.asistencia}
+                    icono="📝"
+                  />
+                )}
+                
+                {/* Ventas */}
+                {rol.permisos.ventas && (
+                  <PermisoModulo
+                    modulo="Ventas"
+                    permisos={rol.permisos.ventas}
+                    icono="💰"
+                  />
+                )}
+                
+                {/* Inventario */}
+                {rol.permisos.inventario && (
+                  <PermisoModulo
+                    modulo="Inventario"
+                    permisos={rol.permisos.inventario}
+                    icono="📦"
+                  />
+                )}
+                
+                {/* Movimientos */}
+                {rol.permisos.movimientos && (
+                  <PermisoModulo
+                    modulo="Movimientos"
+                    permisos={rol.permisos.movimientos}
+                    icono="💸"
+                  />
+                )}
+                
+                {/* Reportes */}
+                {rol.permisos.reportes && (
+                  <PermisoModulo
+                    modulo="Reportes"
+                    permisos={rol.permisos.reportes}
+                    icono="📈"
+                  />
+                )}
+                
+                {/* Usuarios */}
+                {rol.permisos.usuarios && (
+                  <PermisoModulo
+                    modulo="Usuarios"
+                    permisos={rol.permisos.usuarios}
+                    icono="👤"
+                  />
+                )}
+                
+                {/* Configuración */}
+                {rol.permisos.configuracion && (
+                  <PermisoModulo
+                    modulo="Configuración"
+                    permisos={rol.permisos.configuracion}
+                    icono="⚙️"
+                  />
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -289,9 +381,15 @@ interface PermisoModuloProps {
 function PermisoModulo({ modulo, permisos, icono }: PermisoModuloProps) {
   const [expanded, setExpanded] = useState(false)
   
+  // Validar que permisos sea un objeto y no null/undefined
+  if (!permisos || typeof permisos !== 'object') {
+    return null
+  }
+  
   // Contar permisos activos
-  const permisosActivos = Object.values(permisos).filter(Boolean).length
-  const permisosTotal = Object.keys(permisos).length
+  const permisosArray = Object.entries(permisos)
+  const permisosActivos = permisosArray.filter(([_, value]) => value === true).length
+  const permisosTotal = permisosArray.length
   const tieneAcceso = permisos.ver === true
 
   return (
@@ -322,10 +420,10 @@ function PermisoModulo({ modulo, permisos, icono }: PermisoModuloProps) {
       </button>
 
       {/* Detalles */}
-      {expanded && (
+      {expanded && permisosArray.length > 0 && (
         <div className="px-4 pb-4 space-y-2">
           <div className="grid grid-cols-2 gap-2">
-            {Object.entries(permisos).map(([key, value]) => (
+            {permisosArray.map(([key, value]) => (
               <div
                 key={key}
                 className={cn(

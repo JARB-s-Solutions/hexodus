@@ -1,8 +1,8 @@
 "use client"
 
-import { X, Mail, Phone, Shield, Building2, Calendar, Clock, Activity } from "lucide-react"
+import { X, Mail, Phone, Shield, Calendar, Clock } from "lucide-react"
 import type { Usuario } from "@/lib/usuarios-data"
-import { rolInfo, estadoInfo, departamentoInfo, formatFechaCorta } from "@/lib/usuarios-data"
+import { formatFechaCorta } from "@/lib/usuarios-data"
 
 interface DetalleUsuarioModalProps {
   usuario: Usuario | null
@@ -12,10 +12,6 @@ interface DetalleUsuarioModalProps {
 
 export function DetalleUsuarioModal({ usuario, open, onClose }: DetalleUsuarioModalProps) {
   if (!open || !usuario) return null
-
-  const rol = rolInfo[usuario.rol]
-  const est = estadoInfo[usuario.estado]
-  const dep = departamentoInfo[usuario.departamento]
 
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -41,9 +37,13 @@ export function DetalleUsuarioModal({ usuario, open, onClose }: DetalleUsuarioMo
               <p className="text-lg font-semibold text-foreground">{usuario.nombre}</p>
               <p className="text-sm text-muted-foreground">@{usuario.username}</p>
             </div>
-            <span className={`ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${est.bg} ${est.color}`}>
-              {usuario.sesionActiva && <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E] animate-pulse" />}
-              {est.nombre}
+            <span className={`ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+              usuario.activo 
+                ? "bg-[#22C55E]/20 text-[#22C55E]" 
+                : "bg-muted text-muted-foreground"
+            }`}>
+              {usuario.activo && <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E] animate-pulse" />}
+              {usuario.activo ? "Activo" : "Inactivo"}
             </span>
           </div>
 
@@ -53,31 +53,25 @@ export function DetalleUsuarioModal({ usuario, open, onClose }: DetalleUsuarioMo
               <Mail className="h-4 w-4 text-accent flex-shrink-0" />
               <div>
                 <p className="text-xs text-muted-foreground">Email</p>
-                <p className="text-sm text-foreground">{usuario.email}</p>
+                <p className="text-sm text-foreground break-all">{usuario.email}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Phone className="h-4 w-4 text-accent flex-shrink-0" />
               <div>
                 <p className="text-xs text-muted-foreground">Telefono</p>
-                <p className="text-sm text-foreground">{usuario.telefono}</p>
+                <p className="text-sm text-foreground">{usuario.telefono || "No especificado"}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Shield className="h-4 w-4 text-accent flex-shrink-0" />
               <div>
                 <p className="text-xs text-muted-foreground">Rol</p>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${rol.bg} ${rol.color}`}>
-                  {rol.nombre}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-accent flex-shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">Departamento</p>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${dep.bg} ${dep.color}`}>
-                  {dep.nombre}
+                <span 
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                  style={{ backgroundColor: usuario.rol.color }}
+                >
+                  {usuario.rol.nombre}
                 </span>
               </div>
             </div>
@@ -85,30 +79,19 @@ export function DetalleUsuarioModal({ usuario, open, onClose }: DetalleUsuarioMo
               <Calendar className="h-4 w-4 text-accent flex-shrink-0" />
               <div>
                 <p className="text-xs text-muted-foreground">Creado</p>
-                <p className="text-sm text-foreground">{formatFechaCorta(usuario.fechaCreacion)}</p>
+                <p className="text-sm text-foreground">
+                  {usuario.fechaCreacion ? formatFechaCorta(usuario.fechaCreacion) : "No disponible"}
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 col-span-2">
               <Clock className="h-4 w-4 text-accent flex-shrink-0" />
               <div>
                 <p className="text-xs text-muted-foreground">Ultimo Acceso</p>
-                <p className="text-sm text-foreground">{formatFechaCorta(usuario.ultimoAcceso)}</p>
+                <p className="text-sm text-foreground">
+                  {usuario.ultimoAcceso ? formatFechaCorta(usuario.ultimoAcceso) : "Nunca"}
+                </p>
               </div>
-            </div>
-          </div>
-
-          {/* Permisos */}
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
-              <Activity className="h-3.5 w-3.5 text-accent" />
-              Permisos
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {usuario.permisos.map((p) => (
-                <span key={p} className="px-2.5 py-1 text-xs font-medium rounded-full bg-accent/10 text-accent">
-                  {p}
-                </span>
-              ))}
             </div>
           </div>
         </div>

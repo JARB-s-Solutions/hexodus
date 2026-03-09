@@ -7,7 +7,7 @@ import {
   ChevronsUpDown,
 } from "lucide-react"
 import type { Usuario } from "@/lib/usuarios-data"
-import { rolInfo, estadoInfo, departamentoInfo, formatFechaCorta } from "@/lib/usuarios-data"
+import { formatFechaCorta } from "@/lib/usuarios-data"
 
 interface UsuariosTableProps {
   usuarios: Usuario[]
@@ -33,6 +33,11 @@ export function UsuariosTable({
   const sorted = [...usuarios].sort((a, b) => {
     const dir = sortDir === "asc" ? 1 : -1
     if (sortField === "nombre") return a.nombre.localeCompare(b.nombre) * dir
+    
+    // Manejar valores null en ultimoAcceso - mover nulls al final
+    if (!a.ultimoAcceso && !b.ultimoAcceso) return 0
+    if (!a.ultimoAcceso) return 1  // a va al final
+    if (!b.ultimoAcceso) return -1 // b va al final
     return a.ultimoAcceso.localeCompare(b.ultimoAcceso) * dir
   })
 
@@ -117,9 +122,6 @@ export function UsuariosTable({
                 Rol
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Departamento
-              </th>
-              <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Estado
               </th>
               <th
@@ -139,15 +141,12 @@ export function UsuariosTable({
           <tbody className="divide-y divide-border">
             {usuariosPagina.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                <td colSpan={6} className="px-4 py-12 text-center text-sm text-muted-foreground">
                   No se encontraron usuarios con los filtros seleccionados.
                 </td>
               </tr>
             ) : (
               usuariosPagina.map((u) => {
-                const rol = rolInfo[u.rol]
-                const est = estadoInfo[u.estado]
-                const dep = departamentoInfo[u.departamento]
 
                 return (
                   <tr
@@ -175,31 +174,33 @@ export function UsuariosTable({
 
                     {/* Rol */}
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${rol.bg} ${rol.color}`}>
-                        {rol.nombre}
-                      </span>
-                    </td>
-
-                    {/* Departamento */}
-                    <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${dep.bg} ${dep.color}`}>
-                        {dep.nombre}
+                      <span 
+                        className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium text-white"
+                        style={{ backgroundColor: u.rol.color }}
+                      >
+                        {u.rol.nombre}
                       </span>
                     </td>
 
                     {/* Estado */}
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${est.bg} ${est.color}`}>
-                        {u.sesionActiva && (
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        u.activo 
+                          ? "bg-[#22C55E]/20 text-[#22C55E]" 
+                          : "bg-muted text-muted-foreground"
+                      }`}>
+                        {u.activo && (
                           <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E] animate-pulse" />
                         )}
-                        {est.nombre}
+                        {u.activo ? "Activo" : "Inactivo"}
                       </span>
                     </td>
 
                     {/* Ultimo Acceso */}
                     <td className="px-4 py-3 text-center">
-                      <p className="text-sm font-medium text-foreground">{formatFechaCorta(u.ultimoAcceso)}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {u.ultimoAcceso ? formatFechaCorta(u.ultimoAcceso) : "Nunca"}
+                      </p>
                     </td>
 
                     {/* Acciones */}

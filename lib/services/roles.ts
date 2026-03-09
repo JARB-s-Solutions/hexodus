@@ -3,15 +3,47 @@
  * Maneja la lógica de roles, permisos y asignaciones
  */
 
-import type { Rol, AsignacionRol, ConjuntoPermisos, Modulo } from '@/lib/types/permissions'
-import { ROLES_PREDEFINIDOS, esRolDeSistema } from '@/lib/roles/roles-predefinidos'
+import { AuthService } from '@/lib/auth'
+
+// ============================================================================
+// TIPOS DE LA API
+// ============================================================================
+
+export interface RolAPI {
+  id: string
+  nombre: string
+  descripcion: string | null
+  color: string | null
+  esSistema: boolean
+  usuariosActivos: number
+  permisos: Record<string, any>
+  fechaCreacion: string
+}
+
+export interface ObtenerRolesResponse {
+  success: boolean
+  data: RolAPI[]
+}
+
+export interface CrearRolRequest {
+  nombre: string
+  descripcion?: string
+  color?: string
+  permisos: Record<string, any>
+}
+
+export interface ActualizarRolRequest {
+  nombre?: string
+  descripcion?: string
+  color?: string
+  permisos?: Record<string, any>
+}
 
 // ============================================================================
 // CONSTANTES
 // ============================================================================
 
-const STORAGE_KEY_ROLES = 'hexodus_roles'
-const STORAGE_KEY_ASIGNACIONES = 'hexodus_asignaciones_roles'
+const API_BASE_URL = 'https://hexodusapi.vercel.app/api'
 
 // ============================================================================
 // SERVICIO DE ROLES
@@ -19,237 +51,172 @@ const STORAGE_KEY_ASIGNACIONES = 'hexodus_asignaciones_roles'
 
 export class RolesService {
   /**
-   * Obtener todos los roles (predefinidos + personalizados)
+   * Construir query string desde objeto de filtros
    */
-  static async obtenerRoles(): Promise<Rol[]> {
+  private static buildQueryString(params: Record<string, any>): string {
+    const searchParams = new URLSearchParams()
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        searchParams.append(key, String(value))
+      }
+    })
+    
+    const queryString = searchParams.toString()
+    return queryString ? `?${queryString}` : ''
+  }
+
+  /**
+   * Obtener headers con autenticación
+   */
+  private static getHeaders(): HeadersInit {
+    const token = AuthService.getToken()
+    
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+  }
+
+  /**
+   * Obtener todos los roles
+   */
+  static async obtenerRoles(): Promise<RolAPI[]> {
     try {
-      const rolesCustom = this.obtenerRolesCustomizados()
-      return [...ROLES_PREDEFINIDOS, ...rolesCustom]
+      const response = await fetch(`${API_BASE_URL}/roles`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`)
+      }
+
+      const data: ObtenerRolesResponse = await response.json()
+      
+      if (!data.success) {
+        throw new Error('La respuesta de la API no fue exitosa')
+      }
+
+      return data.data
     } catch (error) {
       console.error('Error obteniendo roles:', error)
-      return ROLES_PREDEFINIDOS
+      throw error
     }
   }
 
   /**
    * Obtener un rol por ID
    */
-  static async obtenerRol(rolId: string): Promise<Rol | null> {
-    const roles = await this.obtenerRoles()
-    return roles.find(rol => rol.id === rolId) || null
+  static async obtenerRol(rolId: string): Promise<RolAPI> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/roles/${rolId}`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error('La respuesta de la API no fue exitosa')
+      }
+
+      return data.data
+    } catch (error) {
+      console.error('Error obteniendo rol:', error)
+      throw error
+    }
   }
 
   /**
-   * Crear un nuevo rol personalizado
+   * Crear un nuevo rol
    */
-  static async crearRol(rolData: Omit<Rol, 'id' | 'fechaCreacion' | 'esSistema'>): Promise<Rol> {
-    const roles = this.obtenerRolesCustomizados()
-    
-    const nuevoRol: Rol = {
-      ...rolData,
-      id: `custom_${Date.now()}`,
-      esSistema: false,
-      fechaCreacion: new Date().toISOString()
+  static async crearRol(datosRol: CrearRolRequest): Promise<RolAPI> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/roles`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(datosRol)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.message || 'La respuesta de la API no fue exitosa')
+      }
+
+      console.log('✅ Rol creado:', data.data.nombre)
+      return data.data
+    } catch (error) {
+      console.error('Error creando rol:', error)
+      throw error
     }
-    
-    roles.push(nuevoRol)
-    this.guardarRolesCustomizados(roles)
-    
-    console.log('✅ Rol creado:', nuevoRol.nombre)
-    return nuevoRol
   }
 
   /**
-   * Actualizar un rol existente (solo personalizados)
+   * Actualizar un rol existente
    */
-  static async actualizarRol(rolId: string, cambios: Partial<Rol>): Promise<Rol> {
-    if (esRolDeSistema(rolId)) {
-      throw new Error('No se pueden modificar los roles del sistema')
-    }
+  static async actualizarRol(rolId: string, cambios: ActualizarRolRequest): Promise<RolAPI> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/roles/${rolId}`, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+        body: JSON.stringify(cambios)
+      })
 
-    const roles = this.obtenerRolesCustomizados()
-    const index = roles.findIndex(r => r.id === rolId)
-    
-    if (index === -1) {
-      throw new Error('Rol no encontrado')
-    }
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+      }
 
-    roles[index] = {
-      ...roles[index],
-      ...cambios,
-      id: rolId, // Mantener el ID original
-      fechaModificacion: new Date().toISOString()
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.message || 'La respuesta de la API no fue exitosa')
+      }
+
+      console.log('✅ Rol actualizado:', data.data.nombre)
+      return data.data
+    } catch (error) {
+      console.error('Error actualizando rol:', error)
+      throw error
     }
-    
-    this.guardarRolesCustomizados(roles)
-    
-    console.log('✅ Rol actualizado:', roles[index].nombre)
-    return roles[index]
   }
 
   /**
-   * Eliminar un rol personalizado
+   * Eliminar un rol
    */
   static async eliminarRol(rolId: string): Promise<void> {
-    if (esRolDeSistema(rolId)) {
-      throw new Error('No se pueden eliminar los roles del sistema')
-    }
-
-    // Verificar que no haya usuarios con este rol
-    const asignaciones = this.obtenerAsignaciones()
-    const tieneUsuarios = asignaciones.some(a => a.rolId === rolId)
-    
-    if (tieneUsuarios) {
-      throw new Error('No se puede eliminar un rol que tiene usuarios asignados')
-    }
-
-    const roles = this.obtenerRolesCustomizados()
-    const rolesFiltrados = roles.filter(r => r.id !== rolId)
-    
-    this.guardarRolesCustomizados(rolesFiltrados)
-    console.log('✅ Rol eliminado')
-  }
-
-  /**
-   * Asignar un rol a un usuario
-   */
-  static async asignarRol(usuarioId: string, rolId: string, asignadoPor: string): Promise<AsignacionRol> {
-    const rol = await this.obtenerRol(rolId)
-    
-    if (!rol) {
-      throw new Error('Rol no encontrado')
-    }
-
-    const asignaciones = this.obtenerAsignaciones()
-    
-    // Remover asignación anterior si existe
-    const asignacionesFiltradas = asignaciones.filter(a => a.usuarioId !== usuarioId)
-    
-    const nuevaAsignacion: AsignacionRol = {
-      usuarioId,
-      rolId,
-      asignadoPor,
-      fechaAsignacion: new Date().toISOString()
-    }
-    
-    asignacionesFiltradas.push(nuevaAsignacion)
-    this.guardarAsignaciones(asignacionesFiltradas)
-    
-    console.log(`✅ Rol "${rol.nombre}" asignado al usuario ${usuarioId}`)
-    return nuevaAsignacion
-  }
-
-  /**
-   * Obtener el rol de un usuario
-   */
-  static async obtenerRolDeUsuario(usuarioId: string): Promise<Rol | null> {
-    const asignaciones = this.obtenerAsignaciones()
-    const asignacion = asignaciones.find(a => a.usuarioId === usuarioId)
-    
-    if (!asignacion) {
-      return null
-    }
-    
-    return await this.obtenerRol(asignacion.rolId)
-  }
-
-  /**
-   * Verificar si un usuario tiene un permiso específico
-   */
-  static async tienePermiso(
-    usuarioId: string, 
-    modulo: Modulo, 
-    accion: string
-  ): Promise<boolean> {
-    const rol = await this.obtenerRolDeUsuario(usuarioId)
-    
-    if (!rol) {
-      return false
-    }
-
-    // Administradores tienen acceso a todo
-    if (rol.esAdministrador) {
-      return true
-    }
-
-    const permisosModulo = rol.permisos[modulo] as any
-    
-    if (!permisosModulo) {
-      return false
-    }
-
-    return permisosModulo[accion] === true
-  }
-
-  /**
-   * Obtener todos los permisos de un usuario
-   */
-  static async obtenerPermisos(usuarioId: string): Promise<ConjuntoPermisos | null> {
-    const rol = await this.obtenerRolDeUsuario(usuarioId)
-    return rol ? rol.permisos : null
-  }
-
-  // ============================================================================
-  // MÉTODOS PRIVADOS - localStorage
-  // ============================================================================
-
-  private static obtenerRolesCustomizados(): Rol[] {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_ROLES)
-      return stored ? JSON.parse(stored) : []
+      const response = await fetch(`${API_BASE_URL}/roles/${rolId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      
+      if (!data.success) {
+        throw new Error(data.message || 'La respuesta de la API no fue exitosa')
+      }
+
+      console.log('✅ Rol eliminado')
     } catch (error) {
-      console.error('Error leyendo roles:', error)
-      return []
+      console.error('Error eliminando rol:', error)
+      throw error
     }
   }
-
-  private static guardarRolesCustomizados(roles: Rol[]): void {
-    try {
-      localStorage.setItem(STORAGE_KEY_ROLES, JSON.stringify(roles))
-    } catch (error) {
-      console.error('Error guardando roles:', error)
-      throw new Error('No se pudieron guardar los roles')
-    }
-  }
-
-  private static obtenerAsignaciones(): AsignacionRol[] {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_ASIGNACIONES)
-      return stored ? JSON.parse(stored) : []
-    } catch (error) {
-      console.error('Error leyendo asignaciones:', error)
-      return []
-    }
-  }
-
-  private static guardarAsignaciones(asignaciones: AsignacionRol[]): void {
-    try {
-      localStorage.setItem(STORAGE_KEY_ASIGNACIONES, JSON.stringify(asignaciones))
-    } catch (error) {
-      console.error('Error guardando asignaciones:', error)
-      throw new Error('No se pudieron guardar las asignaciones')
-    }
-  }
-}
-
-// ============================================================================
-// FUNCIONES HELPER PARA USAR EN COMPONENTES
-// ============================================================================
-
-/**
- * Verificar si el usuario actual tiene acceso a un módulo
- */
-export async function puedeAccederModulo(usuarioId: string, modulo: Modulo): Promise<boolean> {
-  return await RolesService.tienePermiso(usuarioId, modulo, 'ver')
-}
-
-/**
- * Verificar si el usuario puede realizar una acción
- */
-export async function puedeRealizarAccion(
-  usuarioId: string, 
-  modulo: Modulo, 
-  accion: string
-): Promise<boolean> {
-  return await RolesService.tienePermiso(usuarioId, modulo, accion)
 }

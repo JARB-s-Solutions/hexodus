@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, LogOut, UserPlus } from "lucide-react"
+import { Bell, LogOut, UserPlus, Fingerprint } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AuthService } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
 
 interface AsistenciaHeaderProps {
   onRegistroManual?: () => void
+  onRegistroHuella?: () => void
 }
 
-export function AsistenciaHeader({ onRegistroManual }: AsistenciaHeaderProps) {
+export function AsistenciaHeader({ onRegistroManual, onRegistroHuella }: AsistenciaHeaderProps) {
   const [fechaHora, setFechaHora] = useState("")
   const router = useRouter()
   const { toast } = useToast()
@@ -66,6 +67,17 @@ export function AsistenciaHeader({ onRegistroManual }: AsistenciaHeaderProps) {
         <p className="text-sm text-muted-foreground">{fechaHora}</p>
       </div>
       <div className="flex items-center gap-3">
+        {onRegistroHuella && (
+          <Button
+            onClick={onRegistroHuella}
+            variant="default"
+            size="sm"
+            className="gap-2 bg-gradient-to-r from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70"
+          >
+            <Fingerprint className="h-4 w-4" />
+            Registro con Huella
+          </Button>
+        )}
         {onRegistroManual && (
           <Button
             onClick={onRegistroManual}

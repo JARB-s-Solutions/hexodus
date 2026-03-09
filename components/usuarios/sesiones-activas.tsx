@@ -9,9 +9,20 @@ interface SesionesActivasProps {
 
 export function SesionesActivas({ usuarios }: SesionesActivasProps) {
   const activos = usuarios.filter((u) => u.activo)
-  const sesionesAdmin = activos.filter((u) => u.rol === "admin" && u.sesionActiva).length
-  const sesionesEmpleados = activos.filter((u) => u.rol !== "admin" && u.sesionActiva).length
-  const totalSesiones = activos.filter((u) => u.sesionActiva).length
+  
+  // Calcular sesiones activas basado en último acceso (últimas 24 horas)
+  const now = new Date()
+  const hace24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  
+  const usuariosConSesion = activos.filter((u) => {
+    if (!u.ultimoAcceso) return false
+    const ultimoAcceso = new Date(u.ultimoAcceso)
+    return ultimoAcceso >= hace24h
+  })
+  
+  const sesionesAdmin = usuariosConSesion.filter((u) => u.rol.id === "admin").length
+  const sesionesEmpleados = usuariosConSesion.filter((u) => u.rol.id !== "admin").length
+  const totalSesiones = usuariosConSesion.length
   const total = activos.length
 
   return (
@@ -21,7 +32,7 @@ export function SesionesActivas({ usuarios }: SesionesActivasProps) {
     >
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Activity className="h-4 w-4 text-accent" />
-        <span className="font-medium">Sesiones Activas</span>
+        <span className="font-medium">Activos Hoy (24h)</span>
       </div>
       <div className="flex items-center gap-4 text-xs">
         <div className="flex items-center gap-1.5">
@@ -31,7 +42,7 @@ export function SesionesActivas({ usuarios }: SesionesActivasProps) {
         </div>
         <div className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-[#FBB424]" />
-          <span className="text-muted-foreground">Empleados:</span>
+          <span className="text-muted-foreground">Otros:</span>
           <span className="font-semibold text-[#FBB424]">{sesionesEmpleados}</span>
         </div>
         <div className="flex items-center gap-1.5">

@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { X, User, Shield, Key, Settings } from "lucide-react"
-import type { Usuario, Rol, Estado, Departamento } from "@/lib/usuarios-data"
+import { X, User, Shield, Key } from "lucide-react"
+import type { Usuario } from "@/lib/usuarios-data"
 
 interface UsuarioModalProps {
   open: boolean
@@ -16,21 +16,10 @@ export interface UsuarioFormData {
   email: string
   telefono: string
   username: string
-  rol: Rol
-  departamento: Departamento
-  estado: Estado
+  rolId: string
+  activo: boolean
   password?: string
-  permisos: string[]
 }
-
-const permisosDisponibles = [
-  { value: "usuarios", label: "Gestion de usuarios" },
-  { value: "socios", label: "Gestion de socios" },
-  { value: "ventas", label: "Gestion de ventas" },
-  { value: "inventario", label: "Gestion de inventario" },
-  { value: "reportes", label: "Generar reportes" },
-  { value: "configuracion", label: "Configuracion del sistema" },
-]
 
 export function UsuarioModal({ open, onClose, onGuardar, usuario }: UsuarioModalProps) {
   const esEdicion = !!usuario
@@ -39,17 +28,11 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario }: UsuarioModal
   const [email, setEmail] = useState(usuario?.email || "")
   const [telefono, setTelefono] = useState(usuario?.telefono || "")
   const [username, setUsername] = useState(usuario?.username || "")
-  const [rol, setRol] = useState<Rol>(usuario?.rol || "empleado")
-  const [departamento, setDepartamento] = useState<Departamento>(usuario?.departamento || "administracion")
-  const [estado, setEstado] = useState<Estado>(usuario?.estado || "activo")
+  const [rolId, setRolId] = useState<string>(usuario?.rol.id || "recepcionista")
+  const [activo, setActivo] = useState<boolean>(usuario?.activo ?? true)
   const [password, setPassword] = useState("")
   const [confirmarPassword, setConfirmarPassword] = useState("")
-  const [permisos, setPermisos] = useState<string[]>(usuario?.permisos || [])
   const [error, setError] = useState("")
-
-  function togglePermiso(p: string) {
-    setPermisos((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]))
-  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -76,11 +59,9 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario }: UsuarioModal
       email,
       telefono,
       username,
-      rol,
-      departamento,
-      estado,
+      rolId,
+      activo,
       password: esEdicion ? undefined : password,
-      permisos,
     })
   }
 
@@ -89,7 +70,7 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario }: UsuarioModal
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div
-        className="bg-card rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-border animate-slide-up"
+        className="bg-card rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-border animate-slide-up"
         style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}
       >
         {/* Header */}
@@ -167,36 +148,20 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario }: UsuarioModal
               <Shield className="h-4 w-4 text-accent" />
               Configuracion de Acceso
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Rol <span className="text-destructive">*</span>
                 </label>
                 <select
-                  value={rol}
-                  onChange={(e) => setRol(e.target.value as Rol)}
+                  value={rolId}
+                  onChange={(e) => setRolId(e.target.value)}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 appearance-none"
                 >
                   <option value="admin">Administrador</option>
-                  <option value="moderador">Moderador</option>
-                  <option value="empleado">Empleado</option>
-                  <option value="invitado">Invitado</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Departamento <span className="text-destructive">*</span>
-                </label>
-                <select
-                  value={departamento}
-                  onChange={(e) => setDepartamento(e.target.value as Departamento)}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 appearance-none"
-                >
-                  <option value="administracion">Administracion</option>
-                  <option value="ventas">Ventas</option>
-                  <option value="operaciones">Operaciones</option>
-                  <option value="marketing">Marketing</option>
-                  <option value="soporte">Soporte</option>
+                  <option value="recepcionista">Recepcionista</option>
+                  <option value="entrenador">Entrenador</option>
+                  <option value="contador">Contador</option>
                 </select>
               </div>
               <div>
@@ -204,13 +169,12 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario }: UsuarioModal
                   Estado <span className="text-destructive">*</span>
                 </label>
                 <select
-                  value={estado}
-                  onChange={(e) => setEstado(e.target.value as Estado)}
+                  value={activo ? "true" : "false"}
+                  onChange={(e) => setActivo(e.target.value === "true")}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 appearance-none"
                 >
-                  <option value="activo">Activo</option>
-                  <option value="inactivo">Inactivo</option>
-                  <option value="bloqueado">Bloqueado</option>
+                  <option value="true">Activo</option>
+                  <option value="false">Inactivo</option>
                 </select>
               </div>
             </div>
@@ -249,27 +213,6 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario }: UsuarioModal
               </div>
             </div>
           )}
-
-          {/* Section: Permissions */}
-          <div>
-            <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2 border-b border-border pb-2">
-              <Settings className="h-4 w-4 text-accent" />
-              Permisos Especificos
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {permisosDisponibles.map((p) => (
-                <label key={p.value} className="flex items-center gap-2 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={permisos.includes(p.value)}
-                    onChange={() => togglePermiso(p.value)}
-                    className="rounded border-border bg-background text-accent focus:ring-accent/50 focus:ring-1 h-4 w-4"
-                  />
-                  <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">{p.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4 border-t border-border">
