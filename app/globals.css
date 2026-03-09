@@ -209,6 +209,22 @@
   background: #33ccff;
 }
 
+/* Custom scrollbar class for specific components */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
 /* Neon glow utilities */
 .glow-primary {
   box-shadow: 0 0 10px rgba(255, 59, 59, 0.5);

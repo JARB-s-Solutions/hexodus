@@ -6,28 +6,267 @@ import { AsistenciaHeader } from "@/components/asistencia/asistencia-header"
 import { KpiAsistenciaCards } from "@/components/asistencia/kpi-asistencia"
 import { PanelEscaneo } from "@/components/asistencia/panel-escaneo"
 import { HistorialRegistros } from "@/components/asistencia/historial-registros"
+import { RegistroManualModal } from "@/components/asistencia/registro-manual-modal"
+import { HistorialSocioModal } from "@/components/asistencia/historial-socio-modal"
+import { HistorialSocioTab } from "@/components/asistencia/historial-socio-tab"
+import { AsistenciaService } from "@/lib/services/asistencia"
+import { useToast } from "@/hooks/use-toast"
 import {
-  generateDemoRegistros,
-  computeKpis,
   DEFAULT_CONFIG,
   type RegistroAcceso,
   type ConfigRegistro,
+  type KpiAsistencia,
 } from "@/lib/asistencia-data"
 
-const initialRegistros = generateDemoRegistros(25)
-
 export default function AsistenciaPage() {
-  const [registros, setRegistros] = useState<RegistroAcceso[]>(initialRegistros)
+  // Estados para tab activo
+  const [tabActivo, setTabActivo] = useState<"hoy" | "historial" | "socio">("hoy")
+  
+  // Estados para registros de hoy
+  const [registrosHoy, setRegistrosHoy] = useState<RegistroAcceso[]>([])
+  const [loadingHoy, setLoadingHoy] = useState(false)
+  const [errorHoy, setErrorHoy] = useState<string | null>(null)
+  
+  // Estados para historial completo
+  const [registrosHistorial, setRegistrosHistorial] = useState<RegistroAcceso[]>([])
+  const [loadingHistorial, setLoadingHistorial] = useState(false)
+  const [errorHistorial, setErrorHistorial] = useState<string | null>(null)
+  const [paginaHistorial, setPaginaHistorial] = useState(1)
+  const [totalPaginasHistorial, setTotalPaginasHistorial] = useState(1)
+  const [totalRegistrosHistorial, setTotalRegistrosHistorial] = useState(0)
+  const [registrosPorPagina, setRegistrosPorPagina] = useState(50)
+  
+  // Estados para historial por socio
+  const [socioSeleccionadoId, setSocioSeleccionadoId] = useState<number | null>(null)
+  const [datosSocio, setDatosSocio] = useState<{
+    id: number
+    codigoSocio: string
+    nombreCompleto: string
+    fotoUrl?: string
+  } | null>(null)
+  const [asistenciasSocio, setAsistenciasSocio] = useState<RegistroAcceso[]>([])
+  const [loadingSocio, setLoadingSocio] = useState(false)
+  const [errorSocio, setErrorSocio] = useState<string | null>(null)
+  
+  // Estados comunes
+  const [kpisData, setKpisData] = useState<KpiAsistencia>({
+    asistentesHoy: 0,
+    activosAhora: 0,
+    denegados: 0,
+    permanenciaPromedio: "0m",
+  })
   const [config, setConfig] = useState<ConfigRegistro>(DEFAULT_CONFIG)
   const [pantallaAbierta, setPantallaAbierta] = useState(false)
   const [sistemaListo, setSistemaListo] = useState(false)
+  const [modalRegistroManual, setModalRegistroManual] = useState(false)
+  const [modalHistorialSocio, setModalHistorialSocio] = useState<string | null>(null)
+  const [loadingKpis, setLoadingKpis] = useState(false)
+  const [errorKpis, setErrorKpis] = useState<string | null>(null)
+  
   const ventanaRef = useRef<Window | null>(null)
+  const { toast } = useToast()
+
+  // Cargar asistencias del día actual (endpoint /hoy con campo 'hora')
+  const cargarAsistenciasHoy = useCallback(async () => {
+    try {
+      setLoadingHoy(true)
+      setErrorHoy(null)
+
+      const response = await AsistenciaService.obtenerAsistenciasHoy()
+
+      console.log('[cargarAsistenciasHoy] Response completa:', response)
+      console.log('[cargarAsistenciasHoy] Primer registro:', response.data?.asistencias[0])
+
+      if (response.success && response.data) {
+        // Transformar datos: /hoy tiene campo 'hora' (string "03:03:36") no 'timestamp'
+        const registrosTransformados: RegistroAcceso[] = response.data.asistencias.map((r) => {
+          // Determinar confianza
+          console.log('[HOY] Registro:', {
+            nombre: r.socio_nombre,
+            confidence: r.confidence,
+            confidenceType: typeof r.confidence,
+            allKeys: Object.keys(r)
+          })
+          
+          let confianzaStr = "N/A"
+          if (r.confidence != null) {
+            const conf = r.confidence
+            confianzaStr = conf > 1 ? conf.toFixed(0) : (conf * 100).toFixed(0)
+            console.log('[HOY] Confianza calculada:', confianzaStr)
+          } else {
+            console.warn('[HOY] No hay confidence para:', r.socio_nombre)
+          }
+
+          // Construir timestamp desde fecha + hora
+          // fecha: "2026-03-09", hora: "03:03:36" -> "2026-03-09T03:03:36"
+          const timestamp = `${response.data.fecha}T${r.hora}`
+
+          return {
+            id: r.id,
+            socioId: r.codigo_socio, // /hoy no tiene socio_id, usa codigo_socio
+            nombreSocio: r.socio_nombre,
+            tipo: r.tipo === 'IN' ? 'permitido' : 'denegado',
+            motivo: r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual',
+            confianza: confianzaStr,
+            timestamp: timestamp,
+            estadoMembresia: 'vigente' as any,
+          }
+        })
+
+        setRegistrosHoy(registrosTransformados)
+      }
+    } catch (error: any) {
+      console.error("Error al cargar asistencias de hoy:", error)
+      setErrorHoy(error.message || "Error al cargar asistencias de hoy")
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las asistencias de hoy",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingHoy(false)
+    }
+  }, [toast])
+
+  // Cargar historial completo (endpoint /asistencia con campo 'timestamp' y paginación)
+  const cargarHistorialCompleto = useCallback(async (pagina: number = 1) => {
+    try {
+      setLoadingHistorial(true)
+      setErrorHistorial(null)
+
+      const response = await AsistenciaService.obtenerHistorial({
+        pagina,
+        limite: registrosPorPagina,
+      })
+
+      console.log('[cargarHistorialCompleto] Response completa:', response)
+      console.log('[cargarHistorialCompleto] Primer registro:', response.data?.asistencias[0])
+
+      if (response.success && response.data) {
+        // Transformar datos: /asistencia tiene campo 'timestamp' completo
+        const registrosTransformados: RegistroAcceso[] = response.data.asistencias.map((r) => {
+          // Determinar confianza
+          console.log('[HISTORIAL] Registro:', {
+            nombre: r.socio_nombre,
+            confidence: r.confidence,
+            confidenceType: typeof r.confidence,
+            allKeys: Object.keys(r)
+          })
+          
+          let confianzaStr = "N/A"
+          if (r.confidence != null) {
+            const conf = r.confidence
+            confianzaStr = conf > 1 ? conf.toFixed(0) : (conf * 100).toFixed(0)
+            console.log('[HISTORIAL] Confianza calculada:', confianzaStr)
+          } else {
+            console.warn('[HISTORIAL] No hay confidence para:', r.socio_nombre)
+          }
+
+          return {
+            id: r.id,
+            socioId: String(r.socio_id), // Historial tiene socio_id
+            nombreSocio: r.socio_nombre,
+            tipo: r.tipo === 'IN' ? 'permitido' : 'denegado',
+            motivo: r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual',
+            confianza: confianzaStr,
+            timestamp: r.timestamp, // Usar timestamp directamente
+            estadoMembresia: 'vigente' as any,
+          }
+        })
+
+        setRegistrosHistorial(registrosTransformados)
+        setPaginaHistorial(response.data.pagination.page)
+        setTotalPaginasHistorial(response.data.pagination.total_pages)
+        setTotalRegistrosHistorial(response.data.pagination.total)
+      }
+    } catch (error: any) {
+      console.error("Error al cargar historial completo:", error)
+      setErrorHistorial(error.message || "Error al cargar historial completo")
+      toast({
+        title: "Error",
+        description: "No se pudo cargar el historial completo",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingHistorial(false)
+    }
+  }, [toast, registrosPorPagina])
+
+  // Manejador para cambiar cantidad de registros por página
+  const handleCambiarRegistrosPorPagina = useCallback((cantidad: number) => {
+    setRegistrosPorPagina(cantidad)
+    setPaginaHistorial(1) // Resetear a primera página
+  }, [])
+
+  // Cargar KPIs desde API
+  const cargarKpis = useCallback(async () => {
+    try {
+      setLoadingKpis(true)
+      setErrorKpis(null)
+
+      const response = await AsistenciaService.obtenerKpis()
+
+      if (response.success && response.data) {
+        // Transformar datos de API a formato local
+        setKpisData({
+          asistentesHoy: response.data.total_asistencias,
+          activosAhora: response.data.socios_activos_ahora,
+          denegados: 0, // No hay denegados en el nuevo sistema
+          permanenciaPromedio: "N/A",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error al cargar KPIs:", error)
+      setErrorKpis(error.message || "Error al cargar KPIs")
+    } finally {
+      setLoadingKpis(false)
+    }
+  }, [])
+
+  // Recargar datos según tab activo
+  const recargarDatos = useCallback(() => {
+    if (tabActivo === "hoy") {
+      cargarAsistenciasHoy()
+    } else {
+      cargarHistorialCompleto(paginaHistorial)
+    }
+    cargarKpis()
+  }, [tabActivo, cargarAsistenciasHoy, cargarHistorialCompleto, cargarKpis, paginaHistorial])
 
   // Simulate system ready after mount
   useEffect(() => {
     const timer = setTimeout(() => setSistemaListo(true), 1500)
     return () => clearTimeout(timer)
   }, [])
+
+  // Cargar datos iniciales
+  useEffect(() => {
+    cargarAsistenciasHoy() // Por defecto cargar "hoy"
+    cargarKpis()
+  }, [cargarAsistenciasHoy, cargarKpis])
+
+  // Cargar datos al cambiar de tab
+  useEffect(() => {
+    if (tabActivo === "hoy") {
+      cargarAsistenciasHoy()
+    } else {
+      cargarHistorialCompleto(1) // Cargar página 1 al abrir historial
+    }
+  }, [tabActivo, cargarAsistenciasHoy, cargarHistorialCompleto, registrosPorPagina])
+
+  // Polling para actualizar datos cada 30 segundos (solo tab activo)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (tabActivo === "hoy") {
+        cargarAsistenciasHoy()
+      } else {
+        cargarHistorialCompleto(paginaHistorial)
+      }
+      cargarKpis()
+    }, 30000) // 30 segundos
+
+    return () => clearInterval(interval)
+  }, [tabActivo, cargarAsistenciasHoy, cargarHistorialCompleto, cargarKpis, paginaHistorial])
 
   // Check if client window is still open
   useEffect(() => {
@@ -44,12 +283,30 @@ export default function AsistenciaPage() {
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       if (event.data?.tipo === "registro_acceso") {
-        setRegistros((prev) => [event.data.datos, ...prev])
+        const nuevoRegistro = event.data.datos
+        
+        // Agregar registro al array de "hoy" (siempre son registros nuevos de hoy)
+        setRegistrosHoy((prev) => [nuevoRegistro, ...prev])
+        
+        // Si estamos en el tab de historial, también se agrega ahí
+        if (tabActivo === "historial") {
+          setRegistrosHistorial((prev) => [nuevoRegistro, ...prev])
+        }
+        
+        // Recargar KPIs después de nuevo registro
+        setTimeout(() => cargarKpis(), 500)
+        
+        // Mostrar notificación
+        toast({
+          title: nuevoRegistro.tipo === "permitido" ? "Acceso Permitido" : "Acceso Denegado",
+          description: `${nuevoRegistro.nombreSocio} - ${nuevoRegistro.motivo}`,
+          variant: nuevoRegistro.tipo === "permitido" ? "default" : "destructive",
+        })
       }
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [])
+  }, [toast, cargarKpis, tabActivo])
 
   // Save config to localStorage for scanner window
   useEffect(() => {
@@ -57,8 +314,6 @@ export default function AsistenciaPage() {
       localStorage.setItem("config_registro_cliente", JSON.stringify(config))
     }
   }, [config])
-
-  const kpis = computeKpis(registros)
 
   const handleAbrirPantalla = useCallback(() => {
     if (ventanaRef.current && !ventanaRef.current.closed) {
@@ -99,10 +354,18 @@ export default function AsistenciaPage() {
   }, [])
 
   const handleLimpiarHistorial = useCallback(() => {
-    if (confirm("Deseas limpiar el historial de registros de hoy?")) {
-      setRegistros([])
+    if (confirm("¿Deseas limpiar el historial de registros?")) {
+      if (tabActivo === "hoy") {
+        setRegistrosHoy([])
+      } else {
+        setRegistrosHistorial([])
+      }
+      toast({
+        title: "Historial limpiado",
+        description: "Se han eliminado todos los registros de la vista actual",
+      })
     }
-  }, [])
+  }, [toast, tabActivo])
 
   const handleConfigChange = useCallback(
     (newConfig: ConfigRegistro) => {
@@ -118,15 +381,75 @@ export default function AsistenciaPage() {
     []
   )
 
+  const handleRegistroExitoso = useCallback((registroData: any) => {
+    console.log('[handleRegistroExitoso] Datos recibidos:', registroData)
+    
+    // La estructura del backend de registro manual es plana, no anidada
+    if (!registroData || !registroData.nombre || !registroData.tipo) {
+      console.warn('[handleRegistroExitoso] Estructura de respuesta inesperada:', registroData)
+      toast({
+        title: "Registro exitoso",
+        description: "La asistencia fue registrada correctamente",
+      })
+      // Recargar los registros del tab actual
+      if (tabActivo === "hoy") {
+        cargarAsistenciasHoy()
+      } else {
+        cargarHistorialCompleto(paginaHistorial)
+      }
+      cargarKpis()
+      return
+    }
+
+    // Transformar registro de API (estructura plana) a formato local
+    const nuevoRegistro: RegistroAcceso = {
+      id: String(registroData.id),
+      socioId: registroData.clave || String(registroData.socio_id),
+      nombreSocio: registroData.nombre,
+      tipo: registroData.tipo === 'IN' ? 'permitido' : 'denegado',
+      motivo: registroData.notas || 'Registro manual',
+      confianza: "Manual",
+      timestamp: registroData.timestamp,
+      estadoMembresia: 'vigente' as any,
+    }
+
+    // Agregar a registros de hoy (siempre son registros nuevos del día)
+    setRegistrosHoy((prev) => [nuevoRegistro, ...prev])
+    
+    // Si estamos en historial, también agregar ahí
+    if (tabActivo === "historial") {
+      setRegistrosHistorial((prev) => [nuevoRegistro, ...prev])
+    }
+
+    // Recargar KPIs
+    setTimeout(() => cargarKpis(), 500)
+
+    toast({
+      title: "✅ Registro exitoso",
+      description: `${registroData.tipo === 'IN' ? 'Entrada' : 'Salida'} registrada para ${registroData.nombre}`,
+    })
+  }, [toast, cargarKpis, cargarAsistenciasHoy, cargarHistorialCompleto, tabActivo, paginaHistorial])
+
+  const handleVerHistorialSocio = useCallback((socioId: string) => {
+    setModalHistorialSocio(socioId)
+  }, [])
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar activePage="asistencia" />
 
       <main className="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-5">
-        <AsistenciaHeader />
+        <AsistenciaHeader 
+          onRegistroManual={() => setModalRegistroManual(true)}
+        />
 
         {/* KPIs */}
-        <KpiAsistenciaCards data={kpis} />
+        <KpiAsistenciaCards 
+          data={kpisData} 
+          loading={loadingKpis}
+          error={errorKpis}
+          onRecargar={cargarKpis}
+        />
 
         {/* Main content: Control + History */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 flex-1 min-h-0">
@@ -142,15 +465,100 @@ export default function AsistenciaPage() {
             />
           </div>
 
-          {/* Right: History */}
+          {/* Right: History with Tabs */}
           <div className="lg:col-span-2">
-            <HistorialRegistros
-              registros={registros}
-              onLimpiar={handleLimpiarHistorial}
-            />
+            {/* Tabs Navigation */}
+            <div 
+              className="flex items-center gap-1 bg-card rounded-lg p-1 mb-4" 
+              style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}
+            >
+              <button
+                onClick={() => setTabActivo("hoy")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                  tabActivo === "hoy"
+                    ? "bg-primary text-primary-foreground glow-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Asistencias de Hoy ({registrosHoy.length})
+              </button>
+              <button
+                onClick={() => setTabActivo("historial")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                  tabActivo === "historial"
+                    ? "bg-primary text-primary-foreground glow-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Historial Completo ({totalRegistrosHistorial})
+              </button>
+              <button
+                onClick={() => setTabActivo("socio")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                  tabActivo === "socio"
+                    ? "bg-primary text-primary-foreground glow-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Historial por Socio
+              </button>
+            </div>
+            
+            {/* Tab Content */}
+            {tabActivo === "hoy" && (
+              <HistorialRegistros
+                registros={registrosHoy}
+                onLimpiar={handleLimpiarHistorial}
+                loading={loadingHoy}
+                error={errorHoy}
+                onRecargar={cargarAsistenciasHoy}
+                onVerHistorialSocio={handleVerHistorialSocio}
+              />
+            )}
+            
+            {tabActivo === "historial" && (
+              <HistorialRegistros
+                registros={registrosHistorial}
+                onLimpiar={handleLimpiarHistorial}
+                loading={loadingHistorial}
+                error={errorHistorial}
+                onRecargar={() => cargarHistorialCompleto(paginaHistorial)}
+                onVerHistorialSocio={handleVerHistorialSocio}
+                // Props de paginación
+                paginaActual={paginaHistorial}
+                totalPaginas={totalPaginasHistorial}
+                totalRegistros={totalRegistrosHistorial}
+                registrosPorPagina={registrosPorPagina}
+                onCambiarPagina={cargarHistorialCompleto}
+                onCambiarRegistrosPorPagina={handleCambiarRegistrosPorPagina}
+              />
+            )}
+            
+            {tabActivo === "socio" && (
+              <HistorialSocioTab 
+                onError={(mensaje) => toast({
+                  title: "Error",
+                  description: mensaje,
+                  variant: "destructive"
+                })}
+              />
+            )}
           </div>
         </div>
       </main>
+
+      {/* Modales */}
+      <RegistroManualModal
+        open={modalRegistroManual}
+        onOpenChange={setModalRegistroManual}
+        onRegistroExitoso={handleRegistroExitoso}
+      />
+
+      <HistorialSocioModal
+        open={modalHistorialSocio !== null}
+        onOpenChange={(open) => !open && setModalHistorialSocio(null)}
+        socioId={modalHistorialSocio}
+      />
     </div>
   )
 }
