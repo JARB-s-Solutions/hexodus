@@ -14,6 +14,7 @@ export interface RegistroAcceso {
   confianza: string
   timestamp: string
   estadoMembresia?: EstadoMembresia
+  fotoUrl?: string
 }
 
 export interface ConfigRegistro {
