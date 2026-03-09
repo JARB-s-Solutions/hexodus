@@ -10,18 +10,21 @@ export interface ConfigState {
   zonaHoraria: string
   formatoFecha: string
 
-  // Notificaciones
-  notifPush: boolean
-  notifEmail: boolean
-  notifSounds: boolean
-  notifSocios: boolean
+  // Notificaciones / Alertas del Sistema
   notifVencimientos: boolean
-  notifVentas: boolean
+  notifVencimientoDias: number
   notifInventario: boolean
+  notifStockMinimo: number
+  notifInactividad: boolean
+  notifInactividadDias: number
+  notifPagosPendientes: boolean
 
-  // Avanzado
+  // Backups
   backupAuto: boolean
   backupFrecuencia: string
+  backupRetencion: string
+
+  // Avanzado
   cacheSistema: boolean
   compresion: boolean
   lazyLoading: boolean
@@ -46,16 +49,18 @@ export const defaultConfig: ConfigState = {
   zonaHoraria: "America/Mexico_City",
   formatoFecha: "DD/MM/YYYY",
 
-  notifPush: true,
-  notifEmail: true,
-  notifSounds: false,
-  notifSocios: true,
   notifVencimientos: true,
-  notifVentas: true,
+  notifVencimientoDias: 7,
   notifInventario: true,
+  notifStockMinimo: 10,
+  notifInactividad: true,
+  notifInactividadDias: 15,
+  notifPagosPendientes: true,
 
   backupAuto: true,
-  backupFrecuencia: "daily",
+  backupFrecuencia: "diario",
+  backupRetencion: "30",
+
   cacheSistema: true,
   compresion: true,
   lazyLoading: true,
