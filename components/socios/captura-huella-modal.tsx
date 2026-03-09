@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { X, Fingerprint, CheckCircle2, AlertCircle } from "lucide-react"
-import { FingerprintReader, SampleFormat } from '@digitalpersona/devices'
 
 interface CapturaHuellaModalProps {
   open: boolean
@@ -32,9 +31,11 @@ export function CapturaHuellaModal({ open, onClose, onCapture }: CapturaHuellaMo
     setError(null)
     setStatus('🔍 Buscando lector de huellas...')
 
-    const reader = new FingerprintReader()
-
     try {
+      // Import dinámico para evitar errores en SSR
+      const { FingerprintReader, SampleFormat } = await import('@digitalpersona/devices')
+      const reader = new FingerprintReader()
+
       const devices = await reader.enumerateDevices()
       
       if (devices.length === 0) {

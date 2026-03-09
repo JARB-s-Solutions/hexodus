@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { AuthService } from '@/lib/auth'
 import { Loader2 } from 'lucide-react'
 
+// Deshabilitar prerendering estático para esta página
+export const dynamic = 'force-dynamic'
+
 export default function HomePage() {
   const router = useRouter()
 
