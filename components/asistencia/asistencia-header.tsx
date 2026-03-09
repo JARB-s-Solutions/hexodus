@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, LogOut } from "lucide-react"
+import { Bell, LogOut, UserPlus } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { AuthService } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
 
-export function AsistenciaHeader() {
+interface AsistenciaHeaderProps {
+  onRegistroManual?: () => void
+}
+
+export function AsistenciaHeader({ onRegistroManual }: AsistenciaHeaderProps) {
   const [fechaHora, setFechaHora] = useState("")
   const router = useRouter()
   const { toast } = useToast()
@@ -61,6 +66,17 @@ export function AsistenciaHeader() {
         <p className="text-sm text-muted-foreground">{fechaHora}</p>
       </div>
       <div className="flex items-center gap-3">
+        {onRegistroManual && (
+          <Button
+            onClick={onRegistroManual}
+            variant="default"
+            size="sm"
+            className="gap-2"
+          >
+            <UserPlus className="h-4 w-4" />
+            Registro Manual
+          </Button>
+        )}
         <button
           className="relative p-2 rounded-full hover:bg-muted transition-colors"
           aria-label="Notificaciones"
