@@ -36,6 +36,11 @@ export default function AsistenciaPage() {
   const [totalRegistrosHistorial, setTotalRegistrosHistorial] = useState(0)
   const [registrosPorPagina, setRegistrosPorPagina] = useState(50)
   
+  // Estados para filtros de historial
+  const [filtroMetodo, setFiltroMetodo] = useState<string>("todos")
+  const [fechaInicio, setFechaInicio] = useState<string>("")
+  const [fechaFin, setFechaFin] = useState<string>("")
+  
   // Estados para historial por socio
   const [socioSeleccionadoId, setSocioSeleccionadoId] = useState<number | null>(null)
   const [datosSocio, setDatosSocio] = useState<{
@@ -110,6 +115,7 @@ export default function AsistenciaPage() {
             confianza: confianzaStr,
             timestamp: timestamp,
             estadoMembresia: 'vigente' as any,
+            fotoUrl: r.foto_perfil_url,
           }
         })
 
@@ -134,13 +140,30 @@ export default function AsistenciaPage() {
       setLoadingHistorial(true)
       setErrorHistorial(null)
 
-      const response = await AsistenciaService.obtenerHistorial({
+      // Construir parámetros de filtro
+      const filtros: any = {
         pagina,
         limite: registrosPorPagina,
-      })
+      }
+
+      // Agregar filtros opcionales
+      if (filtroMetodo && filtroMetodo !== "todos") {
+        filtros.metodo = filtroMetodo
+      }
+
+      if (fechaInicio) {
+        filtros.fecha_inicio = fechaInicio
+      }
+
+      if (fechaFin) {
+        filtros.fecha_fin = fechaFin
+      }
+
+      const response = await AsistenciaService.obtenerHistorial(filtros)
 
       console.log('[cargarHistorialCompleto] Response completa:', response)
       console.log('[cargarHistorialCompleto] Primer registro:', response.data?.asistencias[0])
+      console.log('[cargarHistorialCompleto] Filtros aplicados:', filtros)
 
       if (response.success && response.data) {
         // Transformar datos: /asistencia tiene campo 'timestamp' completo
@@ -171,6 +194,7 @@ export default function AsistenciaPage() {
             confianza: confianzaStr,
             timestamp: r.timestamp, // Usar timestamp directamente
             estadoMembresia: 'vigente' as any,
+            fotoUrl: r.foto_perfil_url,
           }
         })
 
@@ -190,12 +214,41 @@ export default function AsistenciaPage() {
     } finally {
       setLoadingHistorial(false)
     }
-  }, [toast, registrosPorPagina])
+  }, [toast, registrosPorPagina, filtroMetodo, fechaInicio, fechaFin])
 
   // Manejador para cambiar cantidad de registros por página
   const handleCambiarRegistrosPorPagina = useCallback((cantidad: number) => {
     setRegistrosPorPagina(cantidad)
     setPaginaHistorial(1) // Resetear a primera página
+  }, [])
+
+  // Manejadores de filtros
+  const handleAplicarFiltros = useCallback(() => {
+    setPaginaHistorial(1) // Resetear a primera página al aplicar filtros
+    cargarHistorialCompleto(1)
+  }, [cargarHistorialCompleto])
+
+  const handleLimpiarFiltros = useCallback(() => {
+    setFiltroMetodo("todos")
+    setFechaInicio("")
+    setFechaFin("")
+    setPaginaHistorial(1)
+    // Recargar con filtros limpios después de un pequeño delay
+    setTimeout(() => {
+      cargarHistorialCompleto(1)
+    }, 0)
+  }, [cargarHistorialCompleto])
+
+  const handleCambiarFiltroMetodo = useCallback((metodo: string) => {
+    setFiltroMetodo(metodo)
+  }, [])
+
+  const handleCambiarFechaInicio = useCallback((fecha: string) => {
+    setFechaInicio(fecha)
+  }, [])
+
+  const handleCambiarFechaFin = useCallback((fecha: string) => {
+    setFechaFin(fecha)
   }, [])
 
   // Cargar KPIs desde API
@@ -531,6 +584,16 @@ export default function AsistenciaPage() {
                 registrosPorPagina={registrosPorPagina}
                 onCambiarPagina={cargarHistorialCompleto}
                 onCambiarRegistrosPorPagina={handleCambiarRegistrosPorPagina}
+                // Props de filtros avanzados
+                mostrarFiltrosAvanzados={true}
+                filtroMetodo={filtroMetodo}
+                fechaInicio={fechaInicio}
+                fechaFin={fechaFin}
+                onCambiarFiltroMetodo={handleCambiarFiltroMetodo}
+                onCambiarFechaInicio={handleCambiarFechaInicio}
+                onCambiarFechaFin={handleCambiarFechaFin}
+                onAplicarFiltros={handleAplicarFiltros}
+                onLimpiarFiltros={handleLimpiarFiltros}
               />
             )}
             
