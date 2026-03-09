@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import type { ConfigRegistro, Socio, EstadoMembresia } from "@/lib/asistencia-data"
 import { DEFAULT_CONFIG } from "@/lib/asistencia-data"
+import { AsistenciaService } from "@/lib/services/asistencia"
 
 // Declare face-api on window
 declare global {
@@ -68,10 +69,15 @@ export default function EscaneoPage() {
     const audio = new Audio('/sounds/success.wav')
     audio.volume = 0.7
     audio.preload = 'auto'
+    audio.load() // Forzar carga inmediata
     
     audio.addEventListener('canplaythrough', () => {
       console.log('[Audio] success.wav loaded and ready')
       audioLoadedRef.current = true
+    })
+    
+    audio.addEventListener('loadeddata', () => {
+      console.log('[Audio] success.wav data loaded')
     })
     
     audio.addEventListener('error', (e) => {
@@ -257,150 +263,79 @@ export default function EscaneoPage() {
 
   const buscarSocio = useCallback(
     async (descriptor: Float32Array) => {
-      const faceapi = window.faceapi
-      if (!faceapi) return
+      console.log("[Escaneo] Enviando descriptor facial a la API...")
 
-      // Get socios from localStorage (real system)
-      let socios: Socio[] = []
       try {
-        // Try hexodus_socios first (actual system key), then socios
-        const raw = localStorage.getItem("hexodus_socios") || localStorage.getItem("socios")
-        if (raw) {
-          const parsed = JSON.parse(raw)
-          socios = parsed.filter((s: Socio) => s.faceDescriptor && s.faceDescriptor.length > 0)
+        // Convertir Float32Array a array normal
+        const faceDescriptorArray = Array.from(descriptor)
+        
+        // Llamar a la API de validación facial
+        const response = await AsistenciaService.registrarFacial({
+          tipo: 'IN',
+          kioskId: 'PUERTA_PRINCIPAL_01', // TODO: Hacer configurable
+          faceDescriptor: faceDescriptorArray
+        })
+
+        if (response.success && response.data) {
+          // Éxito - procesar resultado
+          const { socio, asistencia } = response.data
+          const confianza = parseFloat(asistencia.confidence) || 0
+
+          console.log("[Escaneo] ✅ Acceso permitido:", socio.nombre_completo, "Confianza:", asistencia.confidence)
+
+          // Crear objeto Socio compatible con la UI
+          const socioUI: Socio = {
+            id: socio.codigo_socio,  // Usar código de socio en lugar de ID numérico
+            nombre: socio.nombre_completo,
+            email: '',
+            telefono: '',
+            genero: '',
+            foto: socio.foto_perfil_url,
+            faceDescriptor: null,
+            fechaVencimiento: socio.fecha_fin_membresia,
+            estado: 'activo',
+            membresia: socio.membresia,
+            membresiaInfo: null
+          }
+
+          // Mostrar resultado positivo
+          mostrarResultado({
+            socio: socioUI,
+            estado: "permitido",
+            confianza: asistencia.confidence,
+            membresia: socio.membresia,
+            vencimiento: new Date(socio.fecha_fin_membresia).toLocaleDateString('es-MX'),
+            diasRestantes: Math.ceil((new Date(socio.fecha_fin_membresia).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+          })
+
+          // Registrar acceso local para historial
+          registrarAccesoLocal(socioUI, "permitido", response.message || "Acceso permitido", asistencia.confidence)
+
+        } else {
+          // Error o no encontrado
+          console.log("[Escaneo] ❌ No se pudo validar:", response.error || "Desconocido")
+          
+          mostrarResultado({
+            socio: null,
+            estado: "no_registrado",
+            confianza: "0",
+            membresia: response.error || "Sin registro en el sistema",
+            vencimiento: "",
+            diasRestantes: 0,
+          })
         }
-      } catch {
-        // ignore
-      }
 
-      console.log("[v0] Socios with face descriptors:", socios.length)
-
-      if (socios.length === 0) {
+      } catch (error: any) {
+        console.error("[Escaneo] Error al validar:", error)
+        
         mostrarResultado({
           socio: null,
           estado: "no_registrado",
           confianza: "0",
-          membresia: "Sin registro en el sistema",
+          membresia: error.message || "Error al validar acceso",
           vencimiento: "",
           diasRestantes: 0,
         })
-        return
-      }
-
-      let mejorSocio: Socio | null = null
-      let mejorDistancia = 1
-
-      for (const socio of socios) {
-        if (socio.faceDescriptor) {
-          const saved = new Float32Array(socio.faceDescriptor)
-          const dist = faceapi.euclideanDistance(descriptor, saved)
-          console.log("[v0] Distance to", socio.nombre, ":", dist.toFixed(3))
-          if (dist < mejorDistancia) {
-            mejorDistancia = dist
-            mejorSocio = socio
-          }
-        }
-      }
-
-      console.log("[v0] Best match:", mejorSocio?.nombre, "distance:", mejorDistancia.toFixed(3), "threshold:", configRef.current.umbralConfianza)
-
-      if (mejorSocio && mejorDistancia < configRef.current.umbralConfianza) {
-        const confianza = ((1 - mejorDistancia) * 100).toFixed(1)
-        procesarAcceso(mejorSocio, confianza)
-      } else {
-        mostrarResultado({
-          socio: null,
-          estado: "no_registrado",
-          confianza: "0",
-          membresia: "Sin registro en el sistema",
-          vencimiento: "",
-          diasRestantes: 0,
-        })
-      }
-    },
-    []
-  )
-
-  const procesarAcceso = useCallback(
-    (socio: Socio, confianza: string) => {
-      // Check membership
-      if (!socio.membresiaInfo || socio.estado === "inactivo") {
-        mostrarResultado({
-          socio,
-          estado: "sin_membresia",
-          confianza,
-          membresia: "Sin membresia activa",
-          vencimiento: "N/A",
-          diasRestantes: 0,
-        })
-        registrarAcceso(socio, "denegado", "Sin membresia activa", confianza)
-        return
-      }
-
-      // Check payment
-      try {
-        const membresiasRaw = localStorage.getItem("hexodus_membresias")
-        const pagosRaw = localStorage.getItem("hexodus_pagos")
-        if (membresiasRaw && pagosRaw) {
-          const membresias = JSON.parse(membresiasRaw)
-          const pagos = JSON.parse(pagosRaw)
-          const activa = membresias.find((m: { socioId: string; activa: boolean }) => m.socioId === socio.id && m.activa)
-          if (activa) {
-            const pagosMem = pagos.filter((p: { membresiaId: string }) => p.membresiaId === activa.id)
-            const totalPagado = pagosMem.reduce((s: number, p: { importe: number }) => s + p.importe, 0)
-            if (totalPagado === 0 || totalPagado < activa.precio) {
-              mostrarResultado({
-                socio,
-                estado: "sin_pago",
-                confianza,
-                membresia: socio.membresiaInfo?.nombre || socio.membresia,
-                vencimiento: socio.fechaVencimiento,
-                diasRestantes: 0,
-              })
-              registrarAcceso(socio, "denegado", "Membresia sin pagar", confianza)
-              return
-            }
-          }
-        }
-      } catch {
-        // ignore
-      }
-
-      // Check expiration
-      const venc = new Date(socio.fechaVencimiento)
-      const ahora = new Date()
-      const dias = Math.ceil((venc.getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24))
-
-      if (venc < ahora) {
-        mostrarResultado({
-          socio,
-          estado: "vencida",
-          confianza,
-          membresia: (socio.membresiaInfo?.nombre || socio.membresia) + " (Vencida)",
-          vencimiento: socio.fechaVencimiento,
-          diasRestantes: dias,
-        })
-        registrarAcceso(socio, "denegado", "Membresia vencida", confianza)
-      } else if (dias <= 3) {
-        mostrarResultado({
-          socio,
-          estado: "proximo_vencer",
-          confianza,
-          membresia: socio.membresiaInfo?.nombre || socio.membresia,
-          vencimiento: socio.fechaVencimiento,
-          diasRestantes: dias,
-        })
-        registrarAcceso(socio, "permitido", "Acceso con advertencia - proxima a vencer", confianza)
-      } else {
-        mostrarResultado({
-          socio,
-          estado: "permitido",
-          confianza,
-          membresia: socio.membresiaInfo?.nombre || socio.membresia,
-          vencimiento: socio.fechaVencimiento,
-          diasRestantes: dias,
-        })
-        registrarAcceso(socio, "permitido", "Acceso permitido", confianza)
       }
     },
     []
@@ -423,20 +358,44 @@ export default function EscaneoPage() {
         audioLoaded: audioLoadedRef.current
       })
 
-      if (configRef.current.sonidoHabilitado && audioDesbloqueado) {
+      // Intentar reproducir sonido (incluso si audioDesbloqueado es false)
+      if (configRef.current.sonidoHabilitado) {
+        // Si no está desbloqueado, intentar desbloquear automáticamente
+        if (!audioDesbloqueado) {
+          console.log('[Audio] ⚠️ Audio no desbloqueado, intentando desbloquear automáticamente...')
+          setAudioDesbloqueado(true)
+        }
+
         try {
-          if (res.estado === "permitido" && audioSuccessRef.current && audioLoadedRef.current) {
+          if (res.estado === "permitido" && audioSuccessRef.current) {
             // Play success.wav for successful access
             console.log('[Audio] Playing success.wav...')
             audioSuccessRef.current.currentTime = 0
+            audioSuccessRef.current.volume = 0.7
             audioSuccessRef.current.play()
               .then(() => {
                 console.log('[Audio] ✅ success.wav played successfully')
               })
               .catch(err => {
                 console.error('[Audio] ❌ Could not play success.wav:', err)
+                // Fallback: intentar con beep si falla el archivo
+                try {
+                  const audioCtx = new AudioContext()
+                  const oscillator = audioCtx.createOscillator()
+                  const gainNode = audioCtx.createGain()
+                  oscillator.connect(gainNode)
+                  gainNode.connect(audioCtx.destination)
+                  oscillator.frequency.value = 880 // A5 - success tone
+                  oscillator.type = "sine"
+                  gainNode.gain.value = 0.3
+                  oscillator.start()
+                  oscillator.stop(audioCtx.currentTime + 0.2)
+                  console.log('[Audio] ✅ Fallback beep played')
+                } catch (fallbackErr) {
+                  console.error('[Audio] ❌ Fallback beep also failed:', fallbackErr)
+                }
               })
-          } else {
+          } else if (res.estado === "proximo_vencer" || res.estado === "vencida" || res.estado === "sin_membresia" || res.estado === "sin_pago" || res.estado === "no_registrado") {
             // Use Web Audio API for warning/error beeps
             const audioCtx = new AudioContext()
             const oscillator = audioCtx.createOscillator()
@@ -493,10 +452,10 @@ export default function EscaneoPage() {
   )
 
   // ============================================================================
-  // REGISTER ACCESS
+  // REGISTER ACCESS (Local history)
   // ============================================================================
 
-  const registrarAcceso = useCallback(
+  const registrarAccesoLocal = useCallback(
     (socio: Socio, tipo: "permitido" | "denegado", motivo: string, confianza: string) => {
       const registro = {
         id: `acc_${Date.now()}`,
@@ -508,7 +467,7 @@ export default function EscaneoPage() {
         timestamp: new Date().toISOString(),
       }
 
-      // Save to localStorage
+      // Save to localStorage for local history
       try {
         const existing = JSON.parse(localStorage.getItem("registros_acceso") || "[]")
         existing.push(registro)
@@ -810,7 +769,7 @@ export default function EscaneoPage() {
                           {resultado.socio?.nombre || "Rostro No Registrado"}
                         </h2>
                         {resultado.socio?.id && (
-                          <p className="text-sm text-slate-400 mb-3">ID: {resultado.socio.id}</p>
+                          <p className="text-sm text-slate-400 mb-3">Código: {resultado.socio.id}</p>
                         )}
 
                         {/* Status badge */}
@@ -828,7 +787,7 @@ export default function EscaneoPage() {
                             <div className="flex items-center justify-between text-sm">
                               <span className="text-slate-400">Vencimiento:</span>
                               <span className="font-semibold text-white">
-                                {new Date(resultado.vencimiento).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                                {resultado.vencimiento}
                               </span>
                             </div>
                           )}
