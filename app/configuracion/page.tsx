@@ -8,6 +8,7 @@ import { ConfigSidebar } from "@/components/configuracion/config-sidebar"
 import { AparienciaTab } from "@/components/configuracion/apariencia-tab"
 import { RolesTab } from "@/components/configuracion/roles-tab"
 import { NotificacionesTab } from "@/components/configuracion/notificaciones-tab"
+import { BackupsTab } from "@/components/configuracion/backups-tab"
 import { AvanzadoTab } from "@/components/configuracion/avanzado-tab"
 import { MetodosPagoTab } from "@/components/configuracion/metodos-pago-tab"
 import { DatosTicketTab } from "@/components/configuracion/datos-ticket-tab"
@@ -139,7 +140,7 @@ export default function ConfiguracionPage() {
                 loading={loading}
                 onGuardar={handleGuardar}
                 onRestablecer={handleRestablecer}
-                hideGuardar={activeTab === "apariencia" || activeTab === "roles"}
+                hideGuardar={activeTab === "apariencia" || activeTab === "roles" || activeTab === "backups"}
               />
             </div>
 
@@ -153,6 +154,9 @@ export default function ConfiguracionPage() {
               )}
               {activeTab === "notificaciones" && (
                 <NotificacionesTab config={config} onChange={handleChange} />
+              )}
+              {activeTab === "backups" && (
+                <BackupsTab config={config} onChange={handleChange} />
               )}
               {activeTab === "datosTicket" && (
                 <DatosTicketTab config={config} onChange={handleChange} />
