@@ -159,6 +159,54 @@ export class SociosService {
     
     return mapSocioFromAPI(response.data)
   }
+
+  /**
+   * Buscar socios por nombre o código
+   */
+  static async buscar(query: string): Promise<Array<{
+    id: number
+    nombre: string
+    codigo: string
+    foto?: string
+    membresia?: string
+  }>> {
+    console.log(`🔍 GET /api/socios?search=${query} - Buscando socios`)
+    
+    if (!query || query.trim().length < 2) {
+      return []
+    }
+    
+    const response = await apiGet<GetSociosResponse>(`/socios?search=${encodeURIComponent(query.trim())}`)
+    console.log('✅ Resultados de búsqueda:', response)
+    console.log('📋 Data completa:', response.data)
+    console.log('📋 Primer socio:', response.data?.[0])
+    
+    if (!response.data || !Array.isArray(response.data)) {
+      return []
+    }
+    
+    // Mapear a formato simplificado para el buscador
+    // SocioListItemAPI usa 'clave' y 'nombre', no 'codigo_socio' y 'nombre_completo'
+    const resultados = response.data.slice(0, 10).map((socio) => {
+      console.log('🔄 Mapeando socio:', {
+        socio_id: socio.socio_id,
+        nombre: socio.nombre,
+        clave: socio.clave,
+        membresia: socio.membresia
+      })
+      
+      return {
+        id: socio.socio_id,
+        nombre: socio.nombre,
+        codigo: socio.clave,
+        foto: undefined, // SocioListItemAPI no tiene foto_perfil_url
+        membresia: socio.membresia || undefined,
+      }
+    })
+    
+    console.log('✅ Resultados mapeados:', resultados)
+    return resultados
+  }
 }
 
 /**
