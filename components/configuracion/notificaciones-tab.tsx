@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell } from "lucide-react"
+import { Bell, AlertCircle, Package, Calendar, Activity } from "lucide-react"
 import type { ConfigState } from "./config-types"
 
 interface NotificacionesTabProps {
@@ -38,28 +38,59 @@ function ToggleSwitch({
   )
 }
 
-function ToggleRow({
-  id,
-  label,
-  description,
-  checked,
-  onCheckedChange,
-}: {
-  id: string
-  label: string
+interface AlertCardProps {
+  icon: typeof Bell
+  title: string
   description: string
+  id: string
   checked: boolean
   onCheckedChange: (v: boolean) => void
-}) {
+  threshold?: number
+  onThresholdChange?: (value: number) => void
+  thresholdLabel?: string
+}
+
+function AlertCard({
+  icon: Icon,
+  title,
+  description,
+  id,
+  checked,
+  onCheckedChange,
+  threshold,
+  onThresholdChange,
+  thresholdLabel,
+}: AlertCardProps) {
   return (
-    <div className="flex items-center justify-between py-1">
-      <div>
-        <label htmlFor={id} className="text-sm font-medium text-muted-foreground cursor-pointer">
-          {label}
-        </label>
-        <p className="text-xs text-muted-foreground/60">{description}</p>
+    <div className="bg-muted/30 rounded-lg p-4 border border-border/50 hover:border-accent/30 transition-all">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="p-2 rounded-lg bg-accent/10">
+            <Icon className="h-5 w-5 text-accent" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+            <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          </div>
+        </div>
+        <ToggleSwitch id={id} checked={checked} onCheckedChange={onCheckedChange} />
       </div>
-      <ToggleSwitch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      
+      {threshold !== undefined && onThresholdChange && thresholdLabel && checked && (
+        <div className="mt-3 pt-3 border-t border-border/50">
+          <label className="text-xs text-muted-foreground mb-2 block">{thresholdLabel}</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              value={threshold}
+              onChange={(e) => onThresholdChange(Number(e.target.value))}
+              className="w-20 px-2 py-1 bg-muted border border-border rounded text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none"
+              min="1"
+            />
+            <span className="text-xs text-muted-foreground">días/unidades</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -67,71 +98,73 @@ function ToggleRow({
 export function NotificacionesTab({ config, onChange }: NotificacionesTabProps) {
   return (
     <div className="bg-card rounded-xl p-6 border border-border animate-fade-in-up">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-2">
         <Bell className="h-5 w-5 text-accent" />
-        <h2 className="text-lg font-semibold text-foreground">Notificaciones</h2>
+        <h2 className="text-lg font-semibold text-foreground">Alertas del Sistema</h2>
+      </div>
+      
+      <p className="text-sm text-muted-foreground mb-6">
+        Configura las alertas que aparecerán en el dashboard cuando se cumplan ciertas condiciones.
+      </p>
+
+      <div className="space-y-4">
+        <AlertCard
+          icon={Calendar}
+          title="Vencimiento de Membresías"
+          description="Alertar cuando una membresía esté próxima a vencer"
+          id="notif-vencimientos"
+          checked={config.notifVencimientos}
+          onCheckedChange={(v) => onChange({ notifVencimientos: v })}
+          threshold={config.notifVencimientoDias}
+          onThresholdChange={(v) => onChange({ notifVencimientoDias: v })}
+          thresholdLabel="Alertar con cuántos días de anticipación"
+        />
+
+        <AlertCard
+          icon={Package}
+          title="Stock Bajo de Inventario"
+          description="Alertar cuando un producto alcance el stock mínimo"
+          id="notif-inventario"
+          checked={config.notifInventario}
+          onCheckedChange={(v) => onChange({ notifInventario: v })}
+          threshold={config.notifStockMinimo}
+          onThresholdChange={(v) => onChange({ notifStockMinimo: v })}
+          thresholdLabel="Cantidad mínima de unidades"
+        />
+
+        <AlertCard
+          icon={Activity}
+          title="Inactividad de Socios"
+          description="Alertar cuando un socio no haya asistido en varios días"
+          id="notif-inactividad"
+          checked={config.notifInactividad}
+          onCheckedChange={(v) => onChange({ notifInactividad: v })}
+          threshold={config.notifInactividadDias}
+          onThresholdChange={(v) => onChange({ notifInactividadDias: v })}
+          thresholdLabel="Días sin asistir para alertar"
+        />
+
+        <AlertCard
+          icon={AlertCircle}
+          title="Pagos Pendientes"
+          description="Alertar sobre pagos pendientes o atrasados"
+          id="notif-pagos"
+          checked={config.notifPagosPendientes}
+          onCheckedChange={(v) => onChange({ notifPagosPendientes: v })}
+        />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* General */}
-        <div className="flex flex-col gap-4">
-          <h3 className="text-base font-semibold text-foreground/80">Configuracion General</h3>
-
-          <ToggleRow
-            id="notif-push"
-            label="Notificaciones Push"
-            description="Recibir notificaciones del navegador"
-            checked={config.notifPush}
-            onCheckedChange={(v) => onChange({ notifPush: v })}
-          />
-          <ToggleRow
-            id="notif-email"
-            label="Notificaciones Email"
-            description="Enviar resumenes por correo"
-            checked={config.notifEmail}
-            onCheckedChange={(v) => onChange({ notifEmail: v })}
-          />
-          <ToggleRow
-            id="notif-sounds"
-            label="Sonidos"
-            description="Reproducir sonidos de alerta"
-            checked={config.notifSounds}
-            onCheckedChange={(v) => onChange({ notifSounds: v })}
-          />
-        </div>
-
-        {/* Notification types */}
-        <div className="flex flex-col gap-4">
-          <h3 className="text-base font-semibold text-foreground/80">Tipos de Notificaciones</h3>
-
-          <ToggleRow
-            id="notif-socios"
-            label="Nuevos Socios"
-            description="Registro de nuevos miembros"
-            checked={config.notifSocios}
-            onCheckedChange={(v) => onChange({ notifSocios: v })}
-          />
-          <ToggleRow
-            id="notif-vencimientos"
-            label="Vencimientos"
-            description="Membresias proximas a vencer"
-            checked={config.notifVencimientos}
-            onCheckedChange={(v) => onChange({ notifVencimientos: v })}
-          />
-          <ToggleRow
-            id="notif-ventas"
-            label="Ventas"
-            description="Nuevas transacciones"
-            checked={config.notifVentas}
-            onCheckedChange={(v) => onChange({ notifVentas: v })}
-          />
-          <ToggleRow
-            id="notif-inventario"
-            label="Inventario Bajo"
-            description="Stock minimo de productos"
-            checked={config.notifInventario}
-            onCheckedChange={(v) => onChange({ notifInventario: v })}
-          />
+      {/* Info adicional */}
+      <div className="mt-6 p-4 bg-accent/5 border border-accent/20 rounded-lg">
+        <div className="flex gap-3">
+          <AlertCircle className="h-5 w-5 text-accent flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-sm font-semibold text-foreground mb-1">¿Cómo funcionan las alertas?</h4>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Las alertas se mostrarán en tiempo real en el dashboard y se actualizarán automáticamente. 
+              Puedes configurar umbrales personalizados para cada tipo de alerta según las necesidades de tu gimnasio.
+            </p>
+          </div>
         </div>
       </div>
     </div>
