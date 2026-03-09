@@ -196,7 +196,19 @@ export function computeKpis(registros: RegistroAcceso[]): KpiAsistencia {
 // ============================================================================
 
 export function formatHora(timestamp: string): string {
+  if (!timestamp) {
+    console.warn('[formatHora] Timestamp is null or undefined:', timestamp)
+    return "--:--"
+  }
+  
   const date = new Date(timestamp)
+  
+  // Validar si la fecha es válida
+  if (isNaN(date.getTime())) {
+    console.error('[formatHora] Invalid date from timestamp:', timestamp)
+    return "Invalid Date"
+  }
+  
   return date.toLocaleTimeString("es-ES", {
     hour: "2-digit",
     minute: "2-digit",
@@ -205,7 +217,19 @@ export function formatHora(timestamp: string): string {
 }
 
 export function formatFecha(timestamp: string): string {
+  if (!timestamp) {
+    console.warn('[formatFecha] Timestamp is null or undefined:', timestamp)
+    return "--/--/----"
+  }
+  
   const date = new Date(timestamp)
+  
+  // Validar si la fecha es válida
+  if (isNaN(date.getTime())) {
+    console.error('[formatFecha] Invalid date from timestamp:', timestamp)
+    return "Invalid Date"
+  }
+  
   return date.toLocaleDateString("es-ES", {
     day: "2-digit",
     month: "2-digit",
