@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useMemo, useCallback, useEffect } from "react"
+import dynamic from "next/dynamic"
 import { Sidebar } from "@/components/sidebar"
 import { SociosHeader } from "@/components/socios/socios-header"
 import { KpiSocios } from "@/components/socios/kpi-socios"
 import { SociosToolbar } from "@/components/socios/socios-toolbar"
 import { SociosTable } from "@/components/socios/socios-table"
-import { SocioModal } from "@/components/socios/socio-modal"
 import { DetalleSocioModal } from "@/components/socios/detalle-socio-modal"
 import { EliminarSocioModal } from "@/components/socios/eliminar-socio-modal"
 import { CobrarMembresiaModal } from "@/components/socios/cobrar-membresia-modal"
@@ -21,6 +21,15 @@ import {
   getEstadoContrato,
   type Socio as SocioMock,
 } from "@/lib/socios-data"
+
+// Cargar SocioModal con dynamic import para evitar errores de SSR con dispositivos biométricos
+const SocioModal = dynamic(
+  () => import("@/components/socios/socio-modal").then(mod => ({ default: mod.SocioModal })),
+  { 
+    ssr: false,
+    loading: () => null
+  }
+)
 
 // TODO: Eliminar esto una vez que el backend esté listo
 const useMockData = false // Cambiar a false para usar API real

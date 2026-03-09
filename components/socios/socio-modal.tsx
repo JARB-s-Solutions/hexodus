@@ -5,6 +5,7 @@ import {
   X, UserPlus, Pencil, User, FileSignature, ScanEye, Award,
   ScanFace, Fingerprint, Save, ArrowRight, CreditCard, Calendar, Printer,
 } from "lucide-react"
+import { FingerprintReader, SampleFormat } from '@digitalpersona/devices'
 import { SociosService } from "@/lib/services/socios"
 import { MembresiasService } from "@/lib/services/membresias"
 import { CheckoutSocioModal } from "./checkout-socio-modal"
@@ -86,6 +87,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   const [showHuellaModal, setShowHuellaModal] = useState(false)
   const [facialDetected, setFacialDetected] = useState(false)
   const [huellaCapturing, setHuellaCapturing] = useState(false)
+  const [huellaStatus, setHuellaStatus] = useState("Listo para capturar")
   
   // ===== Estado del flujo de registro =====
   const [loading, setLoading] = useState(false)
@@ -153,6 +155,12 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
     
     if (open) {
       cargarMembresias()
+      
+      // Verificar estado de WebSdk cuando se abre el modal
+      console.log('🔧 Estado de WebSdk al abrir modal:')
+      console.log('   - window definido:', typeof window !== 'undefined')
+      console.log('   - WebSdk en window:', typeof window !== 'undefined' ? !!(window as any).WebSdk : 'N/A')
+      console.log('   - WebSdk objeto:', typeof window !== 'undefined' ? (window as any).WebSdk : 'N/A')
     }
   }, [open])
 
@@ -285,6 +293,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       setDatosTemporales(null)
     }
     setFacialDetected(false)
+    setHuellaStatus("Listo para capturar")
   }, [socio, open])
 
   // ===== Buscar plan cuando las membresías se carguen =====
@@ -702,24 +711,110 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   }
 
   const handleCapturarHuella = () => {
+    setHuellaStatus("Listo para capturar")
     setShowHuellaModal(true)
   }
 
-  const handleSimularHuella = () => {
+  const handleCapturarHuellaReal = async () => {
     setHuellaCapturing(true)
-    setTimeout(() => {
-      // TODO: Integrar con dispositivo de huellas real
-      // Por ahora: simulación
-      setBioHuella(true)
-      setFingerprintTemplate("MOCK_FINGERPRINT_TEMPLATE_" + Date.now())
+    setHuellaStatus("Verificando WebSdk...")
+    
+    try {
+      // Verificar que WebSdk esté disponible en el window
+      console.log('🔍 Verificando WebSdk en window...', typeof window !== 'undefined' ? !!(window as any).WebSdk : 'window no disponible')
+      
+      if (typeof window !== 'undefined' && !(window as any).WebSdk) {
+        throw new Error("WebSdk no está cargado. Por favor recarga la página.")
+      }
+      
+      console.log('✅ WebSdk disponible')
+      setHuellaStatus("Inicializando lector...")
+      
+      console.log('📱 Creando FingerprintReader...')
+      const reader = new FingerprintReader()
+      console.log('✅ FingerprintReader creado:', reader)
+      
+      setHuellaStatus("Buscando lector...")
+      console.log('🔎 Enumerando dispositivos...')
+      
+      const devices = await reader.enumerateDevices()
+      console.log('📋 Dispositivos encontrados:', devices.length, devices)
+      
+      if (devices.length === 0) {
+        console.error('❌ No se encontraron dispositivos de huella')
+        throw new Error("Conecta el lector de huellas")
+      }
+      
+      console.log('🎯 Usando dispositivo:', devices[0])
+      setHuellaStatus("🟢 Lector encendido... pon tu dedo")
+      
+      reader.on('SamplesAcquired', (event: any) => {
+        console.log('✨ SamplesAcquired event:', event)
+        const template = event.samples[0].Data
+        console.log('📝 Template capturado, longitud:', template?.length || 0)
+        reader.stopAcquisition()
+        
+        // Guardar el template de huella
+        setFingerprintTemplate(template)
+        setBioHuella(true)
+        setHuellaCapturing(false)
+        setHuellaStatus("✅ Huella capturada correctamente")
+        
+        // Cerrar modal después de un momento
+        setTimeout(() => {
+          setShowHuellaModal(false)
+        }, 1500)
+        
+        toast({
+          title: "✓ Huella capturada",
+          description: "La huella dactilar ha sido registrada correctamente",
+        })
+      })
+
+      reader.on('ErrorOccurred', (error: any) => {
+        console.error('❌ ErrorOccurred event:', error)
+        reader.stopAcquisition()
+        setHuellaStatus("❌ Error al capturar")
+        setHuellaCapturing(false)
+        
+        toast({
+          title: "Error",
+          description: `Error en el lector: ${error.message || 'Desconocido'}`,
+          variant: "destructive",
+        })
+      })
+
+      console.log('▶️ Iniciando adquisición...')
+      await reader.startAcquisition(SampleFormat.Intermediate, devices[0])
+      console.log('✅ Adquisición iniciada correctamente')
+      
+    } catch (err: any) {
+      console.error('💥 Error fatal en captura de huella:')
+      console.error('   Tipo:', err.constructor.name)
+      console.error('   Mensaje:', err.message)
+      console.error('   Stack:', err.stack)
+      console.error('   Error completo:', err)
+      
+      // Detectar error de conexión al servicio local
+      let errorMessage = err.message || "No se pudo iniciar la captura de huella"
+      
+      if (err.message?.includes('Communication failure') || 
+          err.message?.includes('404') ||
+          err.message?.includes('get_connection')) {
+        errorMessage = "El servicio de DigitalPersona no está corriendo. Instala y ejecuta 'DigitalPersona UareU SDK' en tu computadora."
+        console.error('⚠️ DIAGNÓSTICO: El servicio local de DigitalPersona (puerto 52181) no responde.')
+        console.error('   Solución: Instala DigitalPersona UareU SDK y asegúrate que el servicio esté corriendo.')
+      }
+      
+      setHuellaStatus(`❌ Error: ${errorMessage}`)
       setHuellaCapturing(false)
-      setShowHuellaModal(false)
       
       toast({
-        title: "Huella capturada",
-        description: "La huella dactilar ha sido registrada correctamente",
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
       })
-    }, 2000)
+    }
   }
 
   // ===== Estilos =====
@@ -1199,38 +1294,47 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
             </div>
             <div className="p-6 text-center">
               <div className="w-32 h-32 mx-auto mb-6 rounded-full border-2 border-dashed border-accent/50 flex items-center justify-center relative">
-                <Fingerprint className={`h-16 w-16 ${huellaCapturing ? "text-[#22C55E] animate-pulse" : "text-accent"}`} />
+                <Fingerprint className={`h-16 w-16 ${bioHuella ? "text-[#22C55E]" : huellaCapturing ? "text-[#22C55E] animate-pulse" : "text-accent"}`} />
               </div>
-              <p className={`text-sm mb-1 ${huellaCapturing ? "text-[#22C55E]" : "text-muted-foreground"}`}>
-                {huellaCapturing ? "Capturando huella..." : "Coloca tu dedo en el lector"}
+              <p className={`text-sm font-semibold mb-2 ${bioHuella ? "text-[#22C55E]" : huellaCapturing ? "text-[#22C55E]" : "text-foreground"}`}>
+                {huellaStatus}
               </p>
-              <p className={`text-xs mb-6 ${huellaCapturing ? "text-[#22C55E]" : "text-muted-foreground"}`}>
-                {huellaCapturing ? "Manten el dedo firme..." : "Esperando lector biometrico..."}
+              <p className="text-xs text-muted-foreground mb-6">
+                {bioHuella 
+                  ? "Puedes cerrar esta ventana" 
+                  : huellaCapturing 
+                  ? "No retires el dedo hasta que termine la captura" 
+                  : "Haz clic en Capturar para iniciar"}
               </p>
               <div className="p-3 rounded-xl bg-muted/30 border border-border/50 mb-6 text-left">
                 <p className="text-xs font-semibold text-muted-foreground mb-1">Instrucciones</p>
                 <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
                   <li>Conecta el lector de huellas USB</li>
-                  <li>Coloca tu dedo indice en el sensor</li>
-                  <li>Manten el dedo firme por 3 segundos</li>
+                  <li>Haz clic en "Capturar Huella"</li>
+                  <li>Coloca tu dedo índice en el sensor</li>
+                  <li>Mantén el dedo firme hasta escuchar el beep</li>
                 </ul>
               </div>
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowHuellaModal(false)}
-                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSimularHuella}
                   disabled={huellaCapturing}
-                  className="flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-xl text-primary-foreground bg-primary hover:bg-primary/90 transition-all disabled:opacity-50 glow-primary"
+                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition disabled:opacity-50"
                 >
-                  {huellaCapturing ? "Capturando..." : "Simular Captura"}
+                  {bioHuella ? "Cerrar" : "Cancelar"}
                 </button>
+                {!bioHuella && (
+                  <button
+                    type="button"
+                    onClick={handleCapturarHuellaReal}
+                    disabled={huellaCapturing}
+                    className="flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-xl text-primary-foreground bg-primary hover:bg-primary/90 transition-all disabled:opacity-50 glow-primary"
+                  >
+                    <Fingerprint className="h-4 w-4" />
+                    {huellaCapturing ? "Capturando..." : "Capturar Huella"}
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/toaster'
 import { CajaGuard } from '@/components/caja/caja-guard'
 import { ThemeProvider } from '@/components/theme-provider-custom'
+import Script from 'next/script'
 import './globals.css'
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -32,6 +33,11 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${inter.variable} font-sans antialiased`}>
+        {/* Cargar WebSdk para dispositivos biométricos */}
+        <Script 
+          src="/modules/WebSdk/index.js" 
+          strategy="beforeInteractive" 
+        />
         <ThemeProvider>
           <CajaGuard>
             {children}
