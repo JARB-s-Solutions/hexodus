@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Shield, Plus, Users, ChevronRight, Trash2, Edit2, Copy, X, Check } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Shield, Plus, Users, ChevronRight, Trash2, Edit2, Copy } from "lucide-react"
 import { RolesService, type RolAPI } from "@/lib/services/roles"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -15,6 +15,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 
 interface RolesTabProps {
   // Placeholder para compatibilidad con otros tabs
@@ -39,12 +41,54 @@ export function RolesTab({}: RolesTabProps) {
   const [selectedRol, setSelectedRol] = useState<RolAPI | null>(null)
   const [loading, setLoading] = useState(true)
   const [modalCrearAbierto, setModalCrearAbierto] = useState(false)
+  const [creatingRole, setCreatingRole] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const { toast } = useToast()
+
+  const defaultPermisos = useMemo(() => {
+    const permisos: Record<string, Record<string, boolean>> = {}
+    MODULOS_SISTEMA.forEach((modulo) => {
+      permisos[modulo.id] = {}
+      modulo.acciones.forEach((accion) => {
+        permisos[modulo.id][accion] = false
+      })
+    })
+    return permisos
+  }, [])
+
+  const [nuevoRol, setNuevoRol] = useState<{
+    id: string
+    nombre: string
+    descripcion: string
+    color: string
+    permisos: Record<string, Record<string, boolean>>
+  }>({
+    id: '',
+    nombre: '',
+    descripcion: '',
+    color: '#22c55e',
+    permisos: defaultPermisos,
+  })
 
   // Cargar roles
   useEffect(() => {
     cargarRoles()
   }, [])
+
+  // Reiniciar formulario al abrir/cerrar el modal de creación
+  useEffect(() => {
+    if (!modalCrearAbierto) {
+      setNuevoRol({
+        id: '',
+        nombre: '',
+        descripcion: '',
+        color: '#22c55e',
+        permisos: defaultPermisos,
+      })
+      setCreateError(null)
+      setCreatingRole(false)
+    }
+  }, [modalCrearAbierto, defaultPermisos])
 
   const cargarRoles = async () => {
     try {
@@ -65,6 +109,59 @@ export function RolesTab({}: RolesTabProps) {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const togglePermiso = (moduloId: string, accion: string) => {
+    setNuevoRol((prev) => ({
+      ...prev,
+      permisos: {
+        ...prev.permisos,
+        [moduloId]: {
+          ...prev.permisos[moduloId],
+          [accion]: !prev.permisos[moduloId]?.[accion],
+        },
+      },
+    }))
+  }
+
+  const handleCrearRol = async () => {
+    if (!nuevoRol.id.trim() || !nuevoRol.nombre.trim()) {
+      setCreateError('El ID y nombre del rol son obligatorios')
+      return
+    }
+
+    try {
+      setCreatingRole(true)
+      setCreateError(null)
+
+      const created = await RolesService.crearRol({
+        id: nuevoRol.id.trim(),
+        nombre: nuevoRol.nombre.trim(),
+        descripcion: nuevoRol.descripcion.trim() || undefined,
+        color: nuevoRol.color,
+        permisos: nuevoRol.permisos,
+      })
+
+      toast({
+        title: 'Rol creado',
+        description: `El rol "${created.nombre}" se creó correctamente.`,
+      })
+
+      // Refrescar lista y seleccionar el nuevo rol
+      await cargarRoles()
+      setSelectedRol(created)
+      setModalCrearAbierto(false)
+    } catch (error: any) {
+      console.error('Error creando rol:', error)
+      setCreateError(error.message || 'Error creando el rol')
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo crear el rol',
+        description: error.message || 'Revisa la consola para más detalles',
+      })
+    } finally {
+      setCreatingRole(false)
     }
   }
 
@@ -170,6 +267,125 @@ export function RolesTab({}: RolesTabProps) {
           )}
         </div>
       </div>
+
+      {/* Modal para crear un nuevo rol */}
+      <Dialog open={modalCrearAbierto} onOpenChange={setModalCrearAbierto}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Crear nuevo rol</DialogTitle>
+            <DialogDescription>
+              Define el ID, nombre y los permisos que tendrá este rol.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="rol-id">ID del rol</Label>
+                <Input
+                  id="rol-id"
+                  value={nuevoRol.id}
+                  onChange={(e) => setNuevoRol((prev) => ({ ...prev, id: e.target.value }))}
+                  placeholder="recepcionista_test"
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="rol-nombre">Nombre</Label>
+                <Input
+                  id="rol-nombre"
+                  value={nuevoRol.nombre}
+                  onChange={(e) => setNuevoRol((prev) => ({ ...prev, nombre: e.target.value }))}
+                  placeholder="Recepcionista de Prueba"
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <Label htmlFor="rol-descripcion">Descripción (opcional)</Label>
+                <Textarea
+                  id="rol-descripcion"
+                  value={nuevoRol.descripcion}
+                  onChange={(e) => setNuevoRol((prev) => ({ ...prev, descripcion: e.target.value }))}
+                  placeholder="Descripción del rol"
+                  className="mt-1"
+                  rows={2}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="rol-color">Color</Label>
+                <div className="mt-1 flex items-center gap-3">
+                  <Input
+                    id="rol-color"
+                    type="color"
+                    value={nuevoRol.color}
+                    onChange={(e) => setNuevoRol((prev) => ({ ...prev, color: e.target.value }))}
+                    className="h-10 w-14 p-0"
+                  />
+                  <span className="text-sm text-muted-foreground">Color del rol (opcional)</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4">
+              <h3 className="text-lg font-semibold">Permisos</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Selecciona los permisos que tendrá este rol en cada módulo.
+              </p>
+
+              <div className="mt-4 space-y-3">
+                {MODULOS_SISTEMA.map((modulo) => (
+                  <div key={modulo.id} className="border border-border rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">
+                        <span className="mr-2">{modulo.icono}</span>
+                        {modulo.nombre}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {modulo.acciones.length} permisos
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {modulo.acciones.map((accion) => (
+                        <label
+                          key={accion}
+                          className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted/50 transition-colors"
+                        >
+                          <Checkbox
+                            checked={nuevoRol.permisos[modulo.id]?.[accion] || false}
+                            onCheckedChange={() => togglePermiso(modulo.id, accion)}
+                          />
+                          <span className="text-sm capitalize">{accion}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {createError && (
+              <div className="text-sm text-destructive">{createError}</div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="secondary"
+                onClick={() => setModalCrearAbierto(false)}
+                disabled={creatingRole}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleCrearRol} disabled={creatingRole}>
+                {creatingRole ? 'Creando...' : 'Crear rol'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -364,6 +580,7 @@ function RolDetails({ rol, onUpdate }: RolDetailsProps) {
           </div>
         )}
       </div>
+
     </div>
   )
 }

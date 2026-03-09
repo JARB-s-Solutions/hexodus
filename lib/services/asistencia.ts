@@ -42,6 +42,8 @@ export interface RegistroAsistenciaResponse {
       foto_perfil_url: string | null
       membresia: string
       fecha_fin_membresia: string
+      vigencia_membresia?: string
+      estado_pago?: 'pagado' | 'sin_pagar' | 'pendiente' | string
     }
     asistencia: {
       id: number
@@ -49,6 +51,8 @@ export interface RegistroAsistenciaResponse {
       timestamp: string
       confidence: string
     }
+    motivo_codigo?: string
+    sugerencia?: string
   }
   error?: string
 }

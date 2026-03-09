@@ -70,21 +70,14 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
     console.log("   Estado actual:", socio.estadoPago)
 
     try {
-      // Actualizar el estado de pago a "pagado"
-      await SociosService.update(socio.id, {
-        membresia: {
-          plan_id: socio.planId,
-          fecha_inicio: socio.fechaInicioMembresia,
-          estado_pago: "pagado",
-          metodo_pago_id: metodoPagoSeleccionado,
-        }
-      })
+      // Endpoint dedicado para cobro de adeudo
+      const mensaje = await SociosService.pagarMembresiaPendiente(socio.id, metodoPagoSeleccionado)
 
       console.log("✅ Membresía cobrada exitosamente")
       
       toast({
         title: "Membresía cobrada",
-        description: `Se ha registrado el pago de ${socio.nombre}`,
+        description: mensaje || `Se ha registrado el pago de ${socio.nombre}`,
       })
 
       // Resetear estado y cerrar

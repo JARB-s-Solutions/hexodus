@@ -6,6 +6,8 @@ import type { DatosFinancieros } from "@/lib/dashboard-data"
 
 interface DashboardKpiProps {
   datos: DatosFinancieros
+  loading?: boolean
+  error?: string | null
 }
 
 function TrendBadge({ pct, contexto }: { pct: number; contexto: string }) {
@@ -42,7 +44,7 @@ function TrendBadge({ pct, contexto }: { pct: number; contexto: string }) {
   )
 }
 
-export function DashboardKpi({ datos }: DashboardKpiProps) {
+export function DashboardKpi({ datos, loading = false, error = null }: DashboardKpiProps) {
   const utilidad = datos.ventas - datos.gastos
   const utilidadAnt = datos.ventasAnt - datos.gastosAnt
   const pctVentas = calcPct(datos.ventas, datos.ventasAnt)
@@ -93,11 +95,14 @@ export function DashboardKpi({ datos }: DashboardKpiProps) {
       {cards.map((card, i) => (
         <div
           key={card.label}
-          className={`bg-card rounded-xl p-5 border transition-colors hover:border-foreground/10 animate-fade-in-up ${
+          className={`relative bg-card rounded-xl p-5 border transition-colors hover:border-foreground/10 animate-fade-in-up ${
             card.accent ? "border-accent/15 hover:border-accent/30" : "border-border"
           }`}
           style={{ animationDelay: `${i * 30}ms` }}
         >
+          {loading && (
+            <div className="absolute inset-0 rounded-xl bg-background/45 backdrop-blur-[1px]" />
+          )}
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               {card.label}
@@ -108,6 +113,11 @@ export function DashboardKpi({ datos }: DashboardKpiProps) {
           </div>
           <p className={`text-2xl font-bold mb-1.5 ${card.colorClass}`}>{card.valor}</p>
           <TrendBadge pct={card.pct} contexto="vs anterior" />
+          {error && i === 0 && (
+            <p className="text-[11px] text-primary mt-2 truncate" title={error}>
+              Error al actualizar KPIs
+            </p>
+          )}
         </div>
       ))}
     </div>

@@ -583,7 +583,8 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
         membresia: {
           ...datosTemporales.membresia,
           estado_pago: "sin_pagar", // ⚠️ EXPlÍCITO: Usuario eligió pagar después
-          // No se envía metodo_pago_id
+          // Asegurarse de no enviar método de pago en este flujo
+          metodo_pago_id: undefined,
         },
       }
       

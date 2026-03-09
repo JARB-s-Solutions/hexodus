@@ -161,6 +161,23 @@ export class SociosService {
   }
 
   /**
+   * Registrar pago de membresía pendiente en caja
+   * POST /api/socios/:id/pagar-membresia
+   */
+  static async pagarMembresiaPendiente(id: number, metodoPagoId: number): Promise<string> {
+    console.log(`💰 POST /api/socios/${id}/pagar-membresia - Registrando pago de adeudo`)
+    console.log('📤 metodo_pago_id:', metodoPagoId)
+
+    const response = await apiPost<{ message?: string }>(`/socios/${id}/pagar-membresia`, {
+      metodo_pago_id: metodoPagoId,
+    })
+
+    const mensaje = response?.message || 'Pago registrado correctamente en caja.'
+    console.log('✅ Pago de adeudo registrado:', mensaje)
+    return mensaje
+  }
+
+  /**
    * Buscar socios por nombre o código
    */
   static async buscar(query: string): Promise<Array<{

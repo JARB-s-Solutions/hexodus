@@ -26,6 +26,7 @@ export interface ObtenerRolesResponse {
 }
 
 export interface CrearRolRequest {
+  id: string
   nombre: string
   descripcion?: string
   color?: string
@@ -72,10 +73,15 @@ export class RolesService {
   private static getHeaders(): HeadersInit {
     const token = AuthService.getToken()
     
-    return {
+    const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
     }
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+
+    return headers
   }
 
   /**

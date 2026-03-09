@@ -146,7 +146,8 @@ export function UsuariosTable({
                 </td>
               </tr>
             ) : (
-              usuariosPagina.map((u) => {
+              usuariosPagina.map((u, index) => {
+                const displayId = inicio + index + 1
 
                 return (
                   <tr
@@ -157,7 +158,7 @@ export function UsuariosTable({
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-accent">#{u.id}</span>
+                          <span className="text-xs font-bold text-accent">#{displayId}</span>
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-foreground">{u.nombre}</p>

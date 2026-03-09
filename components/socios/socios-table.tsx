@@ -54,7 +54,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
         case 'contratoFin': return s.finContrato
         case 'bioRostro': return !!s.faceEncoding
         case 'bioHuella': return !!s.fingerprintTemplate
-        case 'estadoPago': return s.estadoPago || 'pagado'
+        case 'estadoPago': return s.estadoPago || 'sin_pagar'
         default: return s[field]
       }
     } else {
@@ -246,7 +246,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                 const bioRostro = getSocioField(s, 'bioRostro') || false
                 const bioHuella = getSocioField(s, 'bioHuella') || false
                 const estadoSocio = getSocioField(s, 'estadoSocio') || 'activo'
-                const estadoPago = getSocioField(s, 'estadoPago') || 'pagado'
+                const estadoPago = getSocioField(s, 'estadoPago') || 'sin_pagar'
                 
                 const iniciales = getIniciales(nombre)
                 const vigencia = getVigenciaMembresia(fechaFin)

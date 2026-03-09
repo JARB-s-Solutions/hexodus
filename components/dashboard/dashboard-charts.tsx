@@ -79,8 +79,9 @@ interface HorasPicoChartProps {
 }
 
 export function HorasPicoChart({ data }: HorasPicoChartProps) {
-  const maxVal = Math.max(...data.map((d) => d.personas))
-  const picoHora = data.find((d) => d.personas === maxVal)
+  const safeData = data.length > 0 ? data : [{ hora: "--", personas: 0 }]
+  const maxVal = Math.max(...safeData.map((d) => d.personas))
+  const picoHora = safeData.find((d) => d.personas === maxVal)
 
   return (
     <div className="bg-card rounded-xl border border-border animate-fade-in-up">
@@ -90,7 +91,7 @@ export function HorasPicoChart({ data }: HorasPicoChartProps) {
       </div>
       <div className="px-4 pb-2 h-[240px]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <BarChart data={safeData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
             <XAxis
               dataKey="hora"
@@ -112,7 +113,7 @@ export function HorasPicoChart({ data }: HorasPicoChartProps) {
               ]}
             />
             <Bar dataKey="personas" radius={[4, 4, 0, 0]} barSize={16}>
-              {data.map((entry, index) => (
+              {safeData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={entry.personas === maxVal ? "#FF3B3B" : "rgba(0,191,255,0.15)"}
@@ -203,20 +204,25 @@ interface StockCriticoCardProps {
 }
 
 export function StockCriticoCard({ items }: StockCriticoCardProps) {
+  const safeItems = items || []
+
   return (
     <div className="bg-card rounded-xl border border-border animate-fade-in-up">
       <div className="flex items-center justify-between px-5 pt-4 pb-2">
         <h3 className="text-sm font-semibold text-foreground">Stock Critico</h3>
         <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
-          {items.length} productos
+          {safeItems.length} productos
         </span>
       </div>
       <div className="px-5 pb-4">
-        {items.map((item, i) => (
+        {safeItems.length === 0 && (
+          <p className="text-xs text-muted-foreground py-3">Sin datos disponibles</p>
+        )}
+        {safeItems.map((item, i) => (
           <div
             key={item.nombre}
             className={`flex items-center gap-4 py-3 ${
-              i < items.length - 1 ? "border-b border-border" : ""
+              i < safeItems.length - 1 ? "border-b border-border" : ""
             }`}
           >
             <div className="flex-1">

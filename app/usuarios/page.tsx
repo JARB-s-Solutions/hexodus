@@ -9,6 +9,7 @@ import { UsuariosTable } from "@/components/usuarios/usuarios-table"
 import { UsuarioModal, type UsuarioFormData } from "@/components/usuarios/usuario-modal"
 import { DetalleUsuarioModal } from "@/components/usuarios/detalle-usuario-modal"
 import { SesionesActivas } from "@/components/usuarios/sesiones-activas"
+import { RolesService } from "@/lib/services/roles"
 import { UsuariosService } from "@/lib/services/usuarios"
 import { transformarUsuarioAPI, type Usuario } from "@/lib/usuarios-data"
 import { useToast } from "@/hooks/use-toast"
@@ -37,6 +38,27 @@ export default function UsuariosPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editandoUsuario, setEditandoUsuario] = useState<Usuario | null>(null)
   const [detalleUsuario, setDetalleUsuario] = useState<Usuario | null>(null)
+
+  const [roles, setRoles] = useState<Array<{ id: string; nombre: string }>>([])
+  const [rolesLoading, setRolesLoading] = useState(false)
+
+  // Cargar roles desde la API
+  const cargarRoles = useCallback(async () => {
+    try {
+      setRolesLoading(true)
+      const rolesData = await RolesService.obtenerRoles()
+      setRoles(rolesData.map((r) => ({ id: r.id, nombre: r.nombre })))
+    } catch (err: any) {
+      console.error('[UsuariosPage] Error cargando roles:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err.message || 'No se pudieron cargar los roles'
+      })
+    } finally {
+      setRolesLoading(false)
+    }
+  }, [toast])
 
   // Cargar usuarios desde la API
   const cargarUsuarios = useCallback(async () => {
@@ -91,10 +113,11 @@ export default function UsuariosPage() {
     }
   }, [paginaActual, limite, busquedaAplicada, rolFiltro, activoFiltro, toast])
 
-  // Cargar usuarios al montar y cuando cambien los filtros
+  // Cargar roles y usuarios al montar y cuando cambien los filtros
   useEffect(() => {
+    cargarRoles()
     cargarUsuarios()
-  }, [cargarUsuarios])
+  }, [cargarRoles, cargarUsuarios])
 
   // Aplicar búsqueda (con debounce manual)
   const aplicarBusqueda = useCallback(() => {
@@ -317,6 +340,8 @@ export default function UsuariosPage() {
         onClose={() => { setModalOpen(false); setEditandoUsuario(null) }}
         onGuardar={handleGuardar}
         usuario={editandoUsuario}
+        roles={roles}
+        rolesLoading={rolesLoading}
       />
 
       <DetalleUsuarioModal

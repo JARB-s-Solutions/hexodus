@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { X, User, Shield, Key } from "lucide-react"
 import type { Usuario } from "@/lib/usuarios-data"
 
@@ -9,6 +9,8 @@ interface UsuarioModalProps {
   onClose: () => void
   onGuardar: (data: UsuarioFormData) => void
   usuario?: Usuario | null
+  roles: Array<{ id: string; nombre: string }>
+  rolesLoading?: boolean
 }
 
 export interface UsuarioFormData {
@@ -21,18 +23,25 @@ export interface UsuarioFormData {
   password?: string
 }
 
-export function UsuarioModal({ open, onClose, onGuardar, usuario }: UsuarioModalProps) {
+export function UsuarioModal({ open, onClose, onGuardar, usuario, roles, rolesLoading }: UsuarioModalProps) {
   const esEdicion = !!usuario
 
   const [nombre, setNombre] = useState(usuario?.nombre || "")
   const [email, setEmail] = useState(usuario?.email || "")
   const [telefono, setTelefono] = useState(usuario?.telefono || "")
   const [username, setUsername] = useState(usuario?.username || "")
-  const [rolId, setRolId] = useState<string>(usuario?.rol.id || "recepcionista")
+  const [rolId, setRolId] = useState<string>(usuario?.rol.id || "")
   const [activo, setActivo] = useState<boolean>(usuario?.activo ?? true)
   const [password, setPassword] = useState("")
   const [confirmarPassword, setConfirmarPassword] = useState("")
   const [error, setError] = useState("")
+
+  // Si no hay rol seleccionado, usar el primero disponible cuando se carguen roles
+  useEffect(() => {
+    if (!rolId && !esEdicion && roles.length > 0) {
+      setRolId(roles[0].id)
+    }
+  }, [roles, rolId, esEdicion])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -157,11 +166,20 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario }: UsuarioModal
                   value={rolId}
                   onChange={(e) => setRolId(e.target.value)}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 appearance-none"
+                  disabled={rolesLoading}
                 >
-                  <option value="admin">Administrador</option>
-                  <option value="recepcionista">Recepcionista</option>
-                  <option value="entrenador">Entrenador</option>
-                  <option value="contador">Contador</option>
+                  {rolesLoading ? (
+                    <option value="">Cargando roles...</option>
+                  ) : (
+                    <>
+                      <option value="">Selecciona un rol</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.nombre}
+                        </option>
+                      ))}
+                    </>
+                  )}
                 </select>
               </div>
               <div>

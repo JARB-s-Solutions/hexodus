@@ -10,16 +10,22 @@ import { HistorialRegistros } from "@/components/asistencia/historial-registros"
 import { RegistroManualModal } from "@/components/asistencia/registro-manual-modal"
 import { HistorialSocioModal } from "@/components/asistencia/historial-socio-modal"
 import { HistorialSocioTab } from "@/components/asistencia/historial-socio-tab"
+import { CobrarMembresiaModal } from "@/components/socios/cobrar-membresia-modal"
 import { AsistenciaService } from "@/lib/services/asistencia"
+import { SociosService } from "@/lib/services/socios"
 import { useToast } from "@/hooks/use-toast"
 import {
   DEFAULT_CONFIG,
   type RegistroAcceso,
   type ConfigRegistro,
   type KpiAsistencia,
+  type EstadoMembresia,
 } from "@/lib/asistencia-data"
+import type { Socio as SocioTipo } from "@/lib/types/socios"
 
 export default function AsistenciaPage() {
+  const POLLING_INTERVAL_MS = 60000
+
   const router = useRouter()
   const { toast } = useToast()
   
@@ -69,10 +75,26 @@ export default function AsistenciaPage() {
   const [sistemaListo, setSistemaListo] = useState(false)
   const [modalRegistroManual, setModalRegistroManual] = useState(false)
   const [modalHistorialSocio, setModalHistorialSocio] = useState<string | null>(null)
+  const [modalCobroAdeudoOpen, setModalCobroAdeudoOpen] = useState(false)
+  const [socioAdeudo, setSocioAdeudo] = useState<SocioTipo | null>(null)
   const [loadingKpis, setLoadingKpis] = useState(false)
   const [errorKpis, setErrorKpis] = useState<string | null>(null)
   
   const ventanaRef = useRef<Window | null>(null)
+
+  const obtenerOverridesDenegacion = useCallback((): Record<string, {
+    estadoMembresia?: EstadoMembresia
+    motivo?: string
+    socioId?: string
+  }> => {
+    if (typeof window === 'undefined') return {}
+
+    try {
+      return JSON.parse(localStorage.getItem('asistencia_denegaciones_override') || '{}')
+    } catch {
+      return {}
+    }
+  }, [])
 
   // Cargar asistencias del día actual (endpoint /hoy con campo 'hora')
   const cargarAsistenciasHoy = useCallback(async () => {
@@ -86,6 +108,8 @@ export default function AsistenciaPage() {
       console.log('[cargarAsistenciasHoy] Primer registro:', response.data?.asistencias[0])
 
       if (response.success && response.data) {
+        const overrides = obtenerOverridesDenegacion()
+
         // Transformar datos: /hoy tiene campo 'hora' (string "03:03:36") no 'timestamp'
         const registrosTransformados: RegistroAcceso[] = response.data.asistencias.map((r) => {
           // Determinar confianza
@@ -108,21 +132,35 @@ export default function AsistenciaPage() {
           // Construir timestamp desde fecha + hora
           // fecha: "2026-03-09", hora: "03:03:36" -> "2026-03-09T03:03:36"
           const timestamp = `${response.data.fecha}T${r.hora}`
+          const override = overrides[String(r.id)]
+          const esDenegado = !!override || r.tipo === 'OUT'
 
           return {
             id: r.id,
             socioId: r.codigo_socio, // /hoy no tiene socio_id, usa codigo_socio
+            socioDbId: undefined,
             nombreSocio: r.socio_nombre,
-            tipo: r.tipo === 'IN' ? 'permitido' : 'denegado',
-            motivo: r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual',
+            tipo: esDenegado ? 'denegado' : 'permitido',
+            motivo: override?.motivo || (r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual'),
             confianza: confianzaStr,
             timestamp: timestamp,
-            estadoMembresia: 'vigente' as any,
+            estadoMembresia: override?.estadoMembresia || ('vigente' as any),
             fotoUrl: r.foto_perfil_url,
+            accionRecomendada: override?.estadoMembresia === 'sin_pago'
+              ? 'cobrar_adeudo'
+              : override?.estadoMembresia === 'vencida' || override?.estadoMembresia === 'sin_membresia'
+              ? 'renovar_membresia'
+              : 'ninguna',
           }
         })
 
         setRegistrosHoy(registrosTransformados)
+
+        // Sincronizar KPI de denegados con los registros transformados del dia.
+        setKpisData((prev) => ({
+          ...prev,
+          denegados: registrosTransformados.filter((r) => r.tipo === 'denegado').length,
+        }))
       }
     } catch (error: any) {
       console.error("Error al cargar asistencias de hoy:", error)
@@ -135,7 +173,7 @@ export default function AsistenciaPage() {
     } finally {
       setLoadingHoy(false)
     }
-  }, [toast])
+  }, [toast, obtenerOverridesDenegacion])
 
   // Cargar historial completo (endpoint /asistencia con campo 'timestamp' y paginación)
   const cargarHistorialCompleto = useCallback(async (pagina: number = 1) => {
@@ -169,6 +207,8 @@ export default function AsistenciaPage() {
       console.log('[cargarHistorialCompleto] Filtros aplicados:', filtros)
 
       if (response.success && response.data) {
+        const overrides = obtenerOverridesDenegacion()
+
         // Transformar datos: /asistencia tiene campo 'timestamp' completo
         const registrosTransformados: RegistroAcceso[] = response.data.asistencias.map((r) => {
           // Determinar confianza
@@ -188,16 +228,26 @@ export default function AsistenciaPage() {
             console.warn('[HISTORIAL] No hay confidence para:', r.socio_nombre)
           }
 
+          const override = overrides[String(r.id)]
+          const notasDenegado = (r.notas || '').toLowerCase().includes('denegado')
+          const esDenegado = !!override || notasDenegado || r.tipo === 'OUT'
+
           return {
             id: r.id,
             socioId: String(r.socio_id), // Historial tiene socio_id
+            socioDbId: Number(r.socio_id),
             nombreSocio: r.socio_nombre,
-            tipo: r.tipo === 'IN' ? 'permitido' : 'denegado',
-            motivo: r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual',
+            tipo: esDenegado ? 'denegado' : 'permitido',
+            motivo: override?.motivo || r.notas || (r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual'),
             confianza: confianzaStr,
             timestamp: r.timestamp, // Usar timestamp directamente
-            estadoMembresia: 'vigente' as any,
+            estadoMembresia: override?.estadoMembresia || ('vigente' as any),
             fotoUrl: r.foto_perfil_url,
+            accionRecomendada: override?.estadoMembresia === 'sin_pago'
+              ? 'cobrar_adeudo'
+              : override?.estadoMembresia === 'vencida' || override?.estadoMembresia === 'sin_membresia'
+              ? 'renovar_membresia'
+              : 'ninguna',
           }
         })
 
@@ -217,7 +267,7 @@ export default function AsistenciaPage() {
     } finally {
       setLoadingHistorial(false)
     }
-  }, [toast, registrosPorPagina, filtroMetodo, fechaInicio, fechaFin])
+  }, [toast, registrosPorPagina, filtroMetodo, fechaInicio, fechaFin, obtenerOverridesDenegacion])
 
   // Manejador para cambiar cantidad de registros por página
   const handleCambiarRegistrosPorPagina = useCallback((cantidad: number) => {
@@ -264,12 +314,13 @@ export default function AsistenciaPage() {
 
       if (response.success && response.data) {
         // Transformar datos de API a formato local
-        setKpisData({
+        setKpisData((prev) => ({
           asistentesHoy: response.data.total_asistencias,
           activosAhora: response.data.socios_activos_ahora,
-          denegados: 0, // No hay denegados en el nuevo sistema
+          // El valor de denegados lo controlamos por los registros transformados.
+          denegados: prev.denegados,
           permanenciaPromedio: "N/A",
-        })
+        }))
       }
     } catch (error: any) {
       console.error("Error al cargar KPIs:", error)
@@ -319,10 +370,10 @@ export default function AsistenciaPage() {
         cargarHistorialCompleto(paginaHistorial)
       }
       cargarKpis()
-    }, 30000) // 30 segundos
+    }, POLLING_INTERVAL_MS)
 
     return () => clearInterval(interval)
-  }, [tabActivo, cargarAsistenciasHoy, cargarHistorialCompleto, cargarKpis, paginaHistorial])
+  }, [tabActivo, cargarAsistenciasHoy, cargarHistorialCompleto, cargarKpis, paginaHistorial, POLLING_INTERVAL_MS])
 
   // Check if client window is still open
   useEffect(() => {
@@ -337,20 +388,43 @@ export default function AsistenciaPage() {
 
   // Listen for messages from scanner window
   useEffect(() => {
+    const abrirCobroAdeudo = async (registro: RegistroAcceso) => {
+      const socioId = registro.socioDbId
+
+      if (!socioId || Number.isNaN(Number(socioId))) {
+        toast({
+          title: "No se pudo abrir cobro",
+          description: "No se recibió el ID del socio para registrar el pago pendiente.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      try {
+        const socioCompleto = await SociosService.getById(Number(socioId))
+        setSocioAdeudo(socioCompleto)
+        setModalCobroAdeudoOpen(true)
+      } catch (error: any) {
+        console.error('Error cargando socio para cobro de adeudo:', error)
+        toast({
+          title: "Error al abrir cobro",
+          description: error.message || "No se pudo cargar la información del socio",
+          variant: "destructive",
+        })
+      }
+    }
+
     function handleMessage(event: MessageEvent) {
       if (event.data?.tipo === "registro_acceso") {
-        const nuevoRegistro = event.data.datos
+        const nuevoRegistro = event.data.datos as RegistroAcceso
         
         // Agregar registro al array de "hoy" (siempre son registros nuevos de hoy)
-        setRegistrosHoy((prev) => [nuevoRegistro, ...prev])
+        setRegistrosHoy((prev) => [nuevoRegistro, ...prev.filter((r) => r.id !== nuevoRegistro.id)])
         
         // Si estamos en el tab de historial, también se agrega ahí
         if (tabActivo === "historial") {
-          setRegistrosHistorial((prev) => [nuevoRegistro, ...prev])
+          setRegistrosHistorial((prev) => [nuevoRegistro, ...prev.filter((r) => r.id !== nuevoRegistro.id)])
         }
-        
-        // Recargar KPIs después de nuevo registro
-        setTimeout(() => cargarKpis(), 500)
         
         // Mostrar notificación
         toast({
@@ -358,11 +432,15 @@ export default function AsistenciaPage() {
           description: `${nuevoRegistro.nombreSocio} - ${nuevoRegistro.motivo}`,
           variant: nuevoRegistro.tipo === "permitido" ? "default" : "destructive",
         })
+
+        if (nuevoRegistro.tipo === 'denegado' && nuevoRegistro.accionRecomendada === 'cobrar_adeudo') {
+          abrirCobroAdeudo(nuevoRegistro)
+        }
       }
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [toast, cargarKpis, tabActivo])
+  }, [toast, tabActivo])
 
   // Save config to localStorage for scanner window
   useEffect(() => {
@@ -625,6 +703,24 @@ export default function AsistenciaPage() {
         open={modalHistorialSocio !== null}
         onOpenChange={(open) => !open && setModalHistorialSocio(null)}
         socioId={modalHistorialSocio}
+      />
+
+      <CobrarMembresiaModal
+        open={modalCobroAdeudoOpen}
+        onClose={() => {
+          setModalCobroAdeudoOpen(false)
+          setSocioAdeudo(null)
+        }}
+        socio={socioAdeudo}
+        onSuccess={() => {
+          setModalCobroAdeudoOpen(false)
+          setSocioAdeudo(null)
+          recargarDatos()
+          toast({
+            title: "Pago registrado",
+            description: "El adeudo fue pagado correctamente. Puedes reintentar el acceso del socio.",
+          })
+        }}
       />
     </div>
   )

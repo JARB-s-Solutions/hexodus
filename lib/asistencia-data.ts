@@ -8,12 +8,14 @@ export type EstadoMembresia = "permitido" | "proximo_vencer" | "vencida" | "sin_
 export interface RegistroAcceso {
   id: string
   socioId: string
+  socioDbId?: number
   nombreSocio: string
   tipo: EstadoAcceso
   motivo: string
   confianza: string
   timestamp: string
   estadoMembresia?: EstadoMembresia
+  accionRecomendada?: 'ninguna' | 'cobrar_adeudo' | 'renovar_membresia'
   fotoUrl?: string
 }
 
@@ -27,6 +29,7 @@ export interface ConfigRegistro {
 
 export interface Socio {
   id: string
+  socioDbId?: number
   nombre: string
   email: string
   telefono: string

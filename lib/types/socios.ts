@@ -255,7 +255,9 @@ export function mapSocioFromAPI(api: SocioAPI): Socio {
     nombrePlan: api.membresia,
     fechaInicioMembresia: api.fecha_inicio_membresia,
     fechaVencimientoMembresia: api.fecha_fin_membresia,
-    estadoPago: 'pagado' as EstadoPago, // Asumimos pagado
+    // Mapear estado de pago si viene en la respuesta (por ejemplo: estado_pago)
+    // Si no viene (o viene null/undefined), asumimos que el pago está pendiente para evitar marcar al socio como pagado accidentalmente.
+    estadoPago: ((api as any).estado_pago ?? (api as any).estadoPago) as EstadoPago || 'sin_pagar',
     estadoSocio: 'activo' as EstadoSocio, // Calculado según vigencia
     // Campos adicionales del detalle 
     vigenciaMembresia: api.vigencia_membresia,
@@ -293,7 +295,9 @@ export function mapSocioListItemFromAPI(api: SocioListItemAPI): Socio {
     estadoSocio: estadoSocio,
     firmoContrato: api.estado_contrato, // true = firmado, false = pendiente
     planId: 0, // No viene en la lista
-    estadoPago: 'pagado', // Asumimos pagado si está activo
+    // Mapear estado de pago si viene en la respuesta de la API
+    // Si no viene, asumimos que el pago está pendiente para no mostrarlo como pagado.
+    estadoPago: (((api as any).estado_pago ?? (api as any).estadoPago) as EstadoPago) || 'sin_pagar',
   }
 }
 

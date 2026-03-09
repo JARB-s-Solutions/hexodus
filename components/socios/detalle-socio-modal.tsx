@@ -118,6 +118,12 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
             const vigenciaActiva = socio.vigenciaMembresia?.toLowerCase().includes('vigente')
             const contratoFirmado = socio.firmoContrato
             const contratoVigente = socio.estadoContrato?.toLowerCase().includes('vigente')
+            const estadoPago = socio.estadoPago || 'sin_pagar'
+            const pagoLabel = estadoPago === 'pagado'
+              ? 'Pagado'
+              : estadoPago === 'sin_pagar'
+              ? 'Sin pagar'
+              : 'Pendiente'
 
             return (
               <div className="space-y-4">
@@ -192,7 +198,7 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                       
                       {/* Estado de Vigencia */}
                       <div>
-                        <p className="text-xs text-muted-foreground mb-1.5">Estado</p>
+                        <p className="text-xs text-muted-foreground mb-1.5">Vigencia</p>
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${
                           vigenciaActiva 
                             ? "bg-green-500/15 text-green-400 border border-green-500/30" 
@@ -200,6 +206,27 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                         }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${vigenciaActiva ? "bg-green-400" : "bg-red-400"}`}></span>
                           {socio.vigenciaMembresia || "Sin información"}
+                        </span>
+                      </div>
+
+                      {/* Estado de Pago */}
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1.5">Pago</p>
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${
+                          estadoPago === 'pagado'
+                            ? "bg-green-500/15 text-green-400 border border-green-500/30"
+                            : estadoPago === 'sin_pagar'
+                            ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                            : "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            estadoPago === 'pagado'
+                              ? "bg-green-400"
+                              : estadoPago === 'sin_pagar'
+                              ? "bg-amber-400"
+                              : "bg-yellow-400"
+                          }`}></span>
+                          {pagoLabel}
                         </span>
                       </div>
                       

@@ -105,10 +105,15 @@ class UsuariosServiceClass {
    */
   private async getHeaders(): Promise<HeadersInit> {
     const token = AuthService.getToken()
-    return {
+    const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : '',
     }
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+
+    return headers
   }
 
   /**

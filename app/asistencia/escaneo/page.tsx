@@ -16,6 +16,7 @@ import {
 import type { ConfigRegistro, Socio, EstadoMembresia } from "@/lib/asistencia-data"
 import { DEFAULT_CONFIG } from "@/lib/asistencia-data"
 import { AsistenciaService } from "@/lib/services/asistencia"
+import { SociosService } from "@/lib/services/socios"
 
 // Declare face-api on window
 declare global {
@@ -35,6 +36,146 @@ interface ResultadoEscaneo {
   membresia: string
   vencimiento: string
   diasRestantes: number
+  motivoDenegacion?: string
+  accionSugerida?: string
+}
+
+function construirContextoAlerta(
+  estado: EstadoMembresia,
+  diasRestantes: number,
+  motivoBackend?: string,
+): { motivoDenegacion?: string; accionSugerida?: string } {
+  const motivoLimpio = motivoBackend?.trim()
+
+  if (estado === 'sin_pago') {
+    return {
+      motivoDenegacion: motivoLimpio || 'La membresia del socio esta en estado SIN PAGAR.',
+      accionSugerida: 'Acude a recepcion para registrar el pago del adeudo y habilitar el acceso.',
+    }
+  }
+
+  if (estado === 'vencida') {
+    const motivoVencida =
+      diasRestantes < 0
+        ? `La membresia vencio hace ${Math.abs(diasRestantes)} dia(s).`
+        : 'La membresia del socio se encuentra vencida.'
+
+    return {
+      motivoDenegacion: motivoLimpio || motivoVencida,
+      accionSugerida: 'Solicita la renovacion de membresia en recepcion para reactivar el acceso.',
+    }
+  }
+
+  if (estado === 'sin_membresia') {
+    return {
+      motivoDenegacion: motivoLimpio || 'El socio no tiene una membresia activa asignada.',
+      accionSugerida: 'Asigna o vende una membresia en recepcion antes de permitir el ingreso.',
+    }
+  }
+
+  if (estado === 'no_registrado') {
+    return {
+      motivoDenegacion: motivoLimpio || 'No se encontro un rostro registrado para este escaneo.',
+      accionSugerida: 'Verifica identidad del usuario y realiza su registro biometrico en recepcion.',
+    }
+  }
+
+  return {
+    motivoDenegacion: motivoLimpio,
+  }
+}
+
+function inferirEstadoMembresia(response: any): EstadoMembresia {
+  const texto = `${response?.message || ''} ${response?.error || ''} ${response?.data?.sugerencia || ''}`.toLowerCase()
+  const estadoPago = String(response?.data?.socio?.estado_pago || response?.data?.estado_pago || '').toLowerCase()
+  const vigencia = String(response?.data?.socio?.vigencia_membresia || response?.data?.vigencia_membresia || '').toLowerCase()
+  const motivoCodigo = String(response?.data?.motivo_codigo || '').toLowerCase()
+
+  if (
+    estadoPago === 'sin_pagar' ||
+    motivoCodigo.includes('sin_pago') ||
+    texto.includes('sin pagar') ||
+    texto.includes('adeudo')
+  ) {
+    return 'sin_pago'
+  }
+
+  if (
+    vigencia.includes('vencid') ||
+    motivoCodigo.includes('vencid') ||
+    texto.includes('membresia vencida') ||
+    texto.includes('membresía vencida')
+  ) {
+    return 'vencida'
+  }
+
+  if (motivoCodigo.includes('proximo') || texto.includes('proximo') || texto.includes('por vencer')) {
+    return 'proximo_vencer'
+  }
+
+  if (motivoCodigo.includes('sin_membresia') || texto.includes('sin membresia') || texto.includes('sin membresía')) {
+    return 'sin_membresia'
+  }
+
+  if (motivoCodigo.includes('no_registrado') || texto.includes('no reconocido') || texto.includes('no registrado')) {
+    return 'no_registrado'
+  }
+
+  return response?.success ? 'permitido' : 'no_registrado'
+}
+
+function calcularDiasRestantes(fechaISO?: string): number {
+  if (!fechaISO) return 0
+  const fecha = new Date(fechaISO)
+  if (Number.isNaN(fecha.getTime())) return 0
+  return Math.ceil((fecha.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+}
+
+function guardarOverrideDenegacion(
+  asistenciaId: string | number | undefined,
+  data: { estadoMembresia: EstadoMembresia; motivo: string; socioId?: string }
+) {
+  if (!asistenciaId || typeof window === 'undefined') return
+
+  try {
+    const key = 'asistencia_denegaciones_override'
+    const actual = JSON.parse(localStorage.getItem(key) || '{}')
+    actual[String(asistenciaId)] = {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    }
+    localStorage.setItem(key, JSON.stringify(actual))
+  } catch (error) {
+    console.warn('[Escaneo] No se pudo guardar override de denegacion:', error)
+  }
+}
+
+async function validarEstadoDesdeSocioDetalle(socioId: number): Promise<EstadoMembresia | null> {
+  try {
+    const socioDetalle = await SociosService.getById(socioId)
+
+    if (!socioDetalle.nombrePlan) {
+      return 'sin_membresia'
+    }
+
+    if (socioDetalle.estadoPago === 'sin_pagar' || socioDetalle.estadoPago === 'pendiente') {
+      return 'sin_pago'
+    }
+
+    const diasRestantes = calcularDiasRestantes(socioDetalle.fechaVencimientoMembresia)
+    if (diasRestantes < 0) {
+      return 'vencida'
+    }
+
+    if (diasRestantes <= 3) {
+      return 'proximo_vencer'
+    }
+
+    return 'permitido'
+  } catch (error) {
+    console.warn('[Escaneo] No se pudo validar estado desde detalle de socio:', error)
+    return null
+  }
 }
 
 // ============================================================================
@@ -276,16 +417,29 @@ export default function EscaneoPage() {
           faceDescriptor: faceDescriptorArray
         })
 
-        if (response.success && response.data) {
-          // Éxito - procesar resultado
+        let estadoAcceso = inferirEstadoMembresia(response)
+
+        if (response.data?.socio) {
           const { socio, asistencia } = response.data
-          const confianza = parseFloat(asistencia.confidence) || 0
 
-          console.log("[Escaneo] ✅ Acceso permitido:", socio.nombre_completo, "Confianza:", asistencia.confidence)
+          // Validación reforzada: el detalle del socio es la fuente de verdad para pago/vigencia.
+          const estadoDesdeDetalle = await validarEstadoDesdeSocioDetalle(socio.id)
+          if (estadoDesdeDetalle) {
+            estadoAcceso = estadoDesdeDetalle
+          }
 
-          // Crear objeto Socio compatible con la UI
+          const accesoPermitido = estadoAcceso === 'permitido' || estadoAcceso === 'proximo_vencer'
+
+          console.log(
+            accesoPermitido ? "[Escaneo] ✅ Acceso permitido:" : "[Escaneo] ⛔ Acceso denegado:",
+            socio.nombre_completo,
+            "Estado:",
+            estadoAcceso,
+          )
+
           const socioUI: Socio = {
-            id: socio.codigo_socio,  // Usar código de socio en lugar de ID numérico
+            id: socio.codigo_socio,
+            socioDbId: socio.id,
             nombre: socio.nombre_completo,
             email: '',
             telefono: '',
@@ -293,37 +447,75 @@ export default function EscaneoPage() {
             foto: socio.foto_perfil_url,
             faceDescriptor: null,
             fechaVencimiento: socio.fecha_fin_membresia,
-            estado: 'activo',
+            estado: accesoPermitido ? 'activo' : 'inactivo',
             membresia: socio.membresia,
-            membresiaInfo: null
+            membresiaInfo: null,
           }
 
-          // Mostrar resultado positivo
+          const confianzaResultado = asistencia?.confidence || '0'
+          const diasRestantes = socio.fecha_fin_membresia
+            ? calcularDiasRestantes(socio.fecha_fin_membresia)
+            : 0
+          const contextoAlerta = construirContextoAlerta(
+            estadoAcceso,
+            diasRestantes,
+            response.error || response.message || undefined,
+          )
+          const motivo = accesoPermitido
+            ? (response.message || 'Acceso permitido')
+            : (contextoAlerta.motivoDenegacion || 'Acceso denegado')
+
           mostrarResultado({
             socio: socioUI,
-            estado: "permitido",
-            confianza: asistencia.confidence,
+            estado: estadoAcceso,
+            confianza: confianzaResultado,
             membresia: socio.membresia,
-            vencimiento: new Date(socio.fecha_fin_membresia).toLocaleDateString('es-MX'),
-            diasRestantes: Math.ceil((new Date(socio.fecha_fin_membresia).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+            vencimiento: socio.fecha_fin_membresia
+              ? new Date(socio.fecha_fin_membresia).toLocaleDateString('es-MX')
+              : '',
+            diasRestantes,
+            motivoDenegacion: contextoAlerta.motivoDenegacion,
+            accionSugerida: contextoAlerta.accionSugerida,
           })
 
-          // Registrar acceso local para historial
-          registrarAccesoLocal(socioUI, "permitido", response.message || "Acceso permitido", asistencia.confidence)
+          registrarAccesoLocal(
+            socioUI,
+            accesoPermitido ? 'permitido' : 'denegado',
+            motivo,
+            confianzaResultado,
+            estadoAcceso,
+            asistencia?.id,
+          )
 
-        } else {
-          // Error o no encontrado
-          console.log("[Escaneo] ❌ No se pudo validar:", response.error || "Desconocido")
-          
-          mostrarResultado({
-            socio: null,
-            estado: "no_registrado",
-            confianza: "0",
-            membresia: response.error || "Sin registro en el sistema",
-            vencimiento: "",
-            diasRestantes: 0,
-          })
+          if (!accesoPermitido) {
+            guardarOverrideDenegacion(asistencia?.id, {
+              estadoMembresia: estadoAcceso,
+              motivo,
+              socioId: socio.codigo_socio,
+            })
+          }
+
+          return
         }
+
+        console.log("[Escaneo] ❌ No se pudo validar:", response.error || response.message || "Desconocido")
+
+        const contextoAlerta = construirContextoAlerta(
+          estadoAcceso,
+          0,
+          response.error || response.message || "Sin registro en el sistema",
+        )
+
+        mostrarResultado({
+          socio: null,
+          estado: estadoAcceso,
+          confianza: "0",
+          membresia: response.error || response.message || "Sin registro en el sistema",
+          vencimiento: "",
+          diasRestantes: 0,
+          motivoDenegacion: contextoAlerta.motivoDenegacion,
+          accionSugerida: contextoAlerta.accionSugerida,
+        })
 
       } catch (error: any) {
         console.error("[Escaneo] Error al validar:", error)
@@ -335,6 +527,8 @@ export default function EscaneoPage() {
           membresia: error.message || "Error al validar acceso",
           vencimiento: "",
           diasRestantes: 0,
+          motivoDenegacion: error.message || 'No se pudo validar el rostro con el servidor.',
+          accionSugerida: 'Reintenta el escaneo o solicita apoyo en recepcion.',
         })
       }
     },
@@ -456,15 +650,33 @@ export default function EscaneoPage() {
   // ============================================================================
 
   const registrarAccesoLocal = useCallback(
-    (socio: Socio, tipo: "permitido" | "denegado", motivo: string, confianza: string) => {
+    (
+      socio: Socio,
+      tipo: "permitido" | "denegado",
+      motivo: string,
+      confianza: string,
+      estadoMembresia?: EstadoMembresia,
+      asistenciaId?: string | number,
+    ) => {
+      const accionRecomendada =
+        estadoMembresia === 'sin_pago'
+          ? 'cobrar_adeudo'
+          : estadoMembresia === 'vencida' || estadoMembresia === 'sin_membresia'
+          ? 'renovar_membresia'
+          : 'ninguna'
+
       const registro = {
-        id: `acc_${Date.now()}`,
+        id: asistenciaId ? String(asistenciaId) : `acc_${Date.now()}`,
         socioId: socio.id,
+        socioDbId: socio.socioDbId,
         nombreSocio: socio.nombre,
         tipo,
         motivo,
         confianza,
         timestamp: new Date().toISOString(),
+        estadoMembresia,
+        accionRecomendada,
+        fotoUrl: socio.foto || undefined,
       }
 
       // Save to localStorage for local history
@@ -805,6 +1017,21 @@ export default function EscaneoPage() {
                         {/* Message */}
                         {cfg.message && (
                           <p className="text-slate-400 text-sm mb-4">{cfg.message}</p>
+                        )}
+
+                        {/* Contexto de denegacion */}
+                        {(resultado.estado === "sin_pago" || resultado.estado === "vencida" || resultado.estado === "sin_membresia" || resultado.estado === "no_registrado") && (
+                          <div className="text-left rounded-lg border border-red-500/35 bg-red-500/10 p-3 mb-4 space-y-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-red-300">Motivo del rechazo</p>
+                            <p className="text-sm text-red-100">
+                              {resultado.motivoDenegacion || "No se pudo validar el acceso en este momento."}
+                            </p>
+                            {resultado.accionSugerida && (
+                              <p className="text-xs text-red-200/90">
+                                <span className="font-semibold">Accion recomendada:</span> {resultado.accionSugerida}
+                              </p>
+                            )}
+                          </div>
                         )}
 
                         {/* Countdown */}
