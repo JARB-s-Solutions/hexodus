@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import Script from 'next/script'
 import { Toaster } from '@/components/ui/toaster'
 import { CajaGuard } from '@/components/caja/caja-guard'
 import { ThemeProvider } from '@/components/theme-provider-custom'
@@ -32,6 +33,11 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${inter.variable} font-sans antialiased`}>
+        {/* Cargamos el WebSdk ANTES de que la página sea interactiva */}
+        <Script 
+          src="/modules/WebSdk/index.js" 
+          strategy="beforeInteractive" 
+        />
         <ThemeProvider>
           <CajaGuard>
             {children}

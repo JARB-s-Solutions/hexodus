@@ -10,6 +10,7 @@ import { MembresiasService } from "@/lib/services/membresias"
 import { CheckoutSocioModal } from "./checkout-socio-modal"
 import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 import { CapturaFacialModal } from "./captura-facial-modal"
+import { CapturaHuellaModal } from "./captura-huella-modal"
 import { toast } from "@/hooks/use-toast"
 import type { Socio, CreateSocioRequest, CotizacionResponse } from "@/lib/types/socios"
 import type { Membresia } from "@/lib/types/membresias"
@@ -85,7 +86,6 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   const [showFacialModal, setShowFacialModal] = useState(false)
   const [showHuellaModal, setShowHuellaModal] = useState(false)
   const [facialDetected, setFacialDetected] = useState(false)
-  const [huellaCapturing, setHuellaCapturing] = useState(false)
   
   // ===== Estado del flujo de registro =====
   const [loading, setLoading] = useState(false)
@@ -705,21 +705,18 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
     setShowHuellaModal(true)
   }
 
-  const handleSimularHuella = () => {
-    setHuellaCapturing(true)
-    setTimeout(() => {
-      // TODO: Integrar con dispositivo de huellas real
-      // Por ahora: simulación
-      setBioHuella(true)
-      setFingerprintTemplate("MOCK_FINGERPRINT_TEMPLATE_" + Date.now())
-      setHuellaCapturing(false)
-      setShowHuellaModal(false)
-      
-      toast({
-        title: "Huella capturada",
-        description: "La huella dactilar ha sido registrada correctamente",
-      })
-    }, 2000)
+  const handleCapturaHuellaCompleta = (template: string) => {
+    console.log('✅ Huella capturada exitosamente')
+    console.log('📝 Template length:', template.length)
+    
+    setFingerprintTemplate(template)
+    setBioHuella(true)
+    setShowHuellaModal(false)
+    
+    toast({
+      title: "✓ Huella capturada",
+      description: "La huella dactilar ha sido registrada correctamente",
+    })
   }
 
   // ===== Estilos =====
@@ -1175,67 +1172,11 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       />
 
       {/* Fingerprint Capture Modal */}
-      {showHuellaModal && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center px-4"
-          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(5px)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowHuellaModal(false) }}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl overflow-hidden animate-slide-up"
-            style={{
-              background: "linear-gradient(180deg, rgba(22,24,36,0.97), rgba(18,20,32,0.95))",
-              border: "1px solid rgba(255,255,255,0.09)",
-            }}
-          >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border/30">
-              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Fingerprint className="h-5 w-5 text-accent" />
-                Captura de Huella Dactilar
-              </h3>
-              <button onClick={() => setShowHuellaModal(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="p-6 text-center">
-              <div className="w-32 h-32 mx-auto mb-6 rounded-full border-2 border-dashed border-accent/50 flex items-center justify-center relative">
-                <Fingerprint className={`h-16 w-16 ${huellaCapturing ? "text-[#22C55E] animate-pulse" : "text-accent"}`} />
-              </div>
-              <p className={`text-sm mb-1 ${huellaCapturing ? "text-[#22C55E]" : "text-muted-foreground"}`}>
-                {huellaCapturing ? "Capturando huella..." : "Coloca tu dedo en el lector"}
-              </p>
-              <p className={`text-xs mb-6 ${huellaCapturing ? "text-[#22C55E]" : "text-muted-foreground"}`}>
-                {huellaCapturing ? "Manten el dedo firme..." : "Esperando lector biometrico..."}
-              </p>
-              <div className="p-3 rounded-xl bg-muted/30 border border-border/50 mb-6 text-left">
-                <p className="text-xs font-semibold text-muted-foreground mb-1">Instrucciones</p>
-                <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                  <li>Conecta el lector de huellas USB</li>
-                  <li>Coloca tu dedo indice en el sensor</li>
-                  <li>Manten el dedo firme por 3 segundos</li>
-                </ul>
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowHuellaModal(false)}
-                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSimularHuella}
-                  disabled={huellaCapturing}
-                  className="flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-xl text-primary-foreground bg-primary hover:bg-primary/90 transition-all disabled:opacity-50 glow-primary"
-                >
-                  {huellaCapturing ? "Capturando..." : "Simular Captura"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <CapturaHuellaModal
+        open={showHuellaModal}
+        onClose={() => setShowHuellaModal(false)}
+        onCapture={handleCapturaHuellaCompleta}
+      />
 
       {/* Checkout Modal (STEP 3) */}
       {showCheckout && cotizacion && (
