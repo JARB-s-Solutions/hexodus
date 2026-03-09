@@ -87,6 +87,7 @@ export interface HistorialAsistenciasResponse {
       socio_id: string     // Sí tiene socio_id numérico
       socio_nombre: string
       codigo_socio: string
+      foto_perfil_url?: string
       timestamp: string    // "2026-03-09T03:03:36.774Z" - TIMESTAMP COMPLETO ISO
       tipo: 'IN' | 'OUT'
       metodo: 'facial' | 'manual'
