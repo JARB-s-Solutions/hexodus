@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Settings, Download, Upload, Trash2, Database } from "lucide-react"
+import { Settings, Download, Upload, Trash2, Zap } from "lucide-react"
 import type { ConfigState } from "./config-types"
 
 interface AvanzadoTabProps {
@@ -66,7 +66,6 @@ function ToggleRow({
 }
 
 export function AvanzadoTab({ config, onChange }: AvanzadoTabProps) {
-  const [backupLoading, setBackupLoading] = useState(false)
   const [cacheLoading, setCacheLoading] = useState(false)
 
   const handleExport = () => {
@@ -81,98 +80,69 @@ export function AvanzadoTab({ config, onChange }: AvanzadoTabProps) {
     URL.revokeObjectURL(url)
   }
 
-  const handleBackup = () => {
-    setBackupLoading(true)
-    setTimeout(() => {
-      const backupData = {
-        configuracion: config,
-        fecha: new Date().toISOString(),
-        version: "2.1.3",
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        try {
+          const importedConfig = JSON.parse(event.target?.result as string)
+          // Aquí se actualizaría la config con los datos importados
+          console.log("Config importada:", importedConfig)
+        } catch (error) {
+          console.error("Error al importar configuración:", error)
+        }
       }
-      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `hexodus_backup_${new Date().toISOString().slice(0, 10)}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      setBackupLoading(false)
-    }, 2000)
+      reader.readAsText(file)
+    }
   }
 
   const handleClearCache = () => {
     setCacheLoading(true)
-    setTimeout(() => setCacheLoading(false), 2000)
-  }
-
-  const selectBg = {
-    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2300BFFF' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-    backgroundPosition: "right 0.5rem center",
-    backgroundRepeat: "no-repeat",
-    backgroundSize: "1.5em 1.5em",
+    // Aquí iría la llamada al backend: POST /api/cache/clear
+    setTimeout(() => {
+      localStorage.clear()
+      setCacheLoading(false)
+    }, 2000)
   }
 
   return (
     <div className="bg-card rounded-xl p-6 border border-border animate-fade-in-up">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-2">
         <Settings className="h-5 w-5 text-accent" />
-        <h2 className="text-lg font-semibold text-foreground">Configuracion Avanzada</h2>
+        <h2 className="text-lg font-semibold text-foreground">Configuración Avanzada</h2>
       </div>
+      
+      <p className="text-sm text-muted-foreground mb-6">
+        Opciones avanzadas de rendimiento y gestión del sistema.
+      </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Backup & Security */}
-        <div className="flex flex-col gap-4">
-          <h3 className="text-base font-semibold text-foreground/80">Backup y Seguridad</h3>
-
-          <ToggleRow
-            id="backup-auto"
-            label="Backup Automatico"
-            description="Respaldo diario de datos"
-            checked={config.backupAuto}
-            onCheckedChange={(v) => onChange({ backupAuto: v })}
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-2">
-              Frecuencia de Backup
-            </label>
-            <select
-              value={config.backupFrecuencia}
-              onChange={(e) => onChange({ backupFrecuencia: e.target.value })}
-              className="w-full px-4 py-3 bg-muted/50 border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all cursor-pointer"
-              style={selectBg}
-            >
-              <option value="daily">Diario</option>
-              <option value="weekly">Semanal</option>
-              <option value="monthly">Mensual</option>
-            </select>
-          </div>
+      {/* Performance */}
+      <div className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <Zap className="h-4 w-4 text-accent" />
+          <h3 className="text-base font-semibold text-foreground">Rendimiento</h3>
         </div>
 
-        {/* Performance */}
-        <div className="flex flex-col gap-4">
-          <h3 className="text-base font-semibold text-foreground/80">Rendimiento</h3>
-
+        <div className="space-y-4 bg-muted/30 rounded-lg p-4 border border-border/50">
           <ToggleRow
             id="cache-sistema"
-            label="Cache del Sistema"
-            description="Mejorar velocidad de carga"
+            label="Caché del Sistema"
+            description="Mejorar velocidad de carga con caché local"
             checked={config.cacheSistema}
             onCheckedChange={(v) => onChange({ cacheSistema: v })}
           />
           <ToggleRow
             id="compresion"
-            label="Compresion"
-            description="Comprimir recursos web"
+            label="Compresión"
+            description="Comprimir recursos para reducir tiempos de carga"
             checked={config.compresion}
             onCheckedChange={(v) => onChange({ compresion: v })}
           />
           <ToggleRow
             id="lazy-loading"
             label="Carga Diferida"
-            description="Cargar contenido bajo demanda"
+            description="Cargar contenido bajo demanda para mejor rendimiento"
             checked={config.lazyLoading}
             onCheckedChange={(v) => onChange({ lazyLoading: v })}
           />
@@ -180,43 +150,51 @@ export function AvanzadoTab({ config, onChange }: AvanzadoTabProps) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-3 mt-8 pt-6 border-t border-border">
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold border border-accent text-accent hover:bg-accent/10 transition-all duration-300 uppercase tracking-wide"
-        >
-          <Download className="h-4 w-4" />
-          Exportar Config.
-        </button>
-        <label className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold border border-accent text-accent hover:bg-accent/10 transition-all duration-300 uppercase tracking-wide cursor-pointer">
-          <Upload className="h-4 w-4" />
-          Importar Config.
-          <input type="file" accept=".json" className="hidden" />
-        </label>
-        <button
-          onClick={handleClearCache}
-          disabled={cacheLoading}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold border border-accent text-accent hover:bg-accent/10 transition-all duration-300 uppercase tracking-wide disabled:opacity-50"
-        >
-          {cacheLoading ? (
-            <span className="h-4 w-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
-          ) : (
-            <Trash2 className="h-4 w-4" />
-          )}
-          {cacheLoading ? "Limpiando..." : "Limpiar Cache"}
-        </button>
-        <button
-          onClick={handleBackup}
-          disabled={backupLoading}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/80 transition-all duration-300 uppercase tracking-wide glow-primary disabled:opacity-50"
-        >
-          {backupLoading ? (
-            <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-          ) : (
-            <Database className="h-4 w-4" />
-          )}
-          {backupLoading ? "Respaldando..." : "Backup Manual"}
-        </button>
+      <div>
+        <h3 className="text-base font-semibold text-foreground mb-4">Gestión de Configuración</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <button
+            onClick={handleExport}
+            className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium border border-accent text-accent hover:bg-accent/10 transition-all"
+          >
+            <Download className="h-4 w-4" />
+            Exportar Config.
+          </button>
+          
+          <label className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium border border-accent text-accent hover:bg-accent/10 transition-all cursor-pointer">
+            <Upload className="h-4 w-4" />
+            Importar Config.
+            <input 
+              type="file" 
+              accept=".json" 
+              onChange={handleImport}
+              className="hidden" 
+            />
+          </label>
+          
+          <button
+            onClick={handleClearCache}
+            disabled={cacheLoading}
+            className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium border border-yellow-500 text-yellow-500 hover:bg-yellow-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {cacheLoading ? (
+              <>
+                <span className="h-4 w-4 border-2 border-yellow-500/30 border-t-yellow-500 rounded-full animate-spin" />
+                Limpiando...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4" />
+                Limpiar Caché
+              </>
+            )}
+          </button>
+        </div>
+
+        <p className="text-xs text-muted-foreground mt-3">
+          La configuración exportada incluye todas tus preferencias excepto roles y permisos del sistema.
+        </p>
       </div>
     </div>
   )
