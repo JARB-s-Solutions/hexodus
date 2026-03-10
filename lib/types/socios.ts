@@ -317,3 +317,39 @@ export interface SocioResponse {
   message: string
   data: SocioAPI
 }
+
+// ================================================
+// HISTORIAL DE PAGOS
+// ================================================
+
+export interface PagoHistorial {
+  id_pago: number
+  monto: string
+  metodo_pago: string
+  fecha_pago: string
+  recibido_por: string
+}
+
+export interface EntradaHistorial {
+  id_membresia_socio: number
+  plan: string
+  fecha_inicio: string
+  fecha_fin: string
+  status_vigencia: string
+  estado_pago: string
+  precio_cobrado: string
+  asignado_por: string
+  pagos: PagoHistorial[]
+}
+
+export interface HistorialPagosResponse {
+  message: string
+  data: {
+    socio: {
+      id: number
+      nombreCompleto: string
+      codigoSocio: string
+    }
+    historial: EntradaHistorial[]
+  }
+}

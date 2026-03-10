@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, User, ScanFace, Fingerprint, Loader2, Mail, Phone, Calendar, CreditCard, FileCheck, IdCard } from "lucide-react"
-import type { Socio } from "@/lib/types/socios"
+import { X, User, ScanFace, Fingerprint, Loader2, Mail, Phone, Calendar, CreditCard, FileCheck, IdCard, ReceiptText, ChevronDown, ChevronUp } from "lucide-react"
+import type { Socio, EntradaHistorial } from "@/lib/types/socios"
 import { SociosService } from "@/lib/services/socios"
 import { toast } from "@/hooks/use-toast"
 import { getIniciales } from "@/lib/utils"
@@ -17,6 +17,9 @@ interface DetalleSocioModalProps {
 export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalProps) {
   const [socio, setSocio] = useState<Socio | null>(null)
   const [cargando, setCargando] = useState(false)
+  const [historial, setHistorial] = useState<EntradaHistorial[]>([])
+  const [cargandoHistorial, setCargandoHistorial] = useState(false)
+  const [historialExpandido, setHistorialExpandido] = useState<number | null>(null)
 
   // Cargar datos completos del socio cuando se abre el modal
   useEffect(() => {
@@ -45,10 +48,27 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
       }
     }
 
+    const cargarHistorial = async () => {
+      setCargandoHistorial(true)
+      try {
+        const data = await SociosService.getHistorialPagos(socioId)
+        setHistorial(data.historial)
+      } catch (error: any) {
+        console.warn('⚠️ No se pudo cargar el historial de pagos:', error.message)
+        setHistorial([])
+      } finally {
+        setCargandoHistorial(false)
+      }
+    }
+
     cargarSocio()
+    cargarHistorial()
   }, [open, socioId, onClose])
 
   if (!open) return null
+
+  const formatMonto = (monto: string) =>
+    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(monto))
 
   // Formatear fechas SIN problema de zona horaria
   const formatFecha = (fecha: string | undefined) => {
@@ -63,6 +83,20 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
     
     return `${day} de ${meses[month - 1]} de ${year}`
+  }
+
+  // Formatear fecha + hora para registros de pago
+  const formatFechaHora = (fecha: string | undefined) => {
+    if (!fecha) return "-"
+    const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+                   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    const d = new Date(fecha)
+    const day = d.getDate()
+    const month = d.getMonth()
+    const year = d.getFullYear()
+    const horas = d.getHours().toString().padStart(2, '0')
+    const minutos = d.getMinutes().toString().padStart(2, '0')
+    return `${day} de ${meses[month]} de ${year} · ${horas}:${minutos} hrs`
   }
 
   return (
@@ -366,6 +400,109 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* ===== SECCIÓN: HISTORIAL DE PAGOS (Ancho Completo) ===== */}
+                <div 
+                  className="p-5 rounded-xl border border-border/30"
+                  style={{ background: "rgba(255,255,255,0.02)" }}
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/10">
+                      <ReceiptText className="h-4 w-4 text-emerald-400" />
+                    </div>
+                    <h5 className="text-sm font-bold uppercase tracking-wider text-foreground">Historial de Pagos</h5>
+                  </div>
+
+                  {cargandoHistorial && (
+                    <div className="flex items-center justify-center py-6 gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground">Cargando historial...</p>
+                    </div>
+                  )}
+
+                  {!cargandoHistorial && historial.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4">Sin historial de pagos registrado.</p>
+                  )}
+
+                  {!cargandoHistorial && historial.length > 0 && (
+                    <div className="space-y-2">
+                      {historial.map((entrada) => {
+                        const estaExpandido = historialExpandido === entrada.id_membresia_socio
+                        const vigenciaActiva = entrada.status_vigencia === 'activa'
+                        const estaPagado = entrada.estado_pago === 'pagado'
+
+                        return (
+                          <div
+                            key={entrada.id_membresia_socio}
+                            className="rounded-lg border border-border/40 overflow-hidden"
+                            style={{ background: "rgba(255,255,255,0.025)" }}
+                          >
+                            {/* Cabecera de la entrada */}
+                            <button
+                              onClick={() => setHistorialExpandido(estaExpandido ? null : entrada.id_membresia_socio)}
+                              className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition text-left"
+                            >
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-sm font-semibold text-foreground">{entrada.plan}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                  vigenciaActiva
+                                    ? "bg-green-500/15 text-green-400"
+                                    : "bg-gray-500/15 text-gray-400"
+                                }`}>
+                                  {entrada.status_vigencia}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                  estaPagado
+                                    ? "bg-emerald-500/15 text-emerald-400"
+                                    : "bg-amber-500/15 text-amber-400"
+                                }`}>
+                                  {entrada.estado_pago === 'sin_pagar' ? 'no pagado' : entrada.estado_pago}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatFecha(entrada.fecha_inicio)} — {formatFecha(entrada.fecha_fin)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <span className="text-sm font-bold text-foreground">{formatMonto(entrada.precio_cobrado)}</span>
+                                {estaExpandido
+                                  ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                  : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                              </div>
+                            </button>
+
+                            {/* Detalle de pagos */}
+                            {estaExpandido && (
+                              <div className="px-4 pb-4 border-t border-border/30 pt-3">
+                                <p className="text-xs text-muted-foreground mb-2">
+                                  Asignado por: <span className="text-foreground font-medium">{entrada.asignado_por}</span>
+                                </p>
+                                {entrada.pagos.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground">Sin pagos registrados.</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {entrada.pagos.map((pago) => (
+                                      <div
+                                        key={pago.id_pago}
+                                        className="flex items-center justify-between rounded-lg px-3 py-2 bg-white/5 border border-border/30"
+                                      >
+                                        <div className="flex flex-col gap-0.5">
+                                          <span className="text-xs font-medium text-foreground">{pago.metodo_pago}</span>
+                                          <span className="text-xs text-muted-foreground">{formatFechaHora(pago.fecha_pago)}</span>
+                                          <span className="text-xs text-muted-foreground">Recibido por: {pago.recibido_por}</span>
+                                        </div>
+                                        <span className={`text-sm font-bold ${Number(pago.monto) < 0 ? "text-red-400" : "text-emerald-400"}`}>{formatMonto(pago.monto)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )
