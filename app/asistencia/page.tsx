@@ -82,6 +82,21 @@ export default function AsistenciaPage() {
   
   const ventanaRef = useRef<Window | null>(null)
 
+  const inferirEstadoMembresiaDesdeMotivo = useCallback((motivoCodigo?: string): EstadoMembresia => {
+    const codigo = (motivoCodigo || '').toLowerCase()
+    if (codigo.includes('vencida')) return 'vencida'
+    if (codigo.includes('sin_membresia')) return 'sin_membresia'
+    if (codigo.includes('sin_pago') || codigo.includes('pendiente')) return 'sin_pago'
+    return 'permitido'
+  }, [])
+
+  const esRegistroDenegadoApi = useCallback((registro: { tipo?: string; estado_acceso?: string; notas?: string | null }) => {
+    const tipo = String(registro.tipo || '').toUpperCase()
+    const estadoAcceso = String(registro.estado_acceso || '').toLowerCase()
+    const notasDenegado = String(registro.notas || '').toLowerCase().includes('denegado')
+    return tipo === 'DENEGADO' || estadoAcceso === 'denegado' || notasDenegado
+  }, [])
+
   const obtenerOverridesDenegacion = useCallback((): Record<string, {
     estadoMembresia?: EstadoMembresia
     motivo?: string
@@ -133,22 +148,26 @@ export default function AsistenciaPage() {
           // fecha: "2026-03-09", hora: "03:03:36" -> "2026-03-09T03:03:36"
           const timestamp = `${response.data.fecha}T${r.hora}`
           const override = overrides[String(r.id)]
-          const esDenegado = !!override || r.tipo === 'OUT'
+          const esDenegado = !!override || esRegistroDenegadoApi({ tipo: r.tipo, estado_acceso: (r as any).estado_acceso })
+          const estadoMembresia = override?.estadoMembresia || inferirEstadoMembresiaDesdeMotivo((r as any).motivo_codigo)
 
           return {
-            id: r.id,
+            id: String(r.id),
             socioId: r.codigo_socio, // /hoy no tiene socio_id, usa codigo_socio
             socioDbId: undefined,
             nombreSocio: r.socio_nombre,
             tipo: esDenegado ? 'denegado' : 'permitido',
-            motivo: override?.motivo || (r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual'),
+            motivo:
+              override?.motivo ||
+              (r as any).motivo_texto ||
+              (esDenegado ? 'Acceso denegado' : (r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual')),
             confianza: confianzaStr,
             timestamp: timestamp,
-            estadoMembresia: override?.estadoMembresia || ('vigente' as any),
+            estadoMembresia,
             fotoUrl: r.foto_perfil_url,
-            accionRecomendada: override?.estadoMembresia === 'sin_pago'
+            accionRecomendada: estadoMembresia === 'sin_pago'
               ? 'cobrar_adeudo'
-              : override?.estadoMembresia === 'vencida' || override?.estadoMembresia === 'sin_membresia'
+              : estadoMembresia === 'vencida' || estadoMembresia === 'sin_membresia'
               ? 'renovar_membresia'
               : 'ninguna',
           }
@@ -156,10 +175,21 @@ export default function AsistenciaPage() {
 
         setRegistrosHoy(registrosTransformados)
 
-        // Sincronizar KPI de denegados con los registros transformados del dia.
+        // Usar resumen oficial del endpoint /asistencia/hoy para KPIs.
         setKpisData((prev) => ({
-          ...prev,
-          denegados: registrosTransformados.filter((r) => r.tipo === 'denegado').length,
+          asistentesHoy:
+            typeof response.data.resumen?.entradas === 'number'
+              ? response.data.resumen.entradas
+              : registrosTransformados.filter((r) => r.tipo === 'permitido').length,
+          activosAhora:
+            typeof response.data.resumen?.socios_activos_ahora === 'number'
+              ? response.data.resumen.socios_activos_ahora
+              : prev.activosAhora,
+          denegados:
+            typeof (response.data.resumen as any)?.denegados === 'number'
+              ? (response.data.resumen as any).denegados
+              : registrosTransformados.filter((r) => r.tipo === 'denegado').length,
+          permanenciaPromedio: prev.permanenciaPromedio,
         }))
       }
     } catch (error: any) {
@@ -229,23 +259,27 @@ export default function AsistenciaPage() {
           }
 
           const override = overrides[String(r.id)]
-          const notasDenegado = (r.notas || '').toLowerCase().includes('denegado')
-          const esDenegado = !!override || notasDenegado || r.tipo === 'OUT'
+          const esDenegado = !!override || esRegistroDenegadoApi({ tipo: r.tipo, estado_acceso: (r as any).estado_acceso, notas: r.notas })
+          const estadoMembresia = override?.estadoMembresia || inferirEstadoMembresiaDesdeMotivo((r as any).motivo_codigo)
 
           return {
-            id: r.id,
+            id: String(r.id),
             socioId: String(r.socio_id), // Historial tiene socio_id
             socioDbId: Number(r.socio_id),
             nombreSocio: r.socio_nombre,
             tipo: esDenegado ? 'denegado' : 'permitido',
-            motivo: override?.motivo || r.notas || (r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual'),
+            motivo:
+              override?.motivo ||
+              (r as any).motivo_texto ||
+              r.notas ||
+              (esDenegado ? 'Acceso denegado' : (r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual')),
             confianza: confianzaStr,
             timestamp: r.timestamp, // Usar timestamp directamente
-            estadoMembresia: override?.estadoMembresia || ('vigente' as any),
+            estadoMembresia,
             fotoUrl: r.foto_perfil_url,
-            accionRecomendada: override?.estadoMembresia === 'sin_pago'
+            accionRecomendada: estadoMembresia === 'sin_pago'
               ? 'cobrar_adeudo'
-              : override?.estadoMembresia === 'vencida' || override?.estadoMembresia === 'sin_membresia'
+              : estadoMembresia === 'vencida' || estadoMembresia === 'sin_membresia'
               ? 'renovar_membresia'
               : 'ninguna',
           }
@@ -314,13 +348,12 @@ export default function AsistenciaPage() {
 
       if (response.success && response.data) {
         // Transformar datos de API a formato local
-        setKpisData((prev) => ({
-          asistentesHoy: response.data.total_asistencias,
+        setKpisData({
+          asistentesHoy: response.data.entradas,
           activosAhora: response.data.socios_activos_ahora,
-          // El valor de denegados lo controlamos por los registros transformados.
-          denegados: prev.denegados,
+          denegados: (response.data as any).denegados ?? 0,
           permanenciaPromedio: "N/A",
-        }))
+        })
       }
     } catch (error: any) {
       console.error("Error al cargar KPIs:", error)
@@ -433,6 +466,10 @@ export default function AsistenciaPage() {
           variant: nuevoRegistro.tipo === "permitido" ? "default" : "destructive",
         })
 
+        // Forzar sincronización inmediata de KPIs y lista del día desde backend.
+        void cargarAsistenciasHoy()
+        void cargarKpis()
+
         if (nuevoRegistro.tipo === 'denegado' && nuevoRegistro.accionRecomendada === 'cobrar_adeudo') {
           abrirCobroAdeudo(nuevoRegistro)
         }
@@ -440,7 +477,7 @@ export default function AsistenciaPage() {
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [toast, tabActivo])
+  }, [toast, tabActivo, cargarAsistenciasHoy, cargarKpis])
 
   // Save config to localStorage for scanner window
   useEffect(() => {
@@ -540,11 +577,11 @@ export default function AsistenciaPage() {
       id: String(registroData.id),
       socioId: registroData.clave || String(registroData.socio_id),
       nombreSocio: registroData.nombre,
-      tipo: registroData.tipo === 'IN' ? 'permitido' : 'denegado',
+      tipo: String(registroData.tipo).toUpperCase() === 'DENEGADO' ? 'denegado' : 'permitido',
       motivo: registroData.notas || 'Registro manual',
       confianza: "Manual",
       timestamp: registroData.timestamp,
-      estadoMembresia: 'vigente' as any,
+      estadoMembresia: 'permitido',
     }
 
     // Agregar a registros de hoy (siempre son registros nuevos del día)

@@ -63,12 +63,15 @@ export interface AsistenciasHoyResponse {
   data: {
     fecha: string  // "2026-03-09"
     asistencias: Array<{
-      id: string
+      id: string | number
       socio_nombre: string
       codigo_socio: string  // "SOC-959917" - NO tiene socio_id
       foto_perfil_url?: string
       hora: string         // "03:03:36" - SOLO HORA, no timestamp completo
-      tipo: 'IN' | 'OUT'
+      tipo: 'IN' | 'OUT' | 'DENEGADO'
+      estado_acceso?: 'permitido' | 'denegado' | string
+      motivo_codigo?: string
+      motivo_texto?: string
       metodo: 'facial' | 'manual'
       confidence?: number
     }>
@@ -76,6 +79,7 @@ export interface AsistenciasHoyResponse {
       total_asistencias: number
       entradas: number
       salidas: number
+      denegados?: number
       socios_activos_ahora: number
       promedio_confidence: number
     }
@@ -87,13 +91,16 @@ export interface HistorialAsistenciasResponse {
   success: boolean
   data: {
     asistencias: Array<{
-      id: string
-      socio_id: string     // Sí tiene socio_id numérico
+      id: string | number
+      socio_id: string | number     // Sí tiene socio_id numérico
       socio_nombre: string
       codigo_socio: string
       foto_perfil_url?: string
       timestamp: string    // "2026-03-09T03:03:36.774Z" - TIMESTAMP COMPLETO ISO
-      tipo: 'IN' | 'OUT'
+      tipo: 'IN' | 'OUT' | 'DENEGADO'
+      estado_acceso?: 'permitido' | 'denegado' | string
+      motivo_codigo?: string
+      motivo_texto?: string
       metodo: 'facial' | 'manual'
       confidence?: number
       kiosk_id?: string
@@ -124,6 +131,7 @@ export interface KpisAsistenciasResponse {
     total_asistencias: number
     entradas: number
     salidas: number
+    denegados?: number
     socios_activos_ahora: number
     promedio_confidence: number
   }
