@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api'
+import { getMetodosPago as getMetodosPagoConfiguracion } from '@/lib/services/metodos-pago'
 import type {
   Socio,
   SocioAPI,
@@ -235,40 +236,30 @@ export class MetodosPagoService {
    */
   static async getAll(): Promise<MetodoPago[]> {
     console.log('🔄 GET /api/metodos-pago - Obteniendo métodos de pago')
-    
-    const response = await apiGet<any>('/metodos-pago')
-    console.log('✅ Métodos de pago obtenidos:', response)
-    console.log('📋 Estructura completa de response:', JSON.stringify(response, null, 2))
-    
-    // La API puede devolver los datos en response.data o directamente en response
-    let metodos = response.data || response
-    
-    console.log('📋 Metodos extraídos:', metodos)
-    
-    if (!Array.isArray(metodos)) {
-      console.warn('⚠️ Los métodos no son un array:', metodos)
-      return []
-    }
-    
-    // Validar que cada método tenga las propiedades necesarias
-    const metodosValidos = metodos.filter((m: any) => {
-      const esValido = m && typeof m === 'object' && (m.metodo_pago_id || m.id)
-      if (!esValido) {
-        console.warn('⚠️ Método inválido encontrado:', m)
-      }
-      return esValido
-    })
-    
-    // Normalizar los datos si vienen con 'id' en lugar de 'metodo_pago_id'
-    const metodosNormalizados: MetodoPago[] = metodosValidos.map((m: any) => ({
-      metodo_pago_id: m.metodo_pago_id || m.id,
-      nombre: m.nombre || 'Método desconocido',
-      descripcion: m.descripcion,
-      activo: m.activo !== undefined ? m.activo : true
-    }))
-    
-    console.log('✅ Métodos normalizados:', metodosNormalizados)
-    
+
+    const metodos = await getMetodosPagoConfiguracion()
+
+    // Checkout necesita un ID numerico para enviar metodo_pago_id.
+    const metodosNormalizados: MetodoPago[] = metodos
+      .map((m) => {
+        const numericId =
+          m.metodo_pago_id !== undefined
+            ? m.metodo_pago_id
+            : Number.isFinite(Number(m.id))
+            ? Number(m.id)
+            : undefined
+
+        if (!numericId) return null
+
+        return {
+          metodo_pago_id: numericId,
+          nombre: m.nombre || 'Metodo desconocido',
+          activo: m.activo !== undefined ? m.activo : true,
+        }
+      })
+      .filter((m): m is MetodoPago => m !== null)
+
+    console.log('✅ Métodos normalizados para checkout:', metodosNormalizados)
     return metodosNormalizados
   }
 }
