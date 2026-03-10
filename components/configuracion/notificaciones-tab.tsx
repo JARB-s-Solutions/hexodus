@@ -157,7 +157,7 @@ export function NotificacionesTab({ config, onChange }: NotificacionesTabProps) 
       {/* Info adicional */}
       <div className="mt-6 p-4 bg-accent/5 border border-accent/20 rounded-lg">
         <div className="flex gap-3">
-          <AlertCircle className="h-5 w-5 text-accent flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-accent shrink-0 mt-0.5" />
           <div>
             <h4 className="text-sm font-semibold text-foreground mb-1">¿Cómo funcionan las alertas?</h4>
             <p className="text-xs text-muted-foreground leading-relaxed">

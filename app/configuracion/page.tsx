@@ -14,6 +14,7 @@ import { MetodosPagoTab } from "@/components/configuracion/metodos-pago-tab"
 import { DatosTicketTab } from "@/components/configuracion/datos-ticket-tab"
 import { defaultConfig, type ConfigState } from "@/components/configuracion/config-types"
 import { ConfiguracionService } from "@/lib/services/configuracion"
+import { AlertasService } from "@/lib/services/alertas"
 import { ThemeService } from "@/lib/services/theme"
 
 export default function ConfiguracionPage() {
@@ -25,7 +26,7 @@ export default function ConfiguracionPage() {
 
   const hasChanges = JSON.stringify(config) !== JSON.stringify(savedConfig)
 
-  // Cargar configuración del gimnasio desde el backend
+  // Cargar configuración del gimnasio y de alertas desde el backend
   useEffect(() => {
     const cargarConfiguracion = async () => {
       try {
@@ -59,7 +60,28 @@ export default function ConfiguracionPage() {
       }
     }
 
+    const cargarConfigAlertas = async () => {
+      try {
+        const data = await AlertasService.getConfiguracion()
+        const alertasUpdate: Partial<typeof defaultConfig> = {
+          notifVencimientos:    data.alertaVencimientosActiva,
+          notifVencimientoDias: data.alertaVencimientosDias,
+          notifInventario:      data.alertaStockActiva,
+          notifStockMinimo:     data.alertaStockMinimo,
+          notifInactividad:     data.alertaInactividadActiva,
+          notifInactividadDias: data.alertaInactividadDias,
+          notifPagosPendientes: data.alertaPagosActiva,
+        }
+        setConfig((prev) => ({ ...prev, ...alertasUpdate }))
+        setSavedConfig((prev) => ({ ...prev, ...alertasUpdate }))
+      } catch (error) {
+        console.error('Error cargando configuración de alertas:', error)
+        // No mostrar error, los valores por defecto del ConfigState son suficientes
+      }
+    }
+
     cargarConfiguracion()
+    cargarConfigAlertas()
   }, [])
 
   const handleChange = useCallback((updates: Partial<ConfigState>) => {
@@ -83,6 +105,19 @@ export default function ConfiguracionPage() {
         }
         
         await ConfiguracionService.guardarConfiguracion(configGimnasio)
+      }
+
+      // Si estamos en el tab de Notificaciones, guardar config de alertas en el backend
+      if (activeTab === "notificaciones") {
+        await AlertasService.actualizarConfiguracion({
+          alertaVencimientosActiva: config.notifVencimientos,
+          alertaVencimientosDias:   config.notifVencimientoDias,
+          alertaStockActiva:        config.notifInventario,
+          alertaStockMinimo:        config.notifStockMinimo,
+          alertaInactividadActiva:  config.notifInactividad,
+          alertaInactividadDias:    config.notifInactividadDias,
+          alertaPagosActiva:        config.notifPagosPendientes,
+        })
       }
       
       // Guardar en estado local
