@@ -11,6 +11,7 @@ import type {
   SocioResponse,
   DashboardStatsSocios,
   MetodoPago,
+  HistorialPagosResponse,
 } from '@/lib/types/socios'
 import { mapSocioFromAPI, mapSocioListItemFromAPI } from '@/lib/types/socios'
 
@@ -224,6 +225,23 @@ export class SociosService {
     
     console.log('✅ Resultados mapeados:', resultados)
     return resultados
+  }
+
+  /**
+   * Obtener historial de pagos de un socio
+   * GET /api/socios/:id/historial-pagos
+   */
+  static async getHistorialPagos(id: number): Promise<HistorialPagosResponse['data']> {
+    console.log(`🔄 GET /api/socios/${id}/historial-pagos - Obteniendo historial de pagos`)
+
+    const response = await apiGet<HistorialPagosResponse>(`/socios/${id}/historial-pagos`)
+    console.log('✅ Historial de pagos obtenido:', response)
+
+    if (!response.data) {
+      throw new Error('No se pudo obtener el historial de pagos')
+    }
+
+    return response.data
   }
 }
 
