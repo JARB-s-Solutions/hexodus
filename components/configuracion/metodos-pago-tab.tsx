@@ -68,16 +68,12 @@ export function MetodosPagoTab() {
 
     try {
       setSaving(true)
-      const metodoCreado = await createMetodoPago(nuevoMetodo)
-      
-      // Asegurar que metodoCreado sea un objeto válido
-      if (metodoCreado && typeof metodoCreado === "object") {
-        setMetodos((prev) => Array.isArray(prev) ? [...prev, metodoCreado] : [metodoCreado])
-        setToast({ type: "success", message: "Método de pago creado exitosamente" })
-        handleCerrarModal()
-      } else {
-        throw new Error("Respuesta inválida del servidor")
-      }
+      await createMetodoPago(nuevoMetodo)
+
+      // Recargar desde backend para reflejar exactamente lo que existe en BD.
+      await loadMetodos()
+      setToast({ type: "success", message: "Método de pago creado exitosamente" })
+      handleCerrarModal()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error al crear método de pago"
       setToast({ type: "error", message: errorMessage })
