@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, LogOut, UserPlus, Fingerprint } from "lucide-react"
+import { LogOut, UserPlus, Fingerprint } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AuthService } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
+import { NotificacionesBell } from "@/components/notificaciones-bell"
 
 interface AsistenciaHeaderProps {
   onRegistroManual?: () => void
@@ -89,13 +90,7 @@ export function AsistenciaHeader({ onRegistroManual, onRegistroHuella }: Asisten
             Registro Manual
           </Button>
         )}
-        <button
-          className="relative p-2 rounded-full hover:bg-muted transition-colors"
-          aria-label="Notificaciones"
-        >
-          <Bell className="h-5 w-5 text-accent" />
-          <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-primary" />
-        </button>
+        <NotificacionesBell />
         <button
           onClick={handleLogout}
           className="p-2 rounded-full hover:bg-muted transition-colors"

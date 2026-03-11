@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, LogOut } from "lucide-react"
+import { LogOut } from "lucide-react"
 import { AuthService } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
 import { IndicadorCaja } from "@/components/caja/indicador-caja"
+import { NotificacionesBell } from "@/components/notificaciones-bell"
 
 export function VentasHeader() {
   const [dateTime, setDateTime] = useState("")
@@ -59,13 +60,7 @@ export function VentasHeader() {
       </div>
       <div className="flex items-center space-x-4">
         <IndicadorCaja />
-        <button
-          className="relative p-2 rounded-full hover:bg-gray-800 transition duration-200"
-          title="Notificaciones"
-        >
-          <Bell className="h-6 w-6 text-accent" />
-          <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-primary" />
-        </button>
+        <NotificacionesBell />
         <button
           onClick={handleLogout}
           className="p-2 rounded-full hover:bg-gray-800 transition duration-200"
