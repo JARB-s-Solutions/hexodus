@@ -13,8 +13,24 @@ import { HistorialReportes, type ReporteHistorial } from "@/components/reportes/
 import { GenerarReporteModal, type ReporteConfig } from "@/components/reportes/generar-reporte-modal"
 import { formatCurrency, type TipoReporte } from "@/lib/reportes-data"
 import { ReportesService } from "@/lib/services/reportes"
+import { exportReporteFinancieroToCSV } from "@/lib/export-excel"
+import { useToast } from "@/hooks/use-toast"
+
+function getPeriodoLabel(periodo: string): string {
+  const labels: Record<string, string> = {
+    dia: "Hoy",
+    semana: "Esta Semana",
+    mes: "Este Mes",
+    trimestre: "Este Trimestre",
+    semestre: "Este Semestre",
+    anual: "Este Ano",
+    personalizado: "Personalizado",
+  }
+  return labels[periodo] ?? periodo
+}
 
 export default function ReportesPage() {
+  const { toast } = useToast()
   const [periodo, setPeriodo] = useState("mes")
   const [tipoReporte, setTipoReporte] = useState<TipoReporte | "todos">("todos")
   const [fechaInicio, setFechaInicio] = useState("")
@@ -326,85 +342,112 @@ export default function ReportesPage() {
   }, [])
 
   const handleExportar = useCallback(() => {
-    // TODO: Implementar exportación con datos del backend
-    console.log('🔄 Exportar reporte')
-    alert('Funcionalidad de exportación pendiente de implementar con datos del backend')
-  }, [])
+    if (!resumenData || !graficasData) {
+      toast({
+        variant: "destructive",
+        title: "Sin datos cargados",
+        description: "Espera a que terminen de cargar los datos para exportar.",
+      })
+      return
+    }
+
+    const nombreReporte = getPeriodoLabel(periodo)
+    try {
+      exportReporteFinancieroToCSV({
+        nombre: nombreReporte,
+        periodo: nombreReporte,
+        resumen: {
+          ventas: resumenData.ventas_actual ?? 0,
+          gastos: resumenData.gastos_actual ?? 0,
+          utilidad: resumenData.utilidad_actual ?? 0,
+          membresias: resumenData.membresias_actual ?? 0,
+          socios: resumenData.socios_activos ?? 0,
+        },
+        graficas: {
+          ventasPorMes: graficasData.ventasPorMes ?? [],
+          gastosPorMes: graficasData.gastosPorMes ?? [],
+          membresiasPorMes: graficasData.membresiasPorMes ?? [],
+          gastosPorCategoria: graficasData.gastosPorCategoria ?? [],
+          membresiasPorPlan: graficasData.membresiasPorPlan ?? [],
+        },
+      })
+      toast({
+        title: "Reporte descargado",
+        description: `El archivo CSV "${nombreReporte}" se descargó correctamente.`,
+      })
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error al exportar",
+        description: err.message ?? "No se pudo generar el archivo CSV.",
+      })
+    }
+  }, [resumenData, graficasData, periodo, toast])
 
   const handleGenerarReporte = useCallback(async (config: ReporteConfig) => {
-    try {
-      console.log('🔄 Generando reporte con backend:', config)
-      
-      // Mapear tipo de reporte para el backend
-      let tipoReporteBackend = config.tipo
-      if (config.tipo === "completo") {
-        tipoReporteBackend = "Reporte Completo"
-      } else if (config.tipo === "ventas") {
-        tipoReporteBackend = "Ventas"
-      } else if (config.tipo === "gastos") {
-        tipoReporteBackend = "Gastos"
-      } else if (config.tipo === "utilidad") {
-        tipoReporteBackend = "Utilidad"
-      } else if (config.tipo === "membresias") {
-        tipoReporteBackend = "Membresias"
-      }
-      
-      // Llamar al backend para generar el reporte
-      const response = await ReportesService.generarReporte({
-        nombre: config.nombre,
-        descripcion: config.descripcion,
-        tipoReporte: tipoReporteBackend,
-        formato: "Excel (.csv)",
-        fechaInicio: config.fechaInicio,
-        fechaFin: config.fechaFin,
-        incluirGraficos: config.incluirGraficos,
-        incluirDetalles: config.incluirDetalles,
-      })
-      
-      console.log('✅ Reporte generado exitosamente en el backend')
-      console.log('   Response recibido:', response)
-      
-      // Cerrar modal primero
-      setModalGenerar(false)
-      
-      // Esperar un momento antes de procesar descarga y cambio de tab
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      // Intentar descargar automáticamente si hay URL o ID
-      if (response?.data?.url_descarga) {
-        console.log('📥 Descargando reporte desde URL:', response.data.url_descarga)
-        window.open(response.data.url_descarga, '_blank')
-      } else if (response?.data?.id) {
-        console.log('📥 Descargando reporte con ID:', response.data.id)
-        try {
-          await ReportesService.descargarReporte(response.data.id)
-        } catch (downloadError: any) {
-          console.warn('⚠️  No se pudo descargar automáticamente:', downloadError.message)
-          // No bloqueamos el flujo si falla la descarga
-        }
-      } else {
-        console.log('ℹ️  Respuesta sin url_descarga ni id, reporte generado pero no descargado')
-      }
-      
-      // Cambiar al tab de historial
-      console.log('🔄 Cambiando a tab historial...')
-      setActiveTab('historial')
-      
-      // Forzar recarga del historial después de cambiar de tab
-      console.log('🔄 Programando recarga del historial en 1 segundo...')
-      setTimeout(() => {
-        console.log('🔄 Ejecutando recarga del historial')
-        setRefreshHistorial(prev => prev + 1)
-      }, 1000)
-      
-      // Mostrar notificación de éxito
-      console.log('✅ Proceso completado exitosamente')
-      alert(`Reporte "${config.nombre}" generado exitosamente`)
-    } catch (error: any) {
-      console.error('❌ Error generando reporte:', error)
-      alert(`Error al generar reporte: ${error.message}`)
+    const tipoMapper: Record<string, string> = {
+      completo: "Reporte Completo", ventas: "Ventas",
+      gastos: "Gastos", utilidad: "Utilidad", membresias: "Membresias",
     }
-  }, [])
+    const tipoReporteBackend = tipoMapper[config.tipo] ?? "Reporte Completo"
+
+    // 1. Descarga local inmediata — no depende del backend
+    if (resumenData && graficasData) {
+      try {
+        exportReporteFinancieroToCSV({
+          nombre: config.nombre,
+          periodo: `${config.fechaInicio} - ${config.fechaFin}`,
+          resumen: {
+            ventas: resumenData.ventas_actual ?? 0,
+            gastos: resumenData.gastos_actual ?? 0,
+            utilidad: resumenData.utilidad_actual ?? 0,
+            membresias: resumenData.membresias_actual ?? 0,
+            socios: resumenData.socios_activos ?? 0,
+          },
+          graficas: {
+            ventasPorMes: graficasData.ventasPorMes ?? [],
+            gastosPorMes: graficasData.gastosPorMes ?? [],
+            membresiasPorMes: graficasData.membresiasPorMes ?? [],
+            gastosPorCategoria: graficasData.gastosPorCategoria ?? [],
+            membresiasPorPlan: graficasData.membresiasPorPlan ?? [],
+          },
+        })
+      } catch (csvErr: any) {
+        toast({
+          variant: "destructive",
+          title: "Error al generar CSV",
+          description: csvErr.message ?? "No se pudo crear el archivo.",
+        })
+        return
+      }
+    }
+
+    // Cerrar modal y mostrar éxito
+    setModalGenerar(false)
+    toast({
+      title: "Reporte generado",
+      description: `"${config.nombre}" descargado exitosamente como CSV.`,
+    })
+
+    // 2. POST al backend en segundo plano para guardar en historial (no bloquea)
+    ReportesService.generarReporte({
+      nombre: config.nombre,
+      descripcion: config.descripcion,
+      tipoReporte: tipoReporteBackend,
+      formato: "Excel (.csv)",
+      fechaInicio: config.fechaInicio,
+      fechaFin: config.fechaFin,
+      incluirGraficos: config.incluirGraficos,
+      incluirDetalles: config.incluirDetalles,
+    })
+      .then(() => {
+        setActiveTab('historial')
+        setTimeout(() => setRefreshHistorial(prev => prev + 1), 800)
+      })
+      .catch((err) => {
+        console.warn('⚠️ Backend no guardó el reporte en historial:', err.message)
+      })
+  }, [resumenData, graficasData, toast])
 
   const handleDescargarReporte = useCallback(async (reporte: ReporteHistorial) => {
     try {
@@ -413,42 +456,28 @@ export default function ReportesPage() {
       // Llamar al servicio para descargar el reporte
       await ReportesService.descargarReporte(reporte.id)
       
-      // Actualizar el estado del reporte a "descargado"
       setReportesHistorial((prev) =>
         prev.map((r) => (r.id === reporte.id ? { ...r, estado: "descargado" as const } : r))
       )
-      
-      console.log('✅ Reporte descargado exitosamente')
+      toast({ title: "Reporte descargado", description: `"${reporte.nombre}" descargado exitosamente.` })
     } catch (error: any) {
       console.error('❌ Error descargando reporte:', error)
-      alert(`Error al descargar reporte: ${error.message}`)
+      toast({ variant: "destructive", title: "Error al descargar", description: error.message ?? "No se pudo descargar el reporte." })
     }
-  }, [])
+  }, [toast])
 
   const handleEliminarReporte = useCallback(async (id: string) => {
     try {
       console.log('🗑️  Eliminando reporte:', id)
       
-      // Confirmar eliminación
-      const confirmDelete = window.confirm('¿Estás seguro de que deseas eliminar este reporte? Esta acción no se puede deshacer.')
-      if (!confirmDelete) {
-        console.log('ℹ️  Eliminación cancelada por el usuario')
-        return
-      }
-      
-      // Llamar al servicio para eliminar el reporte del backend
       await ReportesService.eliminarReporte(id)
-      
-      // Actualizar el estado local
       setReportesHistorial((prev) => prev.filter((r) => r.id !== id))
-      
-      console.log('✅ Reporte eliminado exitosamente')
-      alert('Reporte eliminado exitosamente')
+      toast({ title: "Reporte eliminado", description: "El reporte fue eliminado del historial." })
     } catch (error: any) {
       console.error('❌ Error eliminando reporte:', error)
-      alert(`Error al eliminar reporte: ${error.message}`)
+      toast({ variant: "destructive", title: "Error al eliminar", description: error.message ?? "No se pudo eliminar el reporte." })
     }
-  }, [])
+  }, [toast])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -544,22 +573,45 @@ export default function ReportesPage() {
               {/* ====== RESUMEN GENERAL TAB ====== */}
               {activeTab === "resumen" && (
                 <div className="space-y-5">
-                  <div className="bg-card rounded-xl p-8 text-center" style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}>
-                    <h3 className="text-lg font-semibold text-foreground mb-2">Tab de Resumen</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Esta sección está en proceso de migración a datos del backend.
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Por favor, utiliza los tabs de "Gráficas" y "Comparaciones" que ya están integrados con el backend.
-                    </p>
-                  </div>
-                  
-                  {/* TODO: Implementar resumen con endpoints del backend
-                  - Desglose de ingresos
-                  - Cards de resumen
-                  - Insights
-                  - Top categorías y planes
-                  */}
+                  {loadingResumen || loadingGraficas ? (
+                    <div className="flex items-center justify-center py-20">
+                      <div className="text-center space-y-3">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                        <p className="text-sm text-muted-foreground">Cargando resumen...</p>
+                      </div>
+                    </div>
+                  ) : resumenData ? (
+                    <>
+                      <DesgloseIngresos
+                        totalVentas={resumenData.ventas_actual ?? 0}
+                        totalMembresias={resumenData.membresias_actual ?? 0}
+                        totalVentasAnt={resumenData.ventas_anterior ?? 0}
+                        totalMembresiasAnt={resumenData.membresias_anterior ?? 0}
+                        totalGastos={resumenData.gastos_actual ?? 0}
+                        labelAnterior="Período anterior"
+                      />
+                      <InsightsReportes
+                        ventas={resumenData.ventas_actual ?? 0}
+                        ventasAnterior={resumenData.ventas_anterior ?? 0}
+                        gastos={resumenData.gastos_actual ?? 0}
+                        gastosAnterior={resumenData.gastos_anterior ?? 0}
+                        utilidad={resumenData.utilidad_actual ?? 0}
+                        utilidadAnterior={resumenData.utilidad_anterior ?? 0}
+                        membresias={resumenData.membresias_actual ?? 0}
+                        membresiasAnterior={resumenData.membresias_anterior ?? 0}
+                        socios={resumenData.socios_activos ?? 0}
+                        topGasto={graficasData?.gastosPorCategoria?.[0]?.categoria ?? ""}
+                        topGastoMonto={graficasData?.gastosPorCategoria?.[0]?.total ?? 0}
+                        topPlan={graficasData?.membresiasPorPlan?.[0]?.plan ?? ""}
+                        topPlanSocios={graficasData?.membresiasPorPlan?.[0]?.cantidad ?? 0}
+                        periodo={getPeriodoLabel(periodo)}
+                      />
+                    </>
+                  ) : (
+                    <div className="bg-card rounded-xl p-8 text-center" style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}>
+                      <p className="text-sm text-muted-foreground">No hay datos disponibles para el período seleccionado.</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -617,7 +669,24 @@ export default function ReportesPage() {
                         labelActual="Período actual"
                         labelAnterior="Período anterior"
                       />
-                      {/* TODO: Agregar InsightsReportes con datos reales cuando endpoint esté disponible */}
+                      {resumenData && (
+                        <InsightsReportes
+                          ventas={resumenData.ventas_actual ?? 0}
+                          ventasAnterior={resumenData.ventas_anterior ?? 0}
+                          gastos={resumenData.gastos_actual ?? 0}
+                          gastosAnterior={resumenData.gastos_anterior ?? 0}
+                          utilidad={resumenData.utilidad_actual ?? 0}
+                          utilidadAnterior={resumenData.utilidad_anterior ?? 0}
+                          membresias={resumenData.membresias_actual ?? 0}
+                          membresiasAnterior={resumenData.membresias_anterior ?? 0}
+                          socios={resumenData.socios_activos ?? 0}
+                          topGasto={graficasData?.gastosPorCategoria?.[0]?.categoria ?? ""}
+                          topGastoMonto={graficasData?.gastosPorCategoria?.[0]?.total ?? 0}
+                          topPlan={graficasData?.membresiasPorPlan?.[0]?.plan ?? ""}
+                          topPlanSocios={graficasData?.membresiasPorPlan?.[0]?.cantidad ?? 0}
+                          periodo={getPeriodoLabel(periodo)}
+                        />
+                      )}
                     </>
                   ) : (
                     <div className="text-center py-20">
