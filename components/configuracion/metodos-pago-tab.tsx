@@ -132,15 +132,12 @@ export function MetodosPagoTab() {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Estado
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Fecha Creación
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {metodos.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={2} className="px-6 py-8 text-center text-muted-foreground">
                     No hay métodos de pago registrados
                   </td>
                 </tr>
@@ -163,15 +160,6 @@ export function MetodosPagoTab() {
                       >
                         {metodo.activo !== false ? "Activo" : "Inactivo"}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">
-                      {metodo.createdAt
-                        ? new Date(metodo.createdAt).toLocaleDateString("es-MX", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })
-                        : "—"}
                     </td>
                   </tr>
                 ))
