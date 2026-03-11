@@ -36,6 +36,32 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario, roles, rolesLo
   const [confirmarPassword, setConfirmarPassword] = useState("")
   const [error, setError] = useState("")
 
+  // Reinicia campos al abrir el modal para nuevo usuario o precarga para edicion.
+  useEffect(() => {
+    if (!open) return
+
+    setError("")
+    setPassword("")
+    setConfirmarPassword("")
+
+    if (usuario) {
+      setNombre(usuario.nombre || "")
+      setEmail(usuario.email || "")
+      setTelefono(usuario.telefono || "")
+      setUsername(usuario.username || "")
+      setRolId(usuario.rol?.id || "")
+      setActivo(usuario.activo ?? true)
+      return
+    }
+
+    setNombre("")
+    setEmail("")
+    setTelefono("")
+    setUsername("")
+    setRolId("")
+    setActivo(true)
+  }, [open, usuario])
+
   // Si no hay rol seleccionado, usar el primero disponible cuando se carguen roles
   useEffect(() => {
     if (!rolId && !esEdicion && roles.length > 0) {

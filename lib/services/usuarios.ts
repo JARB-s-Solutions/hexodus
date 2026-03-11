@@ -101,6 +101,18 @@ class UsuariosServiceClass {
   }
 
   /**
+   * Extraer mensaje de error desde diferentes estructuras de respuesta del backend
+   */
+  private getApiErrorMessage(errorData: any, status: number): string {
+    return (
+      errorData?.message ||
+      errorData?.error?.message ||
+      errorData?.errors?.[0]?.message ||
+      `Error HTTP ${status}`
+    )
+  }
+
+  /**
    * Obtener headers con autenticación
    */
   private async getHeaders(): Promise<HeadersInit> {
@@ -200,18 +212,30 @@ class UsuariosServiceClass {
     try {
       const headers = await this.getHeaders()
       const url = `${this.baseURL}/usuarios`
+
+      const payload: CrearUsuarioRequest = {
+        nombre: datos.nombre.trim(),
+        email: datos.email.trim(),
+        username: datos.username.trim(),
+        password: datos.password,
+        rolId: datos.rolId,
+        ...(datos.telefono?.trim() ? { telefono: datos.telefono.trim() } : {}),
+      }
       
-      console.log('[UsuariosService] POST', url, datos)
+      console.log('[UsuariosService] POST', url, {
+        ...payload,
+        password: payload.password ? '***' : '',
+      })
       
       const response = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(datos)
+        body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Error HTTP ${response.status}`)
+        throw new Error(this.getApiErrorMessage(errorData, response.status))
       }
 
       const data = await response.json()
@@ -231,18 +255,31 @@ class UsuariosServiceClass {
     try {
       const headers = await this.getHeaders()
       const url = `${this.baseURL}/usuarios/${id}`
+
+      const payload: ActualizarUsuarioRequest = {
+        ...(datos.nombre !== undefined ? { nombre: datos.nombre.trim() } : {}),
+        ...(datos.email !== undefined ? { email: datos.email.trim() } : {}),
+        ...(datos.telefono?.trim() ? { telefono: datos.telefono.trim() } : {}),
+        ...(datos.username !== undefined ? { username: datos.username.trim() } : {}),
+        ...(datos.password ? { password: datos.password } : {}),
+        ...(datos.rolId !== undefined ? { rolId: datos.rolId } : {}),
+        ...(datos.activo !== undefined ? { activo: datos.activo } : {}),
+      }
       
-      console.log('[UsuariosService] PUT', url, datos)
+      console.log('[UsuariosService] PATCH', url, {
+        ...payload,
+        ...(payload.password ? { password: '***' } : {}),
+      })
       
       const response = await fetch(url, {
-        method: 'PUT',
+        method: 'PATCH',
         headers,
-        body: JSON.stringify(datos)
+        body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Error HTTP ${response.status}`)
+        throw new Error(this.getApiErrorMessage(errorData, response.status))
       }
 
       const data = await response.json()
@@ -272,7 +309,7 @@ class UsuariosServiceClass {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Error HTTP ${response.status}`)
+        throw new Error(this.getApiErrorMessage(errorData, response.status))
       }
 
       const data = await response.json()
