@@ -24,25 +24,59 @@ export class SociosService {
    */
   static async getAll(): Promise<{ socios: Socio[], stats: DashboardStatsSocios }> {
     console.log('🔄 GET /api/socios - Obteniendo todos los socios')
-    
-    const response = await apiGet<GetSociosResponse>('/socios')
-    console.log('✅ Response de socios:', {
-      message: response.message,
-      total: response.data?.length,
-      stats: response.dashboard_stats
-    })
-    
-    if (!response.data || !Array.isArray(response.data)) {
-      console.warn('⚠️ Response no contiene array de socios:', response)
-      return { socios: [], stats: response.dashboard_stats }
+
+    const limitePorPagina = 100
+    let paginaActual = 1
+    let totalPaginas = 1
+    const sociosAcumulados: GetSociosResponse['data'] = []
+    let dashboardStats: DashboardStatsSocios | undefined
+
+    while (paginaActual <= totalPaginas) {
+      const response = await apiGet<GetSociosResponse>(`/socios?page=${paginaActual}&limit=${limitePorPagina}`)
+
+      if (!dashboardStats) {
+        dashboardStats = response.dashboard_stats
+      }
+
+      if (Array.isArray(response.data)) {
+        sociosAcumulados.push(...response.data)
+      }
+
+      const totalPaginasBackend = response.pagination?.total_pages
+      totalPaginas = typeof totalPaginasBackend === 'number' && totalPaginasBackend > 0
+        ? totalPaginasBackend
+        : 1
+
+      console.log(`📄 Página ${paginaActual}/${totalPaginas} cargada. Socios acumulados: ${sociosAcumulados.length}`)
+      paginaActual += 1
     }
-    
-    const socios = response.data.map(mapSocioListItemFromAPI)
+
+    console.log('✅ Response de socios:', {
+      total: sociosAcumulados.length,
+      stats: dashboardStats
+    })
+
+    const stats = dashboardStats ?? {
+      total_socios: { valor: 0, etiqueta: 'Total Socios' },
+      socios_activos: { valor: 0, etiqueta: 'Activos' },
+      vencidos: { valor: 0, etiqueta: 'Vencidos' },
+      vencen_en_7_dias: { valor: 0, etiqueta: 'Vencen en 7 días' },
+    }
+
+    if (sociosAcumulados.length === 0) {
+      console.warn('⚠️ No se recibieron socios al paginar la API')
+      return {
+        socios: [],
+        stats,
+      }
+    }
+
+    const socios = sociosAcumulados.map(mapSocioListItemFromAPI)
     console.log(`✅ ${socios.length} socios mapeados correctamente`)
-    
+
     return {
       socios,
-      stats: response.dashboard_stats
+      stats
     }
   }
 
