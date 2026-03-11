@@ -27,7 +27,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(25)
   const [sortKey, setSortKey] = useState<SortKey>("id")
-  const [sortDir, setSortDir] = useState<SortDir>("asc")
+  const [sortDir, setSortDir] = useState<SortDir>("desc")
 
   // Helper para acceder a campos de forma uniforme (API vs Mock)
   const getSocioField = (s: any, field: string): any => {
@@ -66,7 +66,20 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
   const sorted = useMemo(() => {
     return [...socios].sort((a, b) => {
       let cmp = 0
-      if (sortKey === "id") cmp = a.id - b.id
+      if (sortKey === "id") {
+        const fechaRegistroA = getSocioField(a, 'createdAt') || getSocioField(a, 'fechaRegistro')
+        const fechaRegistroB = getSocioField(b, 'createdAt') || getSocioField(b, 'fechaRegistro')
+        const timeA = fechaRegistroA ? new Date(fechaRegistroA).getTime() : NaN
+        const timeB = fechaRegistroB ? new Date(fechaRegistroB).getTime() : NaN
+
+        // Si hay fecha de registro en ambos, priorizar orden cronológico real.
+        if (!Number.isNaN(timeA) && !Number.isNaN(timeB) && timeA !== timeB) {
+          cmp = timeA - timeB
+        } else {
+          // Fallback por id (normalmente incremental)
+          cmp = a.id - b.id
+        }
+      }
       else if (sortKey === "nombre") {
         const nombreA = getSocioField(a, 'nombre') || ''
         const nombreB = getSocioField(b, 'nombre') || ''
