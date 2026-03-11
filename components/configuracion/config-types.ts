@@ -19,16 +19,6 @@ export interface ConfigState {
   notifInactividadDias: number
   notifPagosPendientes: boolean
 
-  // Backups
-  backupAuto: boolean
-  backupFrecuencia: string
-  backupRetencion: string
-
-  // Avanzado
-  cacheSistema: boolean
-  compresion: boolean
-  lazyLoading: boolean
-
   // Datos del Ticket / Gimnasio
   gimnasioNombre: string
   gimnasioDomicilio: string
@@ -56,14 +46,6 @@ export const defaultConfig: ConfigState = {
   notifInactividad: true,
   notifInactividadDias: 15,
   notifPagosPendientes: true,
-
-  backupAuto: true,
-  backupFrecuencia: "diario",
-  backupRetencion: "30",
-
-  cacheSistema: true,
-  compresion: true,
-  lazyLoading: true,
 
   gimnasioNombre: "GYM FITNESS",
   gimnasioDomicilio: "Av. Principal #123, Col. Centro, CP 12345",

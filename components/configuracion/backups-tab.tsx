@@ -1,330 +1,436 @@
 "use client"
 
-import { useState } from "react"
-import { Database, Download, Upload, Clock, CheckCircle, AlertCircle, HardDrive, Calendar, RefreshCw } from "lucide-react"
-import type { ConfigState } from "./config-types"
+import { useCallback, useEffect, useState } from "react"
+import { AlertCircle, CheckCircle2, Clock3, Database, Download, RefreshCw, ShieldCheck, RotateCcw } from "lucide-react"
+import { BackupsService, type BackupGenerado } from "@/lib/services/backups"
 
-interface BackupsTabProps {
-  config: ConfigState
-  onChange: (updates: Partial<ConfigState>) => void
+function formatFechaHora(isoDate: string) {
+  const date = new Date(isoDate)
+  if (Number.isNaN(date.getTime())) return "Fecha inválida"
+  return date.toLocaleString("es-MX", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }
 
-function ToggleSwitch({
-  checked,
-  onCheckedChange,
-  id,
-}: {
-  checked: boolean
-  onCheckedChange: (v: boolean) => void
-  id: string
-}) {
-  return (
-    <label htmlFor={id} className="relative inline-block w-[50px] h-6 cursor-pointer flex-shrink-0">
-      <input
-        type="checkbox"
-        id={id}
-        checked={checked}
-        onChange={(e) => onCheckedChange(e.target.checked)}
-        className="sr-only peer"
-      />
-      <span
-        className="absolute inset-0 rounded-full border transition-all duration-300 peer-checked:border-accent bg-muted border-border"
-        style={checked ? { background: "linear-gradient(45deg, var(--primary), var(--accent))", borderColor: "var(--accent)", boxShadow: "0 0 8px rgba(0,191,255,0.3)" } : undefined}
-      />
-      <span
-        className="absolute left-[3px] bottom-[3px] h-[18px] w-[18px] rounded-full transition-all duration-300 peer-checked:translate-x-[24px] peer-checked:bg-foreground bg-muted-foreground"
-        style={checked ? { backgroundColor: "#fff", boxShadow: "0 2px 4px rgba(0,0,0,0.2)" } : undefined}
-      />
-    </label>
-  )
+function mapStatusLabel(status: string) {
+  const value = status.toLowerCase()
+  if (value === "exitoso" || value === "ok") return "Exitoso"
+  if (value === "procesando") return "Procesando"
+  return "Error"
 }
 
-interface BackupHistoryItem {
-  id: string
-  fecha: string
-  hora: string
-  tipo: "automatico" | "manual"
-  tamano: string
-  estado: "exitoso" | "fallido"
-}
-
-export function BackupsTab({ config, onChange }: BackupsTabProps) {
+export function BackupsTab() {
   const [creandoBackup, setCreandoBackup] = useState(false)
-  const [importandoBackup, setImportandoBackup] = useState(false)
-  
-  // Mock de historial - En producción vendría del backend
-  const [historialBackups] = useState<BackupHistoryItem[]>([
-    { id: "1", fecha: "2026-03-08", hora: "00:00", tipo: "automatico", tamano: "24.5 MB", estado: "exitoso" },
-    { id: "2", fecha: "2026-03-07", hora: "00:00", tipo: "automatico", tamano: "24.3 MB", estado: "exitoso" },
-    { id: "3", fecha: "2026-03-06", hora: "15:30", tipo: "manual", tamano: "24.2 MB", estado: "exitoso" },
-    { id: "4", fecha: "2026-03-06", hora: "00:00", tipo: "automatico", tamano: "24.1 MB", estado: "exitoso" },
-    { id: "5", fecha: "2026-03-05", hora: "00:00", tipo: "automatico", tamano: "23.9 MB", estado: "fallido" },
-  ])
+  const [cargandoHistorial, setCargandoHistorial] = useState(false)
+  const [descargandoBackupId, setDescargandoBackupId] = useState<number | null>(null)
+  const [restaurandoBackupId, setRestaurandoBackupId] = useState<number | null>(null)
+  const [backupAConfirmar, setBackupAConfirmar] = useState<BackupGenerado | null>(null)
+  const [historialBackups, setHistorialBackups] = useState<BackupGenerado[]>([])
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null)
+
+  const cargarHistorial = useCallback(async () => {
+    try {
+      setCargandoHistorial(true)
+      const historial = await BackupsService.obtenerHistorial()
+      setHistorialBackups(historial)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "No se pudo cargar el historial de backups"
+      setToast({ type: "error", message: errorMessage })
+    } finally {
+      setCargandoHistorial(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void cargarHistorial()
+  }, [cargarHistorial])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 3500)
+    return () => clearTimeout(timer)
+  }, [toast])
 
   const handleCrearBackup = async () => {
-    setCreandoBackup(true)
-    // Aquí iría la llamada al backend: POST /api/backups
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    setCreandoBackup(false)
-    // Mostrar notificación de éxito
-  }
-
-  const handleImportarBackup = () => {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = ".sql,.json,.backup"
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (file) {
-        setImportandoBackup(true)
-        // Aquí iría la llamada al backend: POST /api/backups/restore con FormData
-        await new Promise(resolve => setTimeout(resolve, 4000))
-        setImportandoBackup(false)
-        // Mostrar notificación de éxito
-      }
+    try {
+      setCreandoBackup(true)
+      const backup = await BackupsService.generarBackup()
+      setToast({
+        type: "success",
+        message: `Backup generado: ${backup.archivo}`,
+      })
+      await cargarHistorial()
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "No se pudo generar el backup"
+      setToast({ type: "error", message: errorMessage })
+    } finally {
+      setCreandoBackup(false)
     }
-    input.click()
   }
 
-  const handleDescargarBackup = (backupId: string) => {
-    // Aquí iría: GET /api/backups/:id/download
-    console.log("Descargando backup:", backupId)
+  const handleDescargarBackup = async (backup: BackupGenerado) => {
+    try {
+      setDescargandoBackupId(backup.id)
+      const downloadUrl = await BackupsService.obtenerUrlDescarga(backup.archivo)
+
+      const response = await fetch(downloadUrl)
+      if (!response.ok) {
+        throw new Error("No se pudo obtener el archivo del backup")
+      }
+
+      const blob = await response.blob()
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = objectUrl
+      link.download = backup.archivo
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "No se pudo descargar el backup"
+      setToast({ type: "error", message: errorMessage })
+    } finally {
+      setDescargandoBackupId(null)
+    }
   }
 
-  const selectBg = {
-    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2300BFFF' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-    backgroundPosition: "right 0.5rem center",
-    backgroundRepeat: "no-repeat",
-    backgroundSize: "1.5em 1.5em",
+  const handleSolicitarRestauracion = (backup: BackupGenerado) => {
+    setBackupAConfirmar(backup)
   }
+
+  const handleConfirmarRestauracion = async () => {
+    if (!backupAConfirmar) return
+
+    try {
+      setRestaurandoBackupId(backupAConfirmar.id)
+      const message = await BackupsService.restaurarBackup(backupAConfirmar.archivo)
+      setBackupAConfirmar(null)
+      setToast({
+        type: "success",
+        message: `${message} Recargando sistema...`,
+      })
+
+      setTimeout(() => {
+        window.location.reload()
+      }, 2200)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "No se pudo restaurar el backup"
+      setToast({ type: "error", message: errorMessage })
+      setRestaurandoBackupId(null)
+    }
+  }
+
+  const handleCancelarRestauracion = () => {
+    if (restaurandoBackupId !== null) return
+    setBackupAConfirmar(null)
+  }
+
+  const ultimoBackup = historialBackups[0]
+  const ultimoBackupDescargable = ultimoBackup && mapStatusLabel(ultimoBackup.status) === "Exitoso"
+  const restauracionEnCurso = restaurandoBackupId !== null
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      {/* Header */}
       <div className="bg-card rounded-xl p-6 border border-border">
         <div className="flex items-center gap-2 mb-2">
           <Database className="h-5 w-5 text-accent" />
-          <h2 className="text-lg font-semibold text-foreground">Respaldos y Recuperación</h2>
+          <h2 className="text-lg font-semibold text-foreground">Respaldos</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Protege tus datos con respaldos automáticos en Supabase. Crea respaldos manuales o restaura versiones anteriores.
+          Genera respaldos manuales en la nube. El archivo queda encriptado y disponible para recuperación.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Configuración de Backups Automáticos */}
-        <div className="bg-card rounded-xl p-6 border border-border">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock className="h-5 w-5 text-accent" />
-            <h3 className="text-base font-semibold text-foreground">Respaldos Automáticos</h3>
+      <div className="bg-card rounded-xl p-6 border border-border">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-base font-semibold text-foreground">Generar un Nuevo Backup</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Ejecuta un respaldo manual inmediato con la API oficial.
+            </p>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Activar respaldos automáticos</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Se ejecutarán según la frecuencia configurada
-                </p>
-              </div>
-              <ToggleSwitch 
-                id="backup-auto" 
-                checked={config.backupAuto} 
-                onCheckedChange={(v) => onChange({ backupAuto: v })}
-              />
-            </div>
-
-            {config.backupAuto && (
-              <div className="pt-2">
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Frecuencia de respaldo
-                </label>
-                <select
-                  value={config.backupFrecuencia}
-                  onChange={(e) => onChange({ backupFrecuencia: e.target.value })}
-                  className="w-full px-4 py-3 bg-muted/50 border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all cursor-pointer"
-                  style={selectBg}
-                >
-                  <option value="diario">Diario (00:00 hrs)</option>
-                  <option value="semanal">Semanal (Domingos)</option>
-                  <option value="mensual">Mensual (día 1)</option>
-                </select>
-
-                <div className="mt-3 p-3 bg-accent/5 border border-accent/20 rounded-lg">
-                  <div className="flex gap-2">
-                    <Calendar className="h-4 w-4 text-accent flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-medium text-foreground">Próximo respaldo</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {config.backupFrecuencia === "diario" && "Mañana a las 00:00 hrs"}
-                        {config.backupFrecuencia === "semanal" && "Domingo a las 00:00 hrs"}
-                        {config.backupFrecuencia === "mensual" && "1 de Abril a las 00:00 hrs"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <button
+            onClick={handleCrearBackup}
+            disabled={creandoBackup || restauracionEnCurso}
+            className="flex items-center justify-center gap-2 rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-all hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {creandoBackup ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Generando...
+              </>
+            ) : (
+              <>
+                <Database className="h-4 w-4" />
+                Generar Backup
+              </>
             )}
+          </button>
+        </div>
+      </div>
 
-            <div className="pt-2">
-              <label className="block text-sm font-medium text-muted-foreground mb-2">
-                Retención de respaldos
-              </label>
-              <select
-                value={config.backupRetencion}
-                onChange={(e) => onChange({ backupRetencion: e.target.value })}
-                className="w-full px-4 py-3 bg-muted/50 border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all cursor-pointer"
-                style={selectBg}
-              >
-                <option value="7">7 días</option>
-                <option value="15">15 días</option>
-                <option value="30">30 días</option>
-                <option value="60">60 días</option>
-                <option value="90">90 días</option>
-              </select>
-              <p className="text-xs text-muted-foreground mt-2">
-                Los respaldos más antiguos se eliminarán automáticamente
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Ultimo backup</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">
+                {ultimoBackup ? formatFechaHora(ultimoBackup.generadoEn) : "Sin registros"}
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() => ultimoBackup && handleDescargarBackup(ultimoBackup)}
+              disabled={!ultimoBackupDescargable || descargandoBackupId === ultimoBackup?.id || restauracionEnCurso}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 text-accent transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
+              aria-label="Descargar ultimo backup"
+              title="Descargar ultimo backup"
+            >
+              {descargandoBackupId === ultimoBackup?.id ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              <span className="sr-only">Descargar ultimo backup</span>
+            </button>
           </div>
         </div>
-
-        {/* Acciones Manuales */}
-        <div className="bg-card rounded-xl p-6 border border-border">
-          <div className="flex items-center gap-2 mb-4">
-            <HardDrive className="h-5 w-5 text-accent" />
-            <h3 className="text-base font-semibold text-foreground">Acciones Manuales</h3>
-          </div>
-
-          <div className="space-y-3">
-            <button
-              onClick={handleCrearBackup}
-              disabled={creandoBackup}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {creandoBackup ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  Creando respaldo...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Crear Respaldo Ahora
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={handleImportarBackup}
-              disabled={importandoBackup}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg font-medium transition-all border border-border disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {importandoBackup ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  Importando...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  Restaurar Respaldo
-                </>
-              )}
-            </button>
-
-            <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-              <div className="flex gap-2">
-                <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs font-medium text-yellow-500">Advertencia</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Restaurar un respaldo sobrescribirá todos los datos actuales. Esta acción no se puede deshacer.
-                  </p>
-                </div>
-              </div>
-            </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Ruta</p>
+          <p className="mt-2 truncate text-sm font-semibold text-foreground">
+            {ultimoBackup?.rutaLocal || "Supabase Storage"}
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Integridad</p>
+          <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            Encriptado en nube
           </div>
         </div>
       </div>
 
-      {/* Historial de Backups */}
       <div className="bg-card rounded-xl p-6 border border-border">
-        <div className="flex items-center gap-2 mb-4">
-          <Clock className="h-5 w-5 text-accent" />
+        <div className="mb-4 flex items-center gap-2">
+          <Clock3 className="h-5 w-5 text-accent" />
           <h3 className="text-base font-semibold text-foreground">Historial de Respaldos</h3>
         </div>
 
-        <div className="space-y-2">
-          {historialBackups.map((backup) => (
-            <div
-              key={backup.id}
-              className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50 hover:border-accent/30 transition-all group"
-            >
-              <div className="flex items-center gap-3 flex-1">
-                <div className={`p-2 rounded-lg ${backup.estado === "exitoso" ? "bg-green-500/10" : "bg-red-500/10"}`}>
-                  {backup.estado === "exitoso" ? (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4 text-red-500" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground">{backup.fecha}</p>
-                    <span className="text-xs text-muted-foreground">•</span>
-                    <p className="text-xs text-muted-foreground">{backup.hora}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      backup.tipo === "automatico" 
-                        ? "bg-blue-500/10 text-blue-500" 
-                        : "bg-purple-500/10 text-purple-500"
-                    }`}>
-                      {backup.tipo === "automatico" ? "Automático" : "Manual"}
-                    </span>
+        {cargandoHistorial ? (
+          <div className="rounded-lg border border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            Cargando historial de backups...
+          </div>
+        ) : historialBackups.length === 0 ? (
+          <div className="rounded-lg border border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            Aun no hay backups registrados.
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3 md:hidden">
+              {historialBackups.map((backup) => {
+                const isSuccess = mapStatusLabel(backup.status) === "Exitoso"
+                return (
+                  <div key={backup.id} className="rounded-lg border border-border p-4">
+                    <p className="break-all text-sm font-medium text-foreground">{backup.archivo}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <p>Tipo: <span className="capitalize text-foreground">{backup.tipo}</span></p>
+                      <p>Tamano: <span className="text-foreground">{backup.tamanoMb} MB</span></p>
+                      <p>Usuario: <span className="text-foreground">{backup.usuario?.nombreCompleto || "Sistema"}</span></p>
+                      <p>Generado: <span className="text-foreground">{formatFechaHora(backup.generadoEn)}</span></p>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${
+                          isSuccess
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                            : "border-rose-500/30 bg-rose-500/10 text-rose-400"
+                        }`}
+                      >
+                        {isSuccess ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                        {mapStatusLabel(backup.status)}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDescargarBackup(backup)}
+                        disabled={!isSuccess || descargandoBackupId === backup.id || restauracionEnCurso}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 text-accent transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
+                        title="Descargar backup"
+                        aria-label={`Descargar ${backup.archivo}`}
+                      >
+                        {descargandoBackupId === backup.id ? (
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSolicitarRestauracion(backup)}
+                        disabled={!isSuccess || restauracionEnCurso}
+                        className="inline-flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
+                        title="Restaurar backup"
+                        aria-label={`Restaurar ${backup.archivo}`}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Restaurar
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Tamaño: {backup.tamano}
-                  </p>
-                </div>
-              </div>
-              
-              {backup.estado === "exitoso" && (
-                <button
-                  onClick={() => handleDescargarBackup(backup.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-accent/10 hover:bg-accent hover:text-accent-foreground text-accent rounded-lg text-sm font-medium transition-all opacity-0 group-hover:opacity-100"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Descargar
-                </button>
-              )}
+                )
+              })}
             </div>
-          ))}
-        </div>
+
+            <div className="hidden overflow-hidden rounded-lg border border-border md:block">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px]">
+                  <thead>
+                    <tr className="bg-muted/40 text-left">
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Archivo</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tipo</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tamano</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Estado</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Generado</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Usuario</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {historialBackups.map((backup) => {
+                      const isSuccess = mapStatusLabel(backup.status) === "Exitoso"
+                      return (
+                        <tr key={backup.id} className="hover:bg-muted/20">
+                          <td className="max-w-[320px] px-4 py-3 text-sm text-foreground">{backup.archivo}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground capitalize">{backup.tipo}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground">{backup.tamanoMb} MB</td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${
+                                isSuccess
+                                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                                  : "border-rose-500/30 bg-rose-500/10 text-rose-400"
+                              }`}
+                            >
+                              {isSuccess ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                              {mapStatusLabel(backup.status)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground">{formatFechaHora(backup.generadoEn)}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground">{backup.usuario?.nombreCompleto || "Sistema"}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleDescargarBackup(backup)}
+                                disabled={!isSuccess || descargandoBackupId === backup.id || restauracionEnCurso}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 text-accent transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
+                                title="Descargar backup"
+                                aria-label={`Descargar ${backup.archivo}`}
+                              >
+                                {descargandoBackupId === backup.id ? (
+                                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Download className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleSolicitarRestauracion(backup)}
+                                disabled={!isSuccess || restauracionEnCurso}
+                                className="inline-flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
+                                title="Restaurar backup"
+                                aria-label={`Restaurar ${backup.archivo}`}
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                                Restaurar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Info de Supabase */}
-      <div className="bg-gradient-to-r from-accent/5 to-primary/5 rounded-xl p-6 border border-accent/20">
-        <div className="flex gap-3">
-          <Database className="h-5 w-5 text-accent flex-shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-sm font-semibold text-foreground mb-2">Almacenamiento en Supabase</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-              Tus respaldos se almacenan de forma segura en Supabase PostgreSQL con cifrado en reposo. 
-              Los datos incluyen: socios, membresías, inventario, ventas, movimientos, usuarios y configuración del sistema.
+      {backupAConfirmar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold text-foreground">Confirmar restauracion</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Esta accion reemplazara la base de datos actual por la informacion del backup seleccionado.
+              El sistema volvera al estado de ese respaldo.
             </p>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="p-3 bg-card/50 rounded-lg border border-border/50">
-                <p className="text-xs text-muted-foreground mb-1">Último respaldo</p>
-                <p className="text-sm font-semibold text-foreground">Hace 12 horas</p>
-              </div>
-              <div className="p-3 bg-card/50 rounded-lg border border-border/50">
-                <p className="text-xs text-muted-foreground mb-1">Almacenamiento usado</p>
-                <p className="text-sm font-semibold text-foreground">245.3 MB</p>
-              </div>
+
+            <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">Backup seleccionado</p>
+              <p className="mt-1 text-sm text-foreground">{backupAConfirmar.archivo}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{formatFechaHora(backupAConfirmar.generadoEn)}</p>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleCancelarRestauracion}
+                disabled={restauracionEnCurso}
+                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarRestauracion}
+                disabled={restauracionEnCurso}
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {restauracionEnCurso ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                {restauracionEnCurso ? "Restaurando..." : "Si, restaurar backup"}
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {restauracionEnCurso && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80">
+          <div className="rounded-xl border border-border bg-card px-6 py-5 text-center shadow-xl">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15">
+              <RefreshCw className="h-6 w-6 animate-spin text-amber-400" />
+            </div>
+            <p className="text-base font-semibold text-foreground">Restaurando base de datos...</p>
+            <p className="mt-1 text-sm text-muted-foreground">No cierres la ventana ni recargues el sistema.</p>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed right-5 top-5 z-50 animate-slide-in-right">
+          <div
+            className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium ${
+              toast.type === "success"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                : "border-destructive/30 bg-destructive/10 text-destructive"
+            }`}
+          >
+            {toast.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
