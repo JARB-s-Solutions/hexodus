@@ -10,15 +10,6 @@ export interface ConfigState {
   zonaHoraria: string
   formatoFecha: string
 
-  // Notificaciones / Alertas del Sistema
-  notifVencimientos: boolean
-  notifVencimientoDias: number
-  notifInventario: boolean
-  notifStockMinimo: number
-  notifInactividad: boolean
-  notifInactividadDias: number
-  notifPagosPendientes: boolean
-
   // Datos del Ticket / Gimnasio
   gimnasioNombre: string
   gimnasioDomicilio: string
@@ -38,14 +29,6 @@ export const defaultConfig: ConfigState = {
   idiomaSistema: "es-MX",
   zonaHoraria: "America/Mexico_City",
   formatoFecha: "DD/MM/YYYY",
-
-  notifVencimientos: true,
-  notifVencimientoDias: 7,
-  notifInventario: true,
-  notifStockMinimo: 10,
-  notifInactividad: true,
-  notifInactividadDias: 15,
-  notifPagosPendientes: true,
 
   gimnasioNombre: "GYM FITNESS",
   gimnasioDomicilio: "Av. Principal #123, Col. Centro, CP 12345",
