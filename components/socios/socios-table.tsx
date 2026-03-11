@@ -9,6 +9,7 @@ import type { Socio } from "@/lib/socios-data"
 import {
   getVigenciaMembresia, getEstadoContrato,
   membresiaLabels,
+  type EstadoContrato,
 } from "@/lib/socios-data"
 import { getIniciales } from "@/lib/utils"
 
