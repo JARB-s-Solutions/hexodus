@@ -10,7 +10,10 @@ import './globals.css'
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: 'Hexodus | Iniciar Sesión',
+  title: {
+    default: 'Hexodus',
+    template: 'Hexodus | %s',
+  },
   description: 'Sistema de gestion integral para gimnasio - Hexodus',
   icons: {
     icon: '/assets/images/icon.ico',
