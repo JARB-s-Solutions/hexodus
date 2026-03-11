@@ -58,9 +58,6 @@ export function NotificacionesBell() {
             </span>
           </span>
         )}
-        {totalActivas === 0 && (
-          <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-primary" />
-        )}
       </button>
 
       {open && (

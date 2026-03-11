@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useCallback, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { VentasHeader } from "@/components/ventas/ventas-header"
 import { KpiCards } from "@/components/ventas/kpi-cards"
@@ -27,6 +28,7 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function VentasPage() {
   const { toast } = useToast()
+  const searchParams = useSearchParams()
   
   // Estados principales
   const [ventas, setVentas] = useState<Venta[]>([])
@@ -53,8 +55,13 @@ export default function VentasPage() {
   const [modalImprimirTicket, setModalImprimirTicket] = useState(false)
   const [detalleVentaParaImprimir, setDetalleVentaParaImprimir] = useState<DetalleVenta | null>(null)
 
-  // Active tab
-  const [activeTab, setActiveTab] = useState<"historial" | "analytics" | "caja">("historial")
+  // Active tab — inicializa desde query param ?tab=caja|analytics|historial
+  const initialTab = ((): "historial" | "analytics" | "caja" => {
+    const tab = searchParams.get("tab")
+    if (tab === "caja" || tab === "analytics" || tab === "historial") return tab
+    return "historial"
+  })()
+  const [activeTab, setActiveTab] = useState<"historial" | "analytics" | "caja">(initialTab)
 
   // Estados para análisis de ventas
   const [analisisData, setAnalisisData] = useState<AnalisisVentasData | null>(null)

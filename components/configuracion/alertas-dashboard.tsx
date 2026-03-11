@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Bell, RefreshCw, CheckCircle, X, AlertTriangle, Clock, Package, Activity, CreditCard, Loader2 } from "lucide-react"
 import { AlertasService } from "@/lib/services/alertas"
+import { apiPost } from "@/lib/api"
 import type { AlertaItem, AlertaPrioridad, AlertasResumen } from "@/lib/types/alertas"
 
 // -------------------------------------------------------
@@ -60,6 +61,7 @@ export function AlertasDashboard({ compact = false, onAlertaResuelta }: AlertasD
   const [alertas, setAlertas] = useState<AlertaItem[]>([])
   const [resumen, setResumen] = useState<AlertasResumen | null>(null)
   const [cargando, setCargando] = useState(false)
+  const [sincronizando, setSincronizando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resolviendo, setResolviendo] = useState<string | null>(null)
   const [notasModal, setNotasModal] = useState<{ id: string; titulo: string } | null>(null)
@@ -82,6 +84,19 @@ export function AlertasDashboard({ compact = false, onAlertaResuelta }: AlertasD
 
   useEffect(() => {
     cargarAlertas()
+  }, [cargarAlertas])
+
+  const sincronizarManual = useCallback(async () => {
+    setSincronizando(true)
+    setError(null)
+    try {
+      await apiPost('/cron/sincronizar-manual')
+    } catch (err: any) {
+      console.warn("⚠️ Error al sincronizar alertas:", err.message)
+    } finally {
+      setSincronizando(false)
+    }
+    await cargarAlertas()
   }, [cargarAlertas])
 
   const handleResolver = async (id: string, estado: "resuelta" | "descartada", notas?: string) => {
@@ -130,12 +145,12 @@ export function AlertasDashboard({ compact = false, onAlertaResuelta }: AlertasD
           )}
         </div>
         <button
-          onClick={cargarAlertas}
-          disabled={cargando}
+          onClick={sincronizarManual}
+          disabled={cargando || sincronizando}
           className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          title="Recargar alertas"
+          title="Sincronizar y recargar alertas"
         >
-          <RefreshCw className={`h-4 w-4 ${cargando ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-4 w-4 ${(cargando || sincronizando) ? "animate-spin" : ""}`} />
         </button>
       </div>
 
@@ -184,11 +199,11 @@ export function AlertasDashboard({ compact = false, onAlertaResuelta }: AlertasD
                 <TipoIcon className="h-4 w-4 text-accent" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                  <span className="text-sm font-semibold text-foreground truncate">{alerta.titulo}</span>
+                <div className="flex items-start gap-2 flex-wrap mb-1">
+                  <span className="text-sm font-semibold text-foreground wrap-break-word leading-snug">{alerta.titulo}</span>
                   <PrioridadBadge prioridad={alerta.prioridad} />
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{alerta.descripcion}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed wrap-break-word">{alerta.descripcion}</p>
                 <span className="text-xs text-muted-foreground/60 mt-1 block">{formatFecha(alerta.createdAt)}</span>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
