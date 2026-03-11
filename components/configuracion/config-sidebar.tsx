@@ -74,7 +74,7 @@ export function ConfigSidebar({ hasChanges, loading, onGuardar, onRestablecer, h
         <div className="flex flex-col gap-0">
           <StatusRow label="Base de Datos" status="Conectado" color="#22c55e" />
           <StatusRow label="API Externa" status="Activa" color="#22c55e" />
-          <StatusRow label="Backup Automatico" status="Programado" color="#eab308" />
+          <StatusRow label="Respaldos" status="Disponible" color="#eab308" />
           <StatusRow label="Sistema" status="Operativo" color="#22c55e" />
         </div>
 
