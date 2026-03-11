@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Unlock, Lock, DollarSign, Clock, User, ChevronDown, FileText } from "lucide-react"
 import { useCaja } from "@/lib/contexts/caja-context"
 import {
@@ -40,6 +41,7 @@ function formatDate(dateString: string | null): string {
 export function IndicadorCaja() {
   const { estadoCaja, loading } = useCaja()
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const router = useRouter()
 
   if (loading || !estadoCaja) {
     return (
@@ -185,11 +187,15 @@ export function IndicadorCaja() {
             <DropdownMenuSeparator />
 
             {/* Acción: Ver corte */}
-            <DropdownMenuItem asChild className="cursor-pointer">
-              <a href="/?tab=caja" className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Ver Corte de Caja
-              </a>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => {
+                setDropdownOpen(false)
+                router.push("/ventas?tab=caja")
+              }}
+            >
+              <FileText className="h-4 w-4" />
+              Ver Corte de Caja
             </DropdownMenuItem>
           </>
         ) : (
