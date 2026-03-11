@@ -9,10 +9,17 @@ import { UsuariosTable } from "@/components/usuarios/usuarios-table"
 import { UsuarioModal, type UsuarioFormData } from "@/components/usuarios/usuario-modal"
 import { DetalleUsuarioModal } from "@/components/usuarios/detalle-usuario-modal"
 import { SesionesActivas } from "@/components/usuarios/sesiones-activas"
+import { AuthService } from "@/lib/auth"
 import { RolesService } from "@/lib/services/roles"
 import { UsuariosService } from "@/lib/services/usuarios"
 import { transformarUsuarioAPI, type Usuario } from "@/lib/usuarios-data"
 import { useToast } from "@/hooks/use-toast"
+
+function esRolAdmin(u: Usuario): boolean {
+  const rolId = (u.rol?.id || '').toLowerCase()
+  const rolNombre = (u.rol?.nombre || '').toLowerCase()
+  return rolId === 'admin' || rolNombre.includes('admin')
+}
 
 export default function UsuariosPage() {
   const { toast } = useToast()
@@ -38,6 +45,8 @@ export default function UsuariosPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editandoUsuario, setEditandoUsuario] = useState<Usuario | null>(null)
   const [detalleUsuario, setDetalleUsuario] = useState<Usuario | null>(null)
+  const [usuarioAEliminar, setUsuarioAEliminar] = useState<Usuario | null>(null)
+  const [eliminandoUsuario, setEliminandoUsuario] = useState(false)
 
   const [roles, setRoles] = useState<Array<{ id: string; nombre: string }>>([])
   const [rolesLoading, setRolesLoading] = useState(false)
@@ -177,11 +186,10 @@ export default function UsuariosPage() {
           await UsuariosService.crearUsuario({
             nombre: data.nombre,
             email: data.email,
-            telefono: data.telefono,
+            telefono: data.telefono || undefined,
             username: data.username,
             password: data.password,
             rolId: data.rolId,
-            activo: data.activo,
           })
           
           toast({
@@ -230,15 +238,37 @@ export default function UsuariosPage() {
 
   const handleEliminar = useCallback(async (u: Usuario) => {
     try {
-      await UsuariosService.eliminarUsuario(u.id)
-      
-      toast({
-        title: 'Usuario eliminado',
-        description: 'El usuario se eliminó correctamente'
-      })
-      
-      // Recargar usuarios
-      await cargarUsuarios()
+      const currentUser = AuthService.getUser()
+
+      if (!u.id) {
+        toast({
+          variant: 'destructive',
+          title: 'No se puede eliminar',
+          description: 'El usuario no tiene un identificador valido.'
+        })
+        return
+      }
+
+      if (currentUser?.id && currentUser.id === u.id) {
+        toast({
+          variant: 'destructive',
+          title: 'Operacion no permitida',
+          description: 'No puedes eliminar tu propio usuario mientras tienes sesion iniciada.'
+        })
+        return
+      }
+
+      const adminsActivos = usuarios.filter((item) => item.activo && esRolAdmin(item)).length
+      if (u.activo && esRolAdmin(u) && adminsActivos <= 1) {
+        toast({
+          variant: 'destructive',
+          title: 'Operacion bloqueada',
+          description: 'No puedes eliminar el ultimo administrador activo del sistema.'
+        })
+        return
+      }
+
+      setUsuarioAEliminar(u)
     } catch (err: any) {
       console.error('[UsuariosPage] Error al eliminar:', err)
       toast({
@@ -247,7 +277,33 @@ export default function UsuariosPage() {
         description: err.message || 'No se pudo eliminar el usuario'
       })
     }
-  }, [cargarUsuarios, toast])
+  }, [toast, usuarios])
+
+  const handleConfirmarEliminacion = useCallback(async () => {
+    if (!usuarioAEliminar) return
+
+    try {
+      setEliminandoUsuario(true)
+      await UsuariosService.eliminarUsuario(usuarioAEliminar.id)
+
+      toast({
+        title: 'Usuario eliminado',
+        description: 'El usuario se eliminó correctamente'
+      })
+
+      setUsuarioAEliminar(null)
+      await cargarUsuarios()
+    } catch (err: any) {
+      console.error('[UsuariosPage] Error al eliminar:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err.message || 'No se pudo eliminar el usuario'
+      })
+    } finally {
+      setEliminandoUsuario(false)
+    }
+  }, [usuarioAEliminar, cargarUsuarios, toast])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -349,6 +405,50 @@ export default function UsuariosPage() {
         open={!!detalleUsuario}
         onClose={() => setDetalleUsuario(null)}
       />
+
+      {usuarioAEliminar && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+            onClick={() => !eliminandoUsuario && setUsuarioAEliminar(null)}
+            aria-label="Cerrar modal de confirmacion"
+          />
+
+          <div
+            className="relative w-full max-w-xl rounded-xl border border-border bg-card p-6"
+            style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}
+          >
+            <h3 className="text-xl font-semibold text-foreground">Confirmar eliminacion</h3>
+            <p className="mt-4 text-base text-foreground/90">
+              Se eliminara el usuario <strong>"{usuarioAEliminar.nombre}"</strong> (@{usuarioAEliminar.username}).
+            </p>
+            <p className="mt-3 text-base text-muted-foreground">
+              Esta accion lo desactivara en el sistema.
+            </p>
+            <p className="mt-6 text-base font-medium text-foreground">Deseas continuar?</p>
+
+            <div className="mt-8 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                className="px-5 py-2.5 rounded-lg border border-accent text-accent hover:bg-accent/10 transition-colors disabled:opacity-60"
+                onClick={() => setUsuarioAEliminar(null)}
+                disabled={eliminandoUsuario}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="px-5 py-2.5 rounded-lg bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity disabled:opacity-60"
+                onClick={handleConfirmarEliminacion}
+                disabled={eliminandoUsuario}
+              >
+                {eliminandoUsuario ? 'Eliminando...' : 'Eliminar usuario'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
