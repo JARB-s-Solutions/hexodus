@@ -2,15 +2,70 @@
 // TIPOS DE DATOS PARA AUTENTICACIÓN
 // ================================================
 
+// Permisos por módulo tal como los devuelve el backend
+export interface PermisosModulo {
+  ver?: boolean
+  crear?: boolean
+  editar?: boolean
+  eliminar?: boolean
+  // socios
+  verHistorial?: boolean
+  pagar?: boolean
+  renovar?: boolean
+  // inventario
+  ajustarStock?: boolean
+  gestionarCategorias?: boolean
+  // ventas
+  crearCorte?: boolean
+  verCortesAnteriores?: boolean
+  verAnalisis?: boolean
+  // movimientos
+  verComparaciones?: boolean
+  // dashboard
+  verGraficas?: boolean
+  // reportes
+  verReporteFinanciero?: boolean
+  // asistencia
+  registrarManual?: boolean
+  // configuracion
+  gestionarSistema?: boolean
+  // comodín
+  todo?: 'absoluto'
+  [key: string]: boolean | 'absoluto' | undefined
+}
+
+export interface PermisosBackend {
+  socios?: PermisosModulo
+  membresias?: PermisosModulo
+  inventario?: PermisosModulo
+  ventas?: PermisosModulo
+  movimientos?: PermisosModulo
+  dashboard?: PermisosModulo
+  reportes?: PermisosModulo
+  asistencia?: PermisosModulo
+  usuarios?: PermisosModulo
+  roles?: PermisosModulo
+  configuracion?: PermisosModulo
+  todo?: 'absoluto'
+  [key: string]: PermisosModulo | 'absoluto' | undefined
+}
+
 export interface User {
-  id: string
+  id?: string
+  usuario_id?: number
+  uid?: string
   username: string
-  email: string
+  email?: string
   nombre_completo: string
-  rol: 'admin' | 'staff' | 'usuario'
-  activo: boolean
+  /** Nombre del rol (string) o id del rol */
+  rol?: string
+  /** Estructura de permisos granulares devuelta por el backend */
+  permisos?: PermisosBackend
+  /** Indica si el usuario tiene permisos de administrador total */
+  esAdministrador?: boolean
+  activo?: boolean
   avatar?: string
-  created_at: string
+  created_at?: string
   last_login?: string
 }
 

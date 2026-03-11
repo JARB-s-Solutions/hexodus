@@ -5,6 +5,8 @@ import Script from 'next/script'
 import { Toaster } from '@/components/ui/toaster'
 import { CajaGuard } from '@/components/caja/caja-guard'
 import { ThemeProvider } from '@/components/theme-provider-custom'
+import { AuthProvider } from '@/lib/contexts/auth-context'
+import { ForbiddenToast } from '@/components/auth/forbidden-toast'
 import './globals.css'
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -42,11 +44,14 @@ export default function RootLayout({
           strategy="beforeInteractive" 
         />
         <ThemeProvider>
-          <CajaGuard>
-            {children}
-          </CajaGuard>
-          <Toaster />
-          <Analytics />
+          <AuthProvider>
+            <CajaGuard>
+              {children}
+            </CajaGuard>
+            <ForbiddenToast />
+            <Toaster />
+            <Analytics />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
