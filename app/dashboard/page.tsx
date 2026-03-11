@@ -32,7 +32,10 @@ const EMPTY_METRICAS: DashboardMetricasMapped = {
     ayer: 0,
     hombres: 0,
     mujeres: 0,
+    variacion: 0,
+    tendenciaPositiva: true,
   },
+  insightNegocio: null,
 }
 
 export default function DashboardPage() {
@@ -92,6 +95,7 @@ export default function DashboardPage() {
           <TendenciaRow
             datos={datos}
             asistencia={metricas.asistencia}
+            insightNegocio={metricas.insightNegocio}
             periodo={periodo}
             onPeriodoChange={(value) => setPeriodo(value as DashboardPeriodo)}
           />
