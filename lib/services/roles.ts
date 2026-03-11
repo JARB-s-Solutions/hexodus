@@ -40,6 +40,11 @@ export interface ActualizarRolRequest {
   permisos?: Record<string, any>
 }
 
+export interface EliminarRolResponse {
+  success: boolean
+  message?: string
+}
+
 // ============================================================================
 // CONSTANTES
 // ============================================================================
@@ -174,14 +179,18 @@ export class RolesService {
   static async actualizarRol(rolId: string, cambios: ActualizarRolRequest): Promise<RolAPI> {
     try {
       const response = await fetch(`${API_BASE_URL}/roles/${rolId}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: this.getHeaders(),
         body: JSON.stringify(cambios)
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(
+          errorData?.message ||
+          errorData?.error?.message ||
+          `Error ${response.status}: ${response.statusText}`
+        )
       }
 
       const data = await response.json()
@@ -201,25 +210,36 @@ export class RolesService {
   /**
    * Eliminar un rol
    */
-  static async eliminarRol(rolId: string): Promise<void> {
+  static async eliminarRol(rolId: string, reasignarA?: string): Promise<EliminarRolResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/roles/${rolId}`, {
+      const params = new URLSearchParams()
+      if (reasignarA) {
+        params.set('reasignarA', reasignarA)
+      }
+
+      const queryString = params.toString()
+      const response = await fetch(`${API_BASE_URL}/roles/${rolId}${queryString ? `?${queryString}` : ''}`, {
         method: 'DELETE',
         headers: this.getHeaders()
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(
+          errorData?.message ||
+          errorData?.error?.message ||
+          `Error ${response.status}: ${response.statusText}`
+        )
       }
 
-      const data = await response.json()
+      const data: EliminarRolResponse = await response.json()
       
       if (!data.success) {
         throw new Error(data.message || 'La respuesta de la API no fue exitosa')
       }
 
       console.log('✅ Rol eliminado')
+      return data
     } catch (error) {
       console.error('Error eliminando rol:', error)
       throw error
