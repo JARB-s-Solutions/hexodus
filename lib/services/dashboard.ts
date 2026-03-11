@@ -41,12 +41,35 @@ export interface DashboardMetricasMapped {
   horasPico: Array<{ hora: string; personas: number }>
   ingresosDiarios: Array<{ dia: string; ingresos: number }>
   stockCritico: StockCritico[]
-  asistencia: { hoy: number; ayer: number; hombres: number; mujeres: number }
+  asistencia: {
+    hoy: number
+    ayer: number
+    hombres: number
+    mujeres: number
+    variacion: number
+    tendenciaPositiva: boolean
+  }
+  insightNegocio: {
+    titulo: string
+    texto: string
+    tendenciaPositiva: boolean
+    periodoAplicado: string
+  } | null
 }
 
 function toNumber(value: unknown): number {
   const n = Number(value)
   return Number.isFinite(n) ? n : 0
+}
+
+function toBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase().trim()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  return fallback
 }
 
 function pickFirst<T>(...values: Array<T | undefined | null>): T | undefined {
@@ -60,6 +83,22 @@ function pickFirst<T>(...values: Array<T | undefined | null>): T | undefined {
 
 function ensureArray<T = any>(value: unknown): T[] {
   return Array.isArray(value) ? value : []
+}
+
+function normalizeHourLabel(value: unknown): string {
+  const raw = String(value ?? '').trim()
+  if (!raw) return ''
+
+  // Accept formats like "8", "08", "8:00", "08:00-09:00" and normalize to HH
+  const firstPart = raw.split('-')[0]?.trim() ?? raw
+  const hourToken = firstPart.includes(':') ? firstPart.split(':')[0] : firstPart
+  const hour = Number(hourToken)
+
+  if (Number.isFinite(hour) && hour >= 0 && hour <= 23) {
+    return String(Math.floor(hour)).padStart(2, '0')
+  }
+
+  return raw
 }
 
 // Convierte total + variacion% en valor del periodo anterior.
@@ -109,8 +148,10 @@ export class DashboardService {
 
   static mapMetricas(payloadRaw: any): DashboardMetricasMapped {
     const payload = payloadRaw || {}
+    const widgetsRaw = pickFirst(payload.widgets, payload.widget, {}) || {}
 
     const ventasRaw = ensureArray<any>(pickFirst(
+      payload.grafica_ventas_vs_anterior,
       payload.ventas_chart,
       payload.ventasChart,
       payload.ventas_vs_anterior,
@@ -118,9 +159,9 @@ export class DashboardService {
       payload.grafica_ventas,
     ))
     const ventasChart = ventasRaw.map((item) => ({
-      dia: String(pickFirst(item.dia, item.day, item.label, item.nombre, '') || ''),
-      actual: toNumber(pickFirst(item.actual, item.total_actual, item.ventas_actual, item.value, 0)),
-      anterior: toNumber(pickFirst(item.anterior, item.total_anterior, item.ventas_anterior, item.previous, 0)),
+      dia: String(pickFirst(item.dia, item.day, item.label, item.nombre, item.fecha, '') || ''),
+      actual: toNumber(pickFirst(item.actual, item.total_actual, item.ventas_actual, item.value, item.total, item.monto_actual, 0)),
+      anterior: toNumber(pickFirst(item.anterior, item.total_anterior, item.ventas_anterior, item.previous, item.monto_anterior, 0)),
     }))
 
     const horasRaw = ensureArray<any>(pickFirst(
@@ -130,8 +171,8 @@ export class DashboardService {
       payload.horaspico,
     ))
     const horasPico = horasRaw.map((item) => ({
-      hora: String(pickFirst(item.hora, item.hour, item.label, '') || ''),
-      personas: toNumber(pickFirst(item.personas, item.total, item.valor, item.value, 0)),
+      hora: normalizeHourLabel(pickFirst(item.hora, item.hour, item.label, item.rango, item.franja, '')),
+      personas: toNumber(pickFirst(item.personas, item.visitantes, item.accesos, item.asistencias, item.total, item.promedio, item.valor, item.value, 0)),
     }))
 
     const ingresosRaw = ensureArray<any>(pickFirst(
@@ -141,7 +182,7 @@ export class DashboardService {
       payload.ingresos,
     ))
     const ingresosDiarios = ingresosRaw.map((item) => ({
-      dia: String(pickFirst(item.dia, item.day, item.label, '') || ''),
+      dia: String(pickFirst(item.dia, item.day, item.label, item.fecha, item.date, '') || ''),
       ingresos: toNumber(pickFirst(item.ingresos, item.total, item.valor, item.value, 0)),
     }))
 
@@ -170,15 +211,86 @@ export class DashboardService {
       }
     })
 
-    const asistenciaRaw = pickFirst(payload.asistencia, payload.widget_asistencia, payload.resumen_asistencia, {}) || {}
-    const generoRaw = pickFirst(asistenciaRaw.genero, asistenciaRaw.distribucion_genero, payload.genero, {}) || {}
+    const asistenciaRaw = pickFirst(
+      widgetsRaw.asistencia,
+      payload.asistencia,
+      payload.widget_asistencia,
+      payload.resumen_asistencia,
+      {},
+    ) || {}
+
+    const generoLista = ensureArray<any>(pickFirst(
+      widgetsRaw.por_genero,
+      payload.por_genero,
+      [],
+    ))
+
+    let hombres = 0
+    let mujeres = 0
+
+    if (generoLista.length > 0) {
+      for (const item of generoLista) {
+        const nombre = String(pickFirst(item.nombre, item.name, item.genero, '') || '').toLowerCase()
+        const valor = toNumber(pickFirst(item.valor, item.value, item.total, item.cantidad, 0))
+
+        if (nombre.includes('hombre') || nombre.includes('mascul')) {
+          hombres = valor
+        } else if (nombre.includes('mujer') || nombre.includes('femen')) {
+          mujeres = valor
+        }
+      }
+    } else {
+      const generoRaw = pickFirst(asistenciaRaw.genero, asistenciaRaw.distribucion_genero, payload.genero, {}) || {}
+      hombres = toNumber(pickFirst(generoRaw.hombres, generoRaw.masculino, generoRaw.male, 0))
+      mujeres = toNumber(pickFirst(generoRaw.mujeres, generoRaw.femenino, generoRaw.female, 0))
+    }
+
+    const variacionAsistencia = toNumber(pickFirst(
+      asistenciaRaw.variacion,
+      asistenciaRaw.porcentaje_variacion,
+      asistenciaRaw.delta,
+      0,
+    ))
 
     const asistencia = {
       hoy: toNumber(pickFirst(asistenciaRaw.hoy, asistenciaRaw.total_hoy, asistenciaRaw.actual, 0)),
       ayer: toNumber(pickFirst(asistenciaRaw.ayer, asistenciaRaw.total_ayer, asistenciaRaw.anterior, 0)),
-      hombres: toNumber(pickFirst(generoRaw.hombres, generoRaw.masculino, generoRaw.male, 0)),
-      mujeres: toNumber(pickFirst(generoRaw.mujeres, generoRaw.femenino, generoRaw.female, 0)),
+      hombres,
+      mujeres,
+      variacion: variacionAsistencia,
+      tendenciaPositiva: toBoolean(
+        pickFirst(asistenciaRaw.tendencia_positiva, asistenciaRaw.tendenciaPositiva),
+        variacionAsistencia >= 0,
+      ),
     }
+
+    const insightRaw = pickFirst(
+      widgetsRaw.insight_negocio,
+      widgetsRaw.insightNegocio,
+      payload.insight_negocio,
+      payload.insightNegocio,
+      payload.insight,
+      null,
+    )
+
+    const insightNegocio = insightRaw
+      ? (() => {
+          const titulo = String(pickFirst(insightRaw.titulo, insightRaw.title, '') || '').trim()
+          const texto = String(pickFirst(insightRaw.texto, insightRaw.subtitulo, insightRaw.text, '') || '').trim()
+          const insightContent = `${titulo} ${texto}`.toLowerCase()
+          const fallbackTendenciaPositiva = !/(baj|caid|atenci|empeor|negativ|perdid)/.test(insightContent)
+
+          return {
+            titulo,
+            texto,
+            tendenciaPositiva: toBoolean(
+              pickFirst(insightRaw.tendencia_positiva, insightRaw.tendenciaPositiva),
+              fallbackTendenciaPositiva,
+            ),
+            periodoAplicado: String(pickFirst(insightRaw.periodo_aplicado, insightRaw.periodoAplicado, '') || ''),
+          }
+        })()
+      : null
 
     return {
       ventasChart,
@@ -186,6 +298,7 @@ export class DashboardService {
       ingresosDiarios,
       stockCritico,
       asistencia,
+      insightNegocio,
     }
   }
 }

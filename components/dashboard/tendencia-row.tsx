@@ -1,23 +1,51 @@
 "use client"
 
-import { TrendingUp, TrendingDown, Minus, ScanLine, ArrowUpRight } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, ScanLine, ArrowUpRight, ArrowDownRight } from "lucide-react"
 import { calcPct, getTendencia } from "@/lib/dashboard-data"
 import type { DatosFinancieros } from "@/lib/dashboard-data"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
 
 interface TendenciaRowProps {
   datos: DatosFinancieros
-  asistencia: { hoy: number; ayer: number; hombres: number; mujeres: number }
+  asistencia: {
+    hoy: number
+    ayer: number
+    hombres: number
+    mujeres: number
+    variacion: number
+    tendenciaPositiva: boolean
+  }
+  insightNegocio?: {
+    titulo: string
+    texto: string
+    tendenciaPositiva: boolean
+    periodoAplicado: string
+  } | null
   periodo: string
   onPeriodoChange: (p: string) => void
 }
 
-export function TendenciaRow({ datos, asistencia, periodo, onPeriodoChange }: TendenciaRowProps) {
+export function TendenciaRow({ datos, asistencia, insightNegocio, periodo, onPeriodoChange }: TendenciaRowProps) {
   const utilidad = datos.ventas - datos.gastos
   const utilidadAnt = datos.ventasAnt - datos.gastosAnt
   const pctUtilidad = calcPct(utilidad, utilidadAnt)
-  const tendencia = getTendencia(pctUtilidad)
-  const pctAsistencia = calcPct(asistencia.hoy, asistencia.ayer)
+  const tendenciaFallback = getTendencia(pctUtilidad)
+
+  const tendencia = insightNegocio
+    ? {
+        texto: insightNegocio.titulo,
+        sub: insightNegocio.texto,
+        tipo: (insightNegocio.tendenciaPositiva ? "mejoro" : "empeoro") as "mejoro" | "empeoro" | "igual",
+      }
+    : tendenciaFallback
+
+  const pctAsistencia = Number.isFinite(asistencia.variacion)
+    ? asistencia.variacion
+    : calcPct(asistencia.hoy, asistencia.ayer)
+
+  const asistenciaPositiva = Number.isFinite(asistencia.variacion)
+    ? asistencia.tendenciaPositiva
+    : pctAsistencia >= 0
 
   const tendenciaConfig = {
     mejoro: {
@@ -63,6 +91,9 @@ export function TendenciaRow({ datos, asistencia, periodo, onPeriodoChange }: Te
         <div className="flex-1 min-w-0">
           <p className={`text-sm font-semibold ${tc.textColor}`}>{tendencia.texto}</p>
           <p className="text-xs text-muted-foreground">{tendencia.sub}</p>
+          {insightNegocio?.periodoAplicado && (
+            <p className="text-[11px] text-muted-foreground/80 mt-1">Periodo: {insightNegocio.periodoAplicado}</p>
+          )}
         </div>
         <select
           value={periodo}
@@ -95,10 +126,10 @@ export function TendenciaRow({ datos, asistencia, periodo, onPeriodoChange }: Te
             </div>
             <div className="flex items-center gap-1">
               <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
-                pctAsistencia >= 0 ? "bg-success/15 text-success" : "bg-primary/15 text-primary"
+                asistenciaPositiva ? "bg-success/15 text-success" : "bg-primary/15 text-primary"
               }`}>
-                <ArrowUpRight className="h-3 w-3" />
-                +{pctAsistencia}%
+                {asistenciaPositiva ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                {pctAsistencia > 0 ? "+" : ""}{pctAsistencia}%
               </span>
               <span className="text-xs text-muted-foreground">vs ayer</span>
             </div>
