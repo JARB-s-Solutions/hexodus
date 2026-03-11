@@ -9,7 +9,6 @@ import { AparienciaTab } from "@/components/configuracion/apariencia-tab"
 import { RolesTab } from "@/components/configuracion/roles-tab"
 import { NotificacionesTab } from "@/components/configuracion/notificaciones-tab"
 import { BackupsTab } from "@/components/configuracion/backups-tab"
-import { AvanzadoTab } from "@/components/configuracion/avanzado-tab"
 import { MetodosPagoTab } from "@/components/configuracion/metodos-pago-tab"
 import { DatosTicketTab } from "@/components/configuracion/datos-ticket-tab"
 import { defaultConfig, type ConfigState } from "@/components/configuracion/config-types"
@@ -191,13 +190,10 @@ export default function ConfiguracionPage() {
                 <NotificacionesTab config={config} onChange={handleChange} />
               )}
               {activeTab === "backups" && (
-                <BackupsTab config={config} onChange={handleChange} />
+                <BackupsTab />
               )}
               {activeTab === "datosTicket" && (
                 <DatosTicketTab config={config} onChange={handleChange} />
-              )}
-              {activeTab === "avanzado" && (
-                <AvanzadoTab config={config} onChange={handleChange} />
               )}
               {activeTab === "metodosPago" && (
                 <MetodosPagoTab />
