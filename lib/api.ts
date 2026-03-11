@@ -23,6 +23,29 @@ export class ApiError extends Error {
 }
 
 /**
+ * Manejador central de errores HTTP.
+ * - 401: limpia la sesión y redirige a /login
+ * - 403: dispara el evento global `api:forbidden` para que los
+ *        componentes suscritos muestren un toast de "sin permisos"
+ */
+function handleHttpError(status: number, message: string): void {
+  if (typeof window === 'undefined') return
+
+  if (status === 401) {
+    // Token expirado o inválido → limpiar sesión
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
+    localStorage.removeItem('auth_expires')
+    window.dispatchEvent(new CustomEvent('auth:logout'))
+    window.location.href = '/login'
+  } else if (status === 403) {
+    window.dispatchEvent(
+      new CustomEvent('api:forbidden', { detail: { message } })
+    )
+  }
+}
+
+/**
  * Opciones para las peticiones fetch
  */
 interface FetchOptions extends RequestInit {
@@ -86,11 +109,9 @@ export async function apiGet<T>(
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
     console.error('❌ GET Error:', error)
-    throw new ApiError(
-      response.status,
-      error.error || error.message || 'Error en la petición',
-      error.errors
-    )
+    const message = error.error || error.message || 'Error en la petición'
+    handleHttpError(response.status, message)
+    throw new ApiError(response.status, message, error.errors)
   }
 
   const data = await response.json()
@@ -131,21 +152,9 @@ export async function apiPost<T>(
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
     console.error('❌ POST Error Response Body:', error)
-    
     const errorMessage = error.error || error.message || 'Error en la petición'
-    console.error('❌ Construyendo ApiError:')
-    console.error('  - status:', response.status)
-    console.error('  - message:', errorMessage)
-    console.error('  - errors:', error.errors)
-    
-    const apiError = new ApiError(
-      response.status,
-      errorMessage,
-      error.errors
-    )
-    
-    console.error('❌ Lanzando ApiError:', apiError)
-    throw apiError
+    handleHttpError(response.status, errorMessage)
+    throw new ApiError(response.status, errorMessage, error.errors)
   }
 
   const responseData = await response.json()
@@ -185,11 +194,9 @@ export async function apiPut<T>(
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
     console.error('❌ PUT Error:', error)
-    throw new ApiError(
-      response.status,
-      error.error || error.message || 'Error en la petición',
-      error.errors
-    )
+    const message = error.error || error.message || 'Error en la petición'
+    handleHttpError(response.status, message)
+    throw new ApiError(response.status, message, error.errors)
   }
 
   const responseData = await response.json()
@@ -220,11 +227,9 @@ export async function apiPatch<T>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new ApiError(
-      response.status,
-      error.error || error.message || 'Error en la petición',
-      error.errors
-    )
+    const message = error.error || error.message || 'Error en la petición'
+    handleHttpError(response.status, message)
+    throw new ApiError(response.status, message, error.errors)
   }
 
   return response.json()
@@ -251,11 +256,9 @@ export async function apiDelete<T>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new ApiError(
-      response.status,
-      error.error || error.message || 'Error en la petición',
-      error.errors
-    )
+    const message = error.error || error.message || 'Error en la petición'
+    handleHttpError(response.status, message)
+    throw new ApiError(response.status, message, error.errors)
   }
 
   return response.json()

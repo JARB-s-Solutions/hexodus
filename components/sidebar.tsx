@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   LayoutDashboard,
@@ -18,8 +18,7 @@ import {
   User,
   ScanFace,
 } from "lucide-react"
-import { AuthService } from "@/lib/auth"
-import type { User as UserType } from "@/lib/types/auth"
+import { useAuthContext } from "@/lib/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "@/components/theme-provider-custom"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -32,16 +31,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+/** Cada ítem del menú mapea al módulo de permisos del backend */
 const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard", id: "dashboard" },
-  { label: "Gestion de Membresias", icon: CreditCard, href: "/membresias", id: "membresias" },
-  { label: "Gestion de Socios", icon: Users, href: "/socios", id: "socios" },
-  { label: "Control de Asistencia", icon: ScanFace, href: "/asistencia", id: "asistencia" },
-  { label: "Gestion de Ventas", icon: ShoppingCart, href: "/ventas", id: "ventas" },
-  { label: "Inventario y Productos", icon: Package, href: "/inventario", id: "inventario" },
-  { label: "Control de Movimientos", icon: TrendingUp, href: "/movimientos", id: "movimientos" },
-  { label: "Reportes", icon: FileText, href: "/reportes", id: "reportes" },
-  { label: "Gestion de Usuarios", icon: Lock, href: "/usuarios", id: "usuarios" },
+  { label: "Dashboard",             icon: LayoutDashboard, href: "/dashboard",    modulo: "dashboard"   },
+  { label: "Gestion de Membresias", icon: CreditCard,      href: "/membresias",   modulo: "membresias"  },
+  { label: "Gestion de Socios",     icon: Users,           href: "/socios",        modulo: "socios"      },
+  { label: "Control de Asistencia", icon: ScanFace,        href: "/asistencia",    modulo: "asistencia"  },
+  { label: "Gestion de Ventas",     icon: ShoppingCart,    href: "/ventas",        modulo: "ventas"      },
+  { label: "Inventario y Productos",icon: Package,         href: "/inventario",    modulo: "inventario"  },
+  { label: "Control de Movimientos",icon: TrendingUp,      href: "/movimientos",   modulo: "movimientos" },
+  { label: "Reportes",              icon: FileText,        href: "/reportes",      modulo: "reportes"    },
+  { label: "Gestion de Usuarios",   icon: Lock,            href: "/usuarios",      modulo: "usuarios"    },
 ]
 
 interface SidebarProps {
@@ -50,19 +50,17 @@ interface SidebarProps {
 
 export function Sidebar({ activePage = "dashboard" }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [user, setUser] = useState<UserType | null>(null)
+  const { user, logout, tienePermiso } = useAuthContext()
   const { theme } = useTheme()
   const router = useRouter()
   const { toast } = useToast()
 
-  useEffect(() => {
-    const currentUser = AuthService.getUser()
-    setUser(currentUser)
-  }, [])
+  // Filtrar ítems del sidebar según el permiso "ver" de cada módulo
+  const visibleNavItems = navItems.filter(item => tienePermiso(item.modulo, 'ver'))
 
   const handleLogout = async () => {
     try {
-      await AuthService.logout()
+      await logout()
       toast({
         title: 'Sesión cerrada',
         description: 'Has cerrado sesión correctamente',
@@ -156,8 +154,8 @@ export function Sidebar({ activePage = "dashboard" }: SidebarProps) {
 
           {/* Navigation */}
           <nav className="flex flex-col gap-1">
-            {navItems.map((item) => {
-              const isActive = item.id === activePage
+            {visibleNavItems.map((item) => {
+              const isActive = item.modulo === activePage
               return (
                 <a
                   key={item.label}
@@ -181,20 +179,22 @@ export function Sidebar({ activePage = "dashboard" }: SidebarProps) {
 
         {/* Bottom settings and user */}
         <div className="flex flex-col gap-3 pt-4 border-t border-sidebar-border">
-          <a
-            href="/configuracion"
-            className={`
-              flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200
-              ${
-                activePage === "configuracion"
-                  ? "bg-primary/15 text-primary border-l-4 border-primary"
-                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              }
-            `}
-          >
-            <Settings className="h-5 w-5" />
-            <span>Configuracion</span>
-          </a>
+          {tienePermiso('configuracion', 'ver') && (
+            <a
+              href="/configuracion"
+              className={`
+                flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200
+                ${
+                  activePage === "configuracion"
+                    ? "bg-primary/15 text-primary border-l-4 border-primary"
+                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                }
+              `}
+            >
+              <Settings className="h-5 w-5" />
+              <span>Configuracion</span>
+            </a>
+          )}
 
           {/* User menu */}
           {user && (

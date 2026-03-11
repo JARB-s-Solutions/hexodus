@@ -103,13 +103,29 @@ export function CajaProvider({ children }: { children: React.ReactNode }) {
         setEstadoCaja(nuevoEstado)
         console.log("   ⚠️ Estado de caja cerrada establecido")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ ❌ ❌ Error al refrescar estado de caja:", error)
       console.error("   Tipo de error:", typeof error)
       console.error("   Error completo:", JSON.stringify(error, null, 2))
       
-      // Si hay error, asumimos caja cerrada
       const user = AuthService.getUser()
+
+      // Si el error es 403 (sin permiso), el usuario no gestiona caja.
+      // No bloquear el acceso — asumir caja abierta para no crear bucle infinito.
+      if (error?.status === 403) {
+        console.warn("   ⚠️ Sin permiso para consultar caja (403). Asumiendo caja ABIERTA para no bloquear acceso.")
+        setEstadoCaja({
+          abierta: true,
+          corte_id: null,
+          monto_inicial: 0,
+          monto_actual: 0,
+          fecha_apertura: null,
+          usuario: user?.nombre_completo || user?.username || "Usuario",
+        })
+        return
+      }
+
+      // Para cualquier otro error, asumir caja cerrada
       const estadoError = {
         abierta: false,
         corte_id: null,
