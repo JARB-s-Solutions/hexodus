@@ -141,9 +141,11 @@ export default function SociosPage() {
           const correo = getSocioField(s, 'correo')
           const telefono = getSocioField(s, 'telefono')
           const id = 'id' in s ? s.id : 0
+          const clave = getSocioField(s, 'codigoSocio')
           
           return (
             nombre.toLowerCase().includes(q) ||
+            (clave && String(clave).toLowerCase().includes(q)) ||
             (correo && correo.toLowerCase().includes(q)) ||
             (telefono && telefono.includes(q)) ||
             String(id).includes(q)

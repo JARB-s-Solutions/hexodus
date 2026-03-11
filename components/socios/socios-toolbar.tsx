@@ -77,7 +77,7 @@ export function SociosToolbar({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Buscar por nombre, ID, correo o telefono..."
+            placeholder="Buscar por nombre, clave, ID, correo o telefono..."
             value={busqueda}
             onChange={(e) => onBusquedaChange(e.target.value)}
             className="w-full h-10 pl-10 pr-4 text-sm bg-[#070B1E]/70 border border-accent/20 rounded-lg text-foreground placeholder:text-muted-foreground/60 focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none transition-all"
