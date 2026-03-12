@@ -153,8 +153,8 @@ export default function AsistenciaPage() {
 
           return {
             id: String(r.id),
-            socioId: r.codigo_socio, // /hoy no tiene socio_id, usa codigo_socio
-            socioDbId: undefined,
+            socioId: String(r.socio_id ?? r.codigo_socio),
+            socioDbId: r.socio_id ? Number(r.socio_id) : undefined,
             nombreSocio: r.socio_nombre,
             tipo: esDenegado ? 'denegado' : 'permitido',
             motivo:

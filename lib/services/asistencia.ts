@@ -64,8 +64,9 @@ export interface AsistenciasHoyResponse {
     fecha: string  // "2026-03-09"
     asistencias: Array<{
       id: string | number
+      socio_id: string | number
       socio_nombre: string
-      codigo_socio: string  // "SOC-959917" - NO tiene socio_id
+      codigo_socio: string
       foto_perfil_url?: string
       hora: string         // "03:03:36" - SOLO HORA, no timestamp completo
       tipo: 'IN' | 'OUT' | 'DENEGADO'

@@ -8,6 +8,7 @@ import {
   CalendarDays, Award,
 } from "lucide-react"
 import type { Membresia } from "@/lib/types/membresias"
+import { useAuthContext } from "@/lib/contexts/auth-context"
 
 interface MembresiasGridProps {
   membresias: Membresia[]
@@ -207,6 +208,7 @@ function MembresiaCard({
   onToggleEstado,
   onEliminar,
 }: MembresiaCardProps) {
+  const { tienePermiso } = useAuthContext()
   const descuento = getDescuento(m)
   const categoria = getCategoria(m.duracionCantidad, m.duracionUnidad)
   const IconoTipo = getIconoTipo(m.duracionCantidad, m.duracionUnidad)
@@ -395,27 +397,33 @@ function MembresiaCard({
         >
           <Eye className="h-4 w-4" />
         </button>
-        <button
-          onClick={() => onEditar(m)}
-          className="p-2 rounded-lg text-muted-foreground/60 hover:text-warning hover:bg-warning/10 transition-all group-hover:text-muted-foreground"
-          title="Editar"
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => onToggleEstado(m)}
-          className="p-2 rounded-lg text-muted-foreground/60 hover:text-success hover:bg-success/10 transition-all group-hover:text-muted-foreground"
-          title={m.estado === 'activo' ? "Desactivar" : "Activar"}
-        >
-          {m.estado === 'activo' ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
-        </button>
-        <button
-          onClick={() => onEliminar(m)}
-          className="p-2 rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-all group-hover:text-muted-foreground"
-          title="Eliminar"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {tienePermiso('membresias', 'editar') && (
+          <button
+            onClick={() => onEditar(m)}
+            className="p-2 rounded-lg text-muted-foreground/60 hover:text-warning hover:bg-warning/10 transition-all group-hover:text-muted-foreground"
+            title="Editar"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
+        {(tienePermiso('membresias', 'activar') || tienePermiso('membresias', 'desactivar')) && (
+          <button
+            onClick={() => onToggleEstado(m)}
+            className="p-2 rounded-lg text-muted-foreground/60 hover:text-success hover:bg-success/10 transition-all group-hover:text-muted-foreground"
+            title={m.estado === 'activo' ? "Desactivar" : "Activar"}
+          >
+            {m.estado === 'activo' ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+          </button>
+        )}
+        {tienePermiso('membresias', 'eliminar') && (
+          <button
+            onClick={() => onEliminar(m)}
+            className="p-2 rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-all group-hover:text-muted-foreground"
+            title="Eliminar"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   )

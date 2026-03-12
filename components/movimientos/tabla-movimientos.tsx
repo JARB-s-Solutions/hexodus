@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useAuthContext } from "@/lib/contexts/auth-context"
 import {
   Plus,
   Eye,
@@ -34,6 +35,7 @@ interface TablaMovimientosProps {
   onPageChange?: (page: number) => void
   onLimitChange?: (limit: number) => void
 }
+
 
 const tipoPagoLabels: Record<string, string> = {
   efectivo: "Efectivo",
@@ -90,6 +92,7 @@ export function TablaMovimientos({
   onPageChange,
   onLimitChange,
 }: TablaMovimientosProps) {
+  const { tienePermiso } = useAuthContext()
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [sortField, setSortField] = useState<SortField>("fecha")
@@ -401,20 +404,24 @@ export function TablaMovimientos({
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => onEditar(m)}
-                          className="p-1.5 rounded-lg hover:bg-warning/15 text-warning transition-colors"
-                          title="Editar"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setConfirmDelete(m.id)}
-                          className="p-1.5 rounded-lg hover:bg-destructive/15 text-destructive transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {tienePermiso('movimientos', 'editar') && (
+                          <button
+                            onClick={() => onEditar(m)}
+                            className="p-1.5 rounded-lg hover:bg-warning/15 text-warning transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
+                        {tienePermiso('movimientos', 'eliminar') && (
+                          <button
+                            onClick={() => setConfirmDelete(m.id)}
+                            className="p-1.5 rounded-lg hover:bg-destructive/15 text-destructive transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </td>

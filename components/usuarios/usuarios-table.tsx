@@ -7,6 +7,7 @@ import {
   ChevronsUpDown,
 } from "lucide-react"
 import type { Usuario } from "@/lib/usuarios-data"
+import { useAuthContext } from "@/lib/contexts/auth-context"
 import { formatFechaCorta } from "@/lib/usuarios-data"
 
 interface UsuariosTableProps {
@@ -24,6 +25,7 @@ export function UsuariosTable({
   onCambiarEstado,
   onEliminar,
 }: UsuariosTableProps) {
+  const { tienePermiso } = useAuthContext()
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(10)
   const [sortField, setSortField] = useState<"nombre" | "ultimoAcceso">("ultimoAcceso")
@@ -214,27 +216,33 @@ export function UsuariosTable({
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => onEditar(u)}
-                          className="p-1.5 rounded text-muted-foreground hover:text-[#22C55E] hover:bg-[#22C55E]/10 transition-colors"
-                          title="Editar"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => onCambiarEstado(u)}
-                          className="p-1.5 rounded text-muted-foreground hover:text-[#FBB424] hover:bg-[#FBB424]/10 transition-colors"
-                          title="Cambiar Estado"
-                        >
-                          <ToggleLeft className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => onEliminar(u)}
-                          className="p-1.5 rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {tienePermiso('usuarios', 'editar') && (
+                          <button
+                            onClick={() => onEditar(u)}
+                            className="p-1.5 rounded text-muted-foreground hover:text-[#22C55E] hover:bg-[#22C55E]/10 transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                        )}
+                        {tienePermiso('usuarios', 'desactivarUsuarios') && (
+                          <button
+                            onClick={() => onCambiarEstado(u)}
+                            className="p-1.5 rounded text-muted-foreground hover:text-[#FBB424] hover:bg-[#FBB424]/10 transition-colors"
+                            title="Cambiar Estado"
+                          >
+                            <ToggleLeft className="h-4 w-4" />
+                          </button>
+                        )}
+                        {tienePermiso('usuarios', 'eliminar') && (
+                          <button
+                            onClick={() => onEliminar(u)}
+                            className="p-1.5 rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

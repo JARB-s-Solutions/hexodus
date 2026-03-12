@@ -55,8 +55,11 @@ export function Sidebar({ activePage = "dashboard" }: SidebarProps) {
   const router = useRouter()
   const { toast } = useToast()
 
-  // Filtrar ítems del sidebar según el permiso "ver" de cada módulo
-  const visibleNavItems = navItems.filter(item => tienePermiso(item.modulo, 'ver'))
+  // Filtrar ítems del sidebar según el permiso "ver" de cada módulo.
+  // El Dashboard siempre es visible para cualquier usuario autenticado.
+  const visibleNavItems = navItems.filter(item =>
+    item.modulo === "dashboard" ? true : tienePermiso(item.modulo, 'ver')
+  )
 
   const handleLogout = async () => {
     try {
