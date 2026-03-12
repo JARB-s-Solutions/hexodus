@@ -7,6 +7,7 @@ import {
   ChevronsUpDown,
 } from "lucide-react"
 import type { ProductoExtendido } from "@/lib/types/productos"
+import { useAuthContext } from "@/lib/contexts/auth-context"
 import { categoriaInfo, estadoStockInfo, formatPrecio } from "@/lib/types/productos"
 import { formatFechaCorta } from "@/lib/inventario-data"
 
@@ -25,6 +26,7 @@ export function InventarioTable({
   onAjustarStock,
   onEliminar,
 }: InventarioTableProps) {
+  const { tienePermiso } = useAuthContext()
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(25)
   const [sortField, setSortField] = useState<"nombre" | "precio" | "stock">("nombre")
@@ -195,15 +197,21 @@ export function InventarioTable({
                         <button onClick={() => onVerDetalle(p)} className="p-1.5 rounded text-muted-foreground hover:text-[#3B82F6] hover:bg-[#3B82F6]/10 transition-colors" title="Ver Detalle">
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button onClick={() => onEditar(p)} className="p-1.5 rounded text-muted-foreground hover:text-[#FBB424] hover:bg-[#FBB424]/10 transition-colors" title="Editar">
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => onAjustarStock(p)} className="p-1.5 rounded text-muted-foreground hover:text-[#22C55E] hover:bg-[#22C55E]/10 transition-colors" title="Ajustar Stock">
-                          <PackagePlus className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => onEliminar(p)} className="p-1.5 rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors" title="Eliminar">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {tienePermiso('inventario', 'editar') && (
+                          <button onClick={() => onEditar(p)} className="p-1.5 rounded text-muted-foreground hover:text-[#FBB424] hover:bg-[#FBB424]/10 transition-colors" title="Editar">
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                        )}
+                        {tienePermiso('inventario', 'ajustarStock') && (
+                          <button onClick={() => onAjustarStock(p)} className="p-1.5 rounded text-muted-foreground hover:text-[#22C55E] hover:bg-[#22C55E]/10 transition-colors" title="Ajustar Stock">
+                            <PackagePlus className="h-4 w-4" />
+                          </button>
+                        )}
+                        {tienePermiso('inventario', 'eliminar') && (
+                          <button onClick={() => onEliminar(p)} className="p-1.5 rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors" title="Eliminar">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

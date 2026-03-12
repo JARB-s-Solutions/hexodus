@@ -3,9 +3,7 @@
 // ============================================================
 
 // URL base de la API - Similar a la configuración en lib/api.ts
-const API_BASE_URL = typeof window !== 'undefined'
-  ? (process.env.NEXT_PUBLIC_API_URL || 'https://hexodusapi.vercel.app/api')
-  : 'https://hexodusapi.vercel.app/api'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://hexodusapi.vercel.app/api'
 
 // ============================================================
 // TIPOS

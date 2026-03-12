@@ -12,8 +12,10 @@ import {
   IngresosChart,
   StockCriticoCard,
 } from "@/components/dashboard/dashboard-charts"
+import { DashboardSimple } from "@/components/dashboard/dashboard-simple"
 import { DashboardService, type DashboardPeriodo, type DashboardMetricasMapped } from "@/lib/services/dashboard"
 import type { DatosFinancieros } from "@/lib/dashboard-data"
+import { usePermisos } from "@/hooks/use-permisos"
 
 const EMPTY_DATOS: DatosFinancieros = {
   ventas: 0,
@@ -39,6 +41,9 @@ const EMPTY_METRICAS: DashboardMetricasMapped = {
 }
 
 export default function DashboardPage() {
+  const { tienePermiso } = usePermisos()
+  const puedeVerGraficas = tienePermiso("dashboard", "verGraficas")
+
   const [periodo, setPeriodo] = useState<DashboardPeriodo>("semana")
   const [datos, setDatos] = useState<DatosFinancieros>(EMPTY_DATOS)
   const [metricas, setMetricas] = useState<DashboardMetricasMapped>(EMPTY_METRICAS)
@@ -73,9 +78,10 @@ export default function DashboardPage() {
   }, [periodo])
 
   useEffect(() => {
+    if (!puedeVerGraficas) return
     cargarKpis()
     cargarMetricas()
-  }, [cargarKpis, cargarMetricas])
+  }, [puedeVerGraficas, cargarKpis, cargarMetricas])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -84,38 +90,42 @@ export default function DashboardPage() {
       <main className="flex-1 flex flex-col min-h-0">
         <DashboardHeader />
 
-        <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6 space-y-5">
-          {/* KPIs Financieros */}
-          <DashboardKpi datos={datos} loading={loadingKpis} error={errorKpis} />
+        {puedeVerGraficas ? (
+          <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6 space-y-5">
+            {/* KPIs Financieros */}
+            <DashboardKpi datos={datos} loading={loadingKpis} error={errorKpis} />
 
-          {/* Visitantes del Dia */}
-          <VisitantesCard />
+            {/* Visitantes del Dia */}
+            <VisitantesCard />
 
-          {/* Tendencia + Asistencia + Genero */}
-          <TendenciaRow
-            datos={datos}
-            asistencia={metricas.asistencia}
-            insightNegocio={metricas.insightNegocio}
-            periodo={periodo}
-            onPeriodoChange={(value) => setPeriodo(value as DashboardPeriodo)}
-          />
+            {/* Tendencia + Asistencia + Genero */}
+            <TendenciaRow
+              datos={datos}
+              asistencia={metricas.asistencia}
+              insightNegocio={metricas.insightNegocio}
+              periodo={periodo}
+              onPeriodoChange={(value) => setPeriodo(value as DashboardPeriodo)}
+            />
 
-          {/* Charts Row: Ventas vs Anterior + Horas Pico */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <VentasChart data={metricas.ventasChart} />
+            {/* Charts Row: Ventas vs Anterior + Horas Pico */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <VentasChart data={metricas.ventasChart} />
+              </div>
+              <div className="lg:col-span-1">
+                <HorasPicoChart data={metricas.horasPico} />
+              </div>
             </div>
-            <div className="lg:col-span-1">
-              <HorasPicoChart data={metricas.horasPico} />
+
+            {/* Charts Row: Ingresos + Stock */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <IngresosChart data={metricas.ingresosDiarios} />
+              <StockCriticoCard items={metricas.stockCritico} />
             </div>
           </div>
-
-          {/* Charts Row: Ingresos + Stock */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <IngresosChart data={metricas.ingresosDiarios} />
-            <StockCriticoCard items={metricas.stockCritico} />
-          </div>
-        </div>
+        ) : (
+          <DashboardSimple />
+        )}
       </main>
     </div>
   )

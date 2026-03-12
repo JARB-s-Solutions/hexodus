@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Shield, Plus, Users, ChevronRight, Trash2, Edit2, Copy } from "lucide-react"
 import { RolesService, type RolAPI } from "@/lib/services/roles"
+import { UsuariosService } from "@/lib/services/usuarios"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -41,8 +42,14 @@ export function RolesTab({}: RolesTabProps) {
   const [selectedRol, setSelectedRol] = useState<RolAPI | null>(null)
   const [loading, setLoading] = useState(true)
   const [modalCrearAbierto, setModalCrearAbierto] = useState(false)
+  const [modalEditarAbierto, setModalEditarAbierto] = useState(false)
+  const [modalEliminarAbierto, setModalEliminarAbierto] = useState(false)
   const [creatingRole, setCreatingRole] = useState(false)
+  const [updatingRole, setUpdatingRole] = useState(false)
+  const [deletingRole, setDeletingRole] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const { toast } = useToast()
 
   const defaultPermisos = useMemo(() => {
@@ -70,6 +77,16 @@ export function RolesTab({}: RolesTabProps) {
     permisos: defaultPermisos,
   })
 
+  const [rolEditable, setRolEditable] = useState<{
+    color: string
+    permisos: Record<string, Record<string, boolean>>
+  }>({
+    color: '#22c55e',
+    permisos: defaultPermisos,
+  })
+
+  const [reasignarRolId, setReasignarRolId] = useState('')
+
   // Cargar roles
   useEffect(() => {
     cargarRoles()
@@ -90,16 +107,33 @@ export function RolesTab({}: RolesTabProps) {
     }
   }, [modalCrearAbierto, defaultPermisos])
 
+  // Limpiar estado de edición cuando se cierre el modal
+  useEffect(() => {
+    if (!modalEditarAbierto) {
+      setEditError(null)
+      setUpdatingRole(false)
+    }
+  }, [modalEditarAbierto])
+
+  useEffect(() => {
+    if (!modalEliminarAbierto) {
+      setDeleteError(null)
+      setDeletingRole(false)
+      setReasignarRolId('')
+    }
+  }, [modalEliminarAbierto])
+
   const cargarRoles = async () => {
     try {
       setLoading(true)
       const rolesData = await RolesService.obtenerRoles()
       setRoles(rolesData)
-      
-      // Seleccionar el primer rol por defecto
-      if (rolesData.length > 0 && !selectedRol) {
-        setSelectedRol(rolesData[0])
-      }
+
+      setSelectedRol((prev) => {
+        if (rolesData.length === 0) return null
+        if (!prev) return rolesData[0]
+        return rolesData.find((rol) => rol.id === prev.id) || rolesData[0]
+      })
     } catch (error: any) {
       console.error('Error cargando roles:', error)
       toast({
@@ -123,6 +157,159 @@ export function RolesTab({}: RolesTabProps) {
         },
       },
     }))
+  }
+
+  const construirPermisosEdicion = (permisosRol?: Record<string, any>) => {
+    const base: Record<string, Record<string, boolean>> = JSON.parse(JSON.stringify(defaultPermisos))
+
+    MODULOS_SISTEMA.forEach((modulo) => {
+      modulo.acciones.forEach((accion) => {
+        base[modulo.id][accion] = Boolean(permisosRol?.[modulo.id]?.[accion])
+      })
+    })
+
+    return base
+  }
+
+  const togglePermisoEdicion = (moduloId: string, accion: string) => {
+    setRolEditable((prev) => ({
+      ...prev,
+      permisos: {
+        ...prev.permisos,
+        [moduloId]: {
+          ...prev.permisos[moduloId],
+          [accion]: !prev.permisos[moduloId]?.[accion],
+        },
+      },
+    }))
+  }
+
+  const abrirModalEdicion = () => {
+    if (!selectedRol || selectedRol.esSistema) return
+
+    setRolEditable({
+      color: selectedRol.color || '#22c55e',
+      permisos: construirPermisosEdicion(selectedRol.permisos),
+    })
+    setEditError(null)
+    setModalEditarAbierto(true)
+  }
+
+  const handleActualizarRol = async () => {
+    if (!selectedRol) return
+
+    try {
+      setUpdatingRole(true)
+      setEditError(null)
+
+      const actualizado = await RolesService.actualizarRol(selectedRol.id, {
+        color: rolEditable.color,
+        permisos: rolEditable.permisos,
+      })
+
+      setRoles((prev) => prev.map((rol) => (rol.id === actualizado.id ? actualizado : rol)))
+      setSelectedRol(actualizado)
+      setModalEditarAbierto(false)
+
+      toast({
+        title: 'Rol actualizado',
+        description: `El rol "${actualizado.nombre}" se actualizó correctamente.`,
+      })
+    } catch (error: any) {
+      console.error('Error actualizando rol:', error)
+      setEditError(error.message || 'Error actualizando el rol')
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo actualizar el rol',
+        description: error.message || 'Revisa la configuración e inténtalo de nuevo',
+      })
+    } finally {
+      setUpdatingRole(false)
+    }
+  }
+
+  const rolesDisponiblesReasignacion = useMemo(() => {
+    if (!selectedRol) return []
+    return roles.filter((rol) => rol.id !== selectedRol.id)
+  }, [roles, selectedRol])
+
+  const abrirModalEliminar = () => {
+    if (!selectedRol) return
+
+    if (selectedRol.esSistema) {
+      toast({
+        variant: 'destructive',
+        title: 'No se puede eliminar',
+        description: 'Los roles del sistema están protegidos y no se pueden eliminar.',
+      })
+      return
+    }
+
+    if (selectedRol.usuariosActivos > 0 && rolesDisponiblesReasignacion.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'No se puede eliminar',
+        description: 'Este rol tiene usuarios asignados y no hay otro rol disponible para reasignarlos.',
+      })
+      return
+    }
+
+    setReasignarRolId(rolesDisponiblesReasignacion[0]?.id || '')
+    setDeleteError(null)
+    setModalEliminarAbierto(true)
+  }
+
+  const handleEliminarRol = async () => {
+    if (!selectedRol) return
+
+    if (selectedRol.esSistema) {
+      setDeleteError('No se puede eliminar un rol del sistema.')
+      return
+    }
+
+    if (selectedRol.usuariosActivos > 0 && !reasignarRolId) {
+      setDeleteError('Debes seleccionar un rol para reasignar los usuarios activos.')
+      return
+    }
+
+    try {
+      setDeletingRole(true)
+      setDeleteError(null)
+
+      // Reasignar usuarios manualmente antes de eliminar el rol
+      // (el backend no soporta reasignación automática en el DELETE)
+      if (selectedRol.usuariosActivos > 0 && reasignarRolId) {
+        const usuariosResponse = await UsuariosService.obtenerUsuarios({
+          rol: selectedRol.id,
+          limit: 1000,
+        })
+        const usuarios = usuariosResponse.data?.usuarios ?? []
+        await Promise.all(
+          usuarios.map((u) => UsuariosService.actualizarUsuario(u.id, { rolId: reasignarRolId }))
+        )
+      }
+
+      const response = await RolesService.eliminarRol(selectedRol.id)
+
+      const rolEliminadoNombre = selectedRol.nombre
+      setModalEliminarAbierto(false)
+      await cargarRoles()
+
+      toast({
+        title: 'Rol eliminado',
+        description: response.message || `El rol "${rolEliminadoNombre}" se eliminó correctamente.`,
+      })
+    } catch (error: any) {
+      console.error('Error eliminando rol:', error)
+      setDeleteError(error.message || 'No se pudo eliminar el rol')
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo eliminar el rol',
+        description: error.message || 'Revisa la configuración e inténtalo de nuevo',
+      })
+    } finally {
+      setDeletingRole(false)
+    }
   }
 
   const handleCrearRol = async () => {
@@ -256,7 +443,12 @@ export function RolesTab({}: RolesTabProps) {
         {/* Detalles del Rol */}
         <div className="lg:col-span-2 bg-card rounded-xl border border-border">
           {selectedRol ? (
-            <RolDetails rol={selectedRol} onUpdate={cargarRoles} />
+            <RolDetails
+              rol={selectedRol}
+              onUpdate={cargarRoles}
+              onEditar={abrirModalEdicion}
+              onEliminar={abrirModalEliminar}
+            />
           ) : (
             <div className="flex items-center justify-center h-96 text-muted-foreground">
               <div className="text-center">
@@ -386,6 +578,152 @@ export function RolesTab({}: RolesTabProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal para editar rol */}
+      <Dialog open={modalEditarAbierto} onOpenChange={setModalEditarAbierto}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar rol: {selectedRol?.nombre}</DialogTitle>
+            <DialogDescription>
+              Actualiza color y permisos del rol seleccionado.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-rol-color">Color</Label>
+              <div className="mt-1 flex items-center gap-3">
+                <Input
+                  id="edit-rol-color"
+                  type="color"
+                  value={rolEditable.color}
+                  onChange={(e) => setRolEditable((prev) => ({ ...prev, color: e.target.value }))}
+                  className="h-10 w-14 p-0"
+                />
+                <span className="text-sm text-muted-foreground">{rolEditable.color}</span>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <h3 className="text-lg font-semibold">Permisos</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Selecciona los permisos que quieres habilitar para este rol.
+              </p>
+
+              <div className="mt-4 space-y-3">
+                {MODULOS_SISTEMA.map((modulo) => (
+                  <div key={modulo.id} className="border border-border rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">
+                        <span className="mr-2">{modulo.icono}</span>
+                        {modulo.nombre}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{modulo.acciones.length} permisos</div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {modulo.acciones.map((accion) => (
+                        <label
+                          key={accion}
+                          className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted/50 transition-colors"
+                        >
+                          <Checkbox
+                            checked={rolEditable.permisos[modulo.id]?.[accion] || false}
+                            onCheckedChange={() => togglePermisoEdicion(modulo.id, accion)}
+                          />
+                          <span className="text-sm capitalize">{accion}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {editError && <div className="text-sm text-destructive">{editError}</div>}
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="secondary"
+                onClick={() => setModalEditarAbierto(false)}
+                disabled={updatingRole}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleActualizarRol} disabled={updatingRole || !selectedRol}>
+                {updatingRole ? 'Guardando...' : 'Guardar cambios'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para eliminar rol */}
+      <Dialog open={modalEliminarAbierto} onOpenChange={setModalEliminarAbierto}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Eliminar rol: {selectedRol?.nombre}</DialogTitle>
+            <DialogDescription>
+              Esta acción eliminará el rol personalizado seleccionado.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border border-destructive/25 bg-destructive/10 p-4 text-sm text-foreground">
+              <p>
+                Se eliminará el rol <strong>{selectedRol?.nombre}</strong>.
+              </p>
+              {selectedRol?.usuariosActivos ? (
+                <p className="mt-2 text-muted-foreground">
+                  Tiene <strong>{selectedRol.usuariosActivos}</strong> usuario{selectedRol.usuariosActivos !== 1 ? 's' : ''} activo{selectedRol.usuariosActivos !== 1 ? 's' : ''} asignado{selectedRol.usuariosActivos !== 1 ? 's' : ''}, por lo que debes elegir un rol de reasignación.
+                </p>
+              ) : (
+                <p className="mt-2 text-muted-foreground">
+                  No hay usuarios activos asignados, así que se puede eliminar directamente.
+                </p>
+              )}
+            </div>
+
+            {selectedRol && selectedRol.usuariosActivos > 0 && (
+              <div>
+                <Label htmlFor="reasignar-rol">Reasignar usuarios a</Label>
+                <select
+                  id="reasignar-rol"
+                  value={reasignarRolId}
+                  onChange={(e) => setReasignarRolId(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent"
+                >
+                  <option value="">Selecciona un rol</option>
+                  {rolesDisponiblesReasignacion.map((rol) => (
+                    <option key={rol.id} value={rol.id}>
+                      {rol.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {deleteError && <div className="text-sm text-destructive">{deleteError}</div>}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="secondary"
+                onClick={() => setModalEliminarAbierto(false)}
+                disabled={deletingRole}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleEliminarRol}
+                disabled={deletingRole || !selectedRol}
+              >
+                {deletingRole ? 'Eliminando...' : 'Eliminar rol'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -397,9 +735,11 @@ export function RolesTab({}: RolesTabProps) {
 interface RolDetailsProps {
   rol: RolAPI
   onUpdate: () => void
+  onEditar?: () => void
+  onEliminar?: () => void
 }
 
-function RolDetails({ rol, onUpdate }: RolDetailsProps) {
+function RolDetails({ rol, onUpdate, onEditar, onEliminar }: RolDetailsProps) {
   const esAdministrador = rol.permisos?.todo === 'absoluto'
   
   return (
@@ -451,10 +791,18 @@ function RolDetails({ rol, onUpdate }: RolDetailsProps) {
               <button className="p-2 hover:bg-muted rounded-lg transition-colors" title="Duplicar">
                 <Copy className="h-4 w-4" />
               </button>
-              <button className="p-2 hover:bg-muted rounded-lg transition-colors" title="Editar">
+              <button
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                title="Editar"
+                onClick={onEditar}
+              >
                 <Edit2 className="h-4 w-4" />
               </button>
-              <button className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors" title="Eliminar">
+              <button
+                className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
+                title="Eliminar"
+                onClick={onEliminar}
+              >
                 <Trash2 className="h-4 w-4" />
               </button>
             </>

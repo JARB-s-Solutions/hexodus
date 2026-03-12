@@ -7,11 +7,12 @@ import {
   ChevronsUpDown,
 } from "lucide-react"
 import type { Usuario } from "@/lib/usuarios-data"
+import { useAuthContext } from "@/lib/contexts/auth-context"
 import { formatFechaCorta } from "@/lib/usuarios-data"
 
 interface UsuariosTableProps {
   usuarios: Usuario[]
-  onVerDetalle: (u: Usuario) => void
+  onVerDetalle: (u: Usuario, displayId: number) => void
   onEditar: (u: Usuario) => void
   onCambiarEstado: (u: Usuario) => void
   onEliminar: (u: Usuario) => void
@@ -24,6 +25,7 @@ export function UsuariosTable({
   onCambiarEstado,
   onEliminar,
 }: UsuariosTableProps) {
+  const { tienePermiso } = useAuthContext()
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(10)
   const [sortField, setSortField] = useState<"nombre" | "ultimoAcceso">("ultimoAcceso")
@@ -208,33 +210,39 @@ export function UsuariosTable({
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={() => onVerDetalle(u)}
+                          onClick={() => onVerDetalle(u, displayId)}
                           className="p-1.5 rounded text-muted-foreground hover:text-[#3B82F6] hover:bg-[#3B82F6]/10 transition-colors"
                           title="Ver Detalles"
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => onEditar(u)}
-                          className="p-1.5 rounded text-muted-foreground hover:text-[#22C55E] hover:bg-[#22C55E]/10 transition-colors"
-                          title="Editar"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => onCambiarEstado(u)}
-                          className="p-1.5 rounded text-muted-foreground hover:text-[#FBB424] hover:bg-[#FBB424]/10 transition-colors"
-                          title="Cambiar Estado"
-                        >
-                          <ToggleLeft className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => onEliminar(u)}
-                          className="p-1.5 rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {tienePermiso('usuarios', 'editar') && (
+                          <button
+                            onClick={() => onEditar(u)}
+                            className="p-1.5 rounded text-muted-foreground hover:text-[#22C55E] hover:bg-[#22C55E]/10 transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                        )}
+                        {tienePermiso('usuarios', 'desactivarUsuarios') && (
+                          <button
+                            onClick={() => onCambiarEstado(u)}
+                            className="p-1.5 rounded text-muted-foreground hover:text-[#FBB424] hover:bg-[#FBB424]/10 transition-colors"
+                            title="Cambiar Estado"
+                          >
+                            <ToggleLeft className="h-4 w-4" />
+                          </button>
+                        )}
+                        {tienePermiso('usuarios', 'eliminar') && (
+                          <button
+                            onClick={() => onEliminar(u)}
+                            className="p-1.5 rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
