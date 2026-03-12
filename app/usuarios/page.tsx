@@ -45,6 +45,7 @@ export default function UsuariosPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editandoUsuario, setEditandoUsuario] = useState<Usuario | null>(null)
   const [detalleUsuario, setDetalleUsuario] = useState<Usuario | null>(null)
+  const [detalleUsuarioDisplayId, setDetalleUsuarioDisplayId] = useState<number | null>(null)
   const [usuarioAEliminar, setUsuarioAEliminar] = useState<Usuario | null>(null)
   const [eliminandoUsuario, setEliminandoUsuario] = useState(false)
 
@@ -151,6 +152,11 @@ export default function UsuariosPage() {
   const handleEditar = useCallback((u: Usuario) => {
     setEditandoUsuario(u)
     setModalOpen(true)
+  }, [])
+
+  const handleVerDetalle = useCallback((u: Usuario, displayId: number) => {
+    setDetalleUsuario(u)
+    setDetalleUsuarioDisplayId(displayId)
   }, [])
 
   const handleGuardar = useCallback(
@@ -353,7 +359,7 @@ export default function UsuariosPage() {
           {/* Table - full width, no side column */}
           <UsuariosTable
             usuarios={usuarios}
-            onVerDetalle={setDetalleUsuario}
+            onVerDetalle={handleVerDetalle}
             onEditar={handleEditar}
             onCambiarEstado={handleCambiarEstado}
             onEliminar={handleEliminar}
@@ -403,7 +409,11 @@ export default function UsuariosPage() {
       <DetalleUsuarioModal
         usuario={detalleUsuario}
         open={!!detalleUsuario}
-        onClose={() => setDetalleUsuario(null)}
+        displayId={detalleUsuarioDisplayId}
+        onClose={() => {
+          setDetalleUsuario(null)
+          setDetalleUsuarioDisplayId(null)
+        }}
       />
 
       {usuarioAEliminar && (

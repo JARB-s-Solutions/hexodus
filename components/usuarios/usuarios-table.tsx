@@ -12,7 +12,7 @@ import { formatFechaCorta } from "@/lib/usuarios-data"
 
 interface UsuariosTableProps {
   usuarios: Usuario[]
-  onVerDetalle: (u: Usuario) => void
+  onVerDetalle: (u: Usuario, displayId: number) => void
   onEditar: (u: Usuario) => void
   onCambiarEstado: (u: Usuario) => void
   onEliminar: (u: Usuario) => void
@@ -210,7 +210,7 @@ export function UsuariosTable({
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={() => onVerDetalle(u)}
+                          onClick={() => onVerDetalle(u, displayId)}
                           className="p-1.5 rounded text-muted-foreground hover:text-[#3B82F6] hover:bg-[#3B82F6]/10 transition-colors"
                           title="Ver Detalles"
                         >
