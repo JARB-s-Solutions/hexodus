@@ -9,11 +9,13 @@ import { UsuariosTable } from "@/components/usuarios/usuarios-table"
 import { UsuarioModal, type UsuarioFormData } from "@/components/usuarios/usuario-modal"
 import { DetalleUsuarioModal } from "@/components/usuarios/detalle-usuario-modal"
 import { SesionesActivas } from "@/components/usuarios/sesiones-activas"
+import { AuditoriaPanel } from "@/components/usuarios/auditoria-panel"
 import { AuthService } from "@/lib/auth"
 import { RolesService } from "@/lib/services/roles"
 import { UsuariosService } from "@/lib/services/usuarios"
 import { transformarUsuarioAPI, type Usuario } from "@/lib/usuarios-data"
 import { useToast } from "@/hooks/use-toast"
+import { usePermisos } from "@/hooks/use-permisos"
 
 function esRolAdmin(u: Usuario): boolean {
   const rolId = (u.rol?.id || '').toLowerCase()
@@ -21,9 +23,16 @@ function esRolAdmin(u: Usuario): boolean {
   return rolId === 'admin' || rolNombre.includes('admin')
 }
 
+type Tab = "usuarios" | "auditoria"
+
 export default function UsuariosPage() {
   const { toast } = useToast()
-  
+  const { tienePermiso, esAdmin } = usePermisos()
+
+  // Pestaña activa
+  const [tabActiva, setTabActiva] = useState<Tab>("usuarios")
+  const puedeVerAuditoria = esAdmin || tienePermiso("usuarios", "gestionarRoles")
+
   // Estados principales
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [loading, setLoading] = useState(true)
@@ -322,6 +331,37 @@ export default function UsuariosPage() {
           {/* KPIs - full width */}
           <KpiUsuarios usuarios={usuarios} loading={loading} total={totalUsuarios} />
 
+          {/* Tabs: Usuarios / Auditoría */}
+          {puedeVerAuditoria && (
+            <div className="flex gap-1 border-b border-border">
+              <button
+                onClick={() => setTabActiva("usuarios")}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  tabActiva === "usuarios"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Usuarios
+              </button>
+              <button
+                onClick={() => setTabActiva("auditoria")}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  tabActiva === "auditoria"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Auditoría
+              </button>
+            </div>
+          )}
+
+          {/* ── Contenido por pestaña ── */}
+          {tabActiva === "auditoria" && puedeVerAuditoria ? (
+            <AuditoriaPanel />
+          ) : (
+            <>
           {/* Toolbar: search + filters inline - full width */}
           <UsuariosToolbar
             busqueda={busqueda}
@@ -392,6 +432,8 @@ export default function UsuariosPage() {
 
           {/* Sessions bar - full width at bottom */}
           <SesionesActivas usuarios={usuarios} />
+            </>
+          )}
         </div>
       </main>
 
@@ -417,7 +459,7 @@ export default function UsuariosPage() {
       />
 
       {usuarioAEliminar && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4">
           <button
             type="button"
             className="absolute inset-0 bg-background/80 backdrop-blur-sm"
