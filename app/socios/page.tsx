@@ -134,20 +134,25 @@ export default function SociosPage() {
 
     // Search
     if (busqueda.trim()) {
-      const q = busqueda.toLowerCase()
+      const q = busqueda.trim().toLowerCase()
       filtered = filtered.filter(
         (s) => {
           const nombre = getSocioField(s, 'nombre')
           const correo = getSocioField(s, 'correo')
           const telefono = getSocioField(s, 'telefono')
           const id = 'id' in s ? s.id : 0
-          const clave = getSocioField(s, 'codigoSocio')
+          const clave = getSocioField(s, 'codigoSocio') || getSocioField(s, 'clave')
+
+          const nombreNormalizado = String(nombre || '').toLowerCase()
+          const correoNormalizado = String(correo || '').toLowerCase()
+          const telefonoNormalizado = String(telefono || '').toLowerCase()
+          const claveNormalizada = String(clave || '').toLowerCase()
           
           return (
-            nombre.toLowerCase().includes(q) ||
-            (clave && String(clave).toLowerCase().includes(q)) ||
-            (correo && correo.toLowerCase().includes(q)) ||
-            (telefono && telefono.includes(q)) ||
+            nombreNormalizado.includes(q) ||
+            claveNormalizada.includes(q) ||
+            correoNormalizado.includes(q) ||
+            telefonoNormalizado.includes(q) ||
             String(id).includes(q)
           )
         }

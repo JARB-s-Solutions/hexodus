@@ -66,18 +66,28 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
     }
   }
 
+  const toTime = (value: unknown): number | null => {
+    if (!value) return null
+    const time = new Date(String(value)).getTime()
+    return Number.isNaN(time) ? null : time
+  }
+
   const sorted = useMemo(() => {
     return [...socios].sort((a, b) => {
       let cmp = 0
       if (sortKey === "id") {
         const fechaRegistroA = getSocioField(a, 'createdAt') || getSocioField(a, 'fechaRegistro')
         const fechaRegistroB = getSocioField(b, 'createdAt') || getSocioField(b, 'fechaRegistro')
-        const timeA = fechaRegistroA ? new Date(fechaRegistroA).getTime() : NaN
-        const timeB = fechaRegistroB ? new Date(fechaRegistroB).getTime() : NaN
+        const timeA = toTime(fechaRegistroA)
+        const timeB = toTime(fechaRegistroB)
 
         // Si hay fecha de registro en ambos, priorizar orden cronológico real.
-        if (!Number.isNaN(timeA) && !Number.isNaN(timeB) && timeA !== timeB) {
+        if (timeA !== null && timeB !== null && timeA !== timeB) {
           cmp = timeA - timeB
+        } else if (timeA !== null && timeB === null) {
+          cmp = 1
+        } else if (timeA === null && timeB !== null) {
+          cmp = -1
         } else {
           // Fallback por id (normalmente incremental)
           cmp = a.id - b.id
