@@ -6,6 +6,7 @@ import {
   ChevronRight, ChevronsRight, ChevronsUpDown, DollarSign,
 } from "lucide-react"
 import type { Socio } from "@/lib/socios-data"
+import { useAuthContext } from "@/lib/contexts/auth-context"
 import {
   getVigenciaMembresia, getEstadoContrato,
   membresiaLabels,
@@ -25,6 +26,7 @@ type SortKey = "id" | "nombre" | "vencimiento"
 type SortDir = "asc" | "desc"
 
 export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobrar }: SociosTableProps) {
+  const { tienePermiso } = useAuthContext()
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(25)
   const [sortKey, setSortKey] = useState<SortKey>("id")
@@ -359,8 +361,8 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                     {/* Acciones */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
-                        {/* Botón de cobrar solo si el estado de pago es "sin_pagar" */}
-                        {estadoPago === 'sin_pagar' && onCobrar && (
+                        {/* Cobrar: solo si sin pagar y tiene permiso de ventas */}
+                        {estadoPago === 'sin_pagar' && onCobrar && tienePermiso('ventas', 'crear') && (
                           <button
                             onClick={() => onCobrar(s)}
                             className="p-1.5 rounded-md text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-all"
@@ -376,20 +378,24 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => onEditar(s)}
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                          title="Editar"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => onEliminar(s)}
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {tienePermiso('socios', 'editar') && (
+                          <button
+                            onClick={() => onEditar(s)}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                            title="Editar"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
+                        {tienePermiso('socios', 'eliminar') && (
+                          <button
+                            onClick={() => onEliminar(s)}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

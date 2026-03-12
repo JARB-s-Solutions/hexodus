@@ -413,9 +413,9 @@ export function HistorialRegistros({
                   {registro.confianza === "N/A" ? "N/A" : `${registro.confianza}% confianza`}
                 </p>
               </div>
-              {onVerHistorialSocio && (
+              {onVerHistorialSocio && registro.socioDbId && (
                 <button
-                  onClick={() => onVerHistorialSocio(registro.socioId)}
+                  onClick={() => onVerHistorialSocio(String(registro.socioDbId))}
                   className="p-1.5 rounded-md hover:bg-muted transition-colors"
                   title="Ver historial del socio"
                 >
