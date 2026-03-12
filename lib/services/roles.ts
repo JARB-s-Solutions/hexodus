@@ -49,7 +49,7 @@ export interface EliminarRolResponse {
 // CONSTANTES
 // ============================================================================
 
-const API_BASE_URL = 'https://hexodusapi.vercel.app/api'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://hexodusapi.vercel.app/api'
 
 // ============================================================================
 // SERVICIO DE ROLES

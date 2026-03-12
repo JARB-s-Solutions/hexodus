@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Shield, Plus, Users, ChevronRight, Trash2, Edit2, Copy } from "lucide-react"
 import { RolesService, type RolAPI } from "@/lib/services/roles"
+import { UsuariosService } from "@/lib/services/usuarios"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -275,10 +276,20 @@ export function RolesTab({}: RolesTabProps) {
       setDeletingRole(true)
       setDeleteError(null)
 
-      const response = await RolesService.eliminarRol(
-        selectedRol.id,
-        selectedRol.usuariosActivos > 0 ? reasignarRolId : undefined,
-      )
+      // Reasignar usuarios manualmente antes de eliminar el rol
+      // (el backend no soporta reasignación automática en el DELETE)
+      if (selectedRol.usuariosActivos > 0 && reasignarRolId) {
+        const usuariosResponse = await UsuariosService.obtenerUsuarios({
+          rol: selectedRol.id,
+          limit: 1000,
+        })
+        const usuarios = usuariosResponse.data?.usuarios ?? []
+        await Promise.all(
+          usuarios.map((u) => UsuariosService.actualizarUsuario(u.id, { rolId: reasignarRolId }))
+        )
+      }
+
+      const response = await RolesService.eliminarRol(selectedRol.id)
 
       const rolEliminadoNombre = selectedRol.nombre
       setModalEliminarAbierto(false)
