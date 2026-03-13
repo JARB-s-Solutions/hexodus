@@ -10,6 +10,7 @@ import { SocioModal } from "@/components/socios/socio-modal"
 import { DetalleSocioModal } from "@/components/socios/detalle-socio-modal"
 import { EliminarSocioModal } from "@/components/socios/eliminar-socio-modal"
 import { CobrarMembresiaModal } from "@/components/socios/cobrar-membresia-modal"
+import { RenovarMembresiaModal } from "@/components/socios/renovar-membresia-modal"
 import { SociosService } from "@/lib/services/socios"
 import { toast } from "@/hooks/use-toast"
 import type { Socio } from "@/lib/types/socios"
@@ -47,6 +48,8 @@ export default function SociosPage() {
   const [socioAEliminar, setSocioAEliminar] = useState<Socio | SocioMock | null>(null)
   const [modalCobrarOpen, setModalCobrarOpen] = useState(false)
   const [socioACobrar, setSocioACobrar] = useState<Socio | SocioMock | null>(null)
+  const [modalRenovarOpen, setModalRenovarOpen] = useState(false)
+  const [socioARenovar, setSocioARenovar] = useState<Socio | SocioMock | null>(null)
 
   // ===== Cargar socios desde la API =====
   const cargarSocios = useCallback(async () => {
@@ -322,6 +325,18 @@ export default function SociosPage() {
     setSocioACobrar(null)
   }, [cargarSocios])
 
+  const handleRenovar = useCallback((s: Socio | SocioMock) => {
+    console.log('🔄 Abriendo modal de renovación para:', s)
+    setSocioARenovar(s)
+    setModalRenovarOpen(true)
+  }, [])
+
+  const handleSuccessRenovacion = useCallback(() => {
+    cargarSocios()
+    setModalRenovarOpen(false)
+    setSocioARenovar(null)
+  }, [cargarSocios])
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar activePage="socios" />
@@ -366,6 +381,7 @@ export default function SociosPage() {
             onEditar={handleEditar}
             onEliminar={handleEliminar}
             onCobrar={handleCobrar}
+            onRenovar={handleRenovar}
           />
         </div>
       </main>
@@ -406,6 +422,16 @@ export default function SociosPage() {
         }}
         socio={socioACobrar as Socio | null}
         onSuccess={handleSuccessCobro}
+      />
+
+      <RenovarMembresiaModal
+        open={modalRenovarOpen}
+        onClose={() => {
+          setModalRenovarOpen(false)
+          setSocioARenovar(null)
+        }}
+        socio={socioARenovar as Socio | null}
+        onSuccess={handleSuccessRenovacion}
       />
     </div>
   )

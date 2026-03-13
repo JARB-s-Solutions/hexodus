@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import {
   Eye, Pencil, Trash2, ListChecks, ChevronsLeft, ChevronLeft,
-  ChevronRight, ChevronsRight, ChevronsUpDown, DollarSign,
+  ChevronRight, ChevronsRight, ChevronsUpDown, DollarSign, RefreshCw,
 } from "lucide-react"
 import type { Socio } from "@/lib/socios-data"
 import { useAuthContext } from "@/lib/contexts/auth-context"
@@ -20,12 +20,13 @@ interface SociosTableProps {
   onEditar: (s: Socio) => void
   onEliminar: (s: Socio) => void
   onCobrar?: (s: Socio) => void
+  onRenovar?: (s: Socio) => void
 }
 
 type SortKey = "id" | "nombre" | "vencimiento"
 type SortDir = "asc" | "desc"
 
-export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobrar }: SociosTableProps) {
+export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobrar, onRenovar }: SociosTableProps) {
   const { tienePermiso } = useAuthContext()
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(25)
@@ -379,6 +380,15 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                             title="Cobrar membresía"
                           >
                             <DollarSign className="h-4 w-4" />
+                          </button>
+                        )}
+                        {vigencia === 'vencida' && onRenovar && (tienePermiso('membresias', 'renovar') || tienePermiso('ventas', 'crear')) && (
+                          <button
+                            onClick={() => onRenovar(s)}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-all"
+                            title="Renovar membresía"
+                          >
+                            <RefreshCw className="h-4 w-4" />
                           </button>
                         )}
                         <button
