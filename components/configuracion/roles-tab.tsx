@@ -23,18 +23,52 @@ interface RolesTabProps {
   // Placeholder para compatibilidad con otros tabs
 }
 
-// Definición de módulos y permisos del sistema
+const ACTION_LABELS: Record<string, string> = {
+  ver: 'Ver módulo',
+  crear: 'Crear',
+  editar: 'Editar',
+  eliminar: 'Eliminar',
+  activar: 'Activar',
+  desactivar: 'Desactivar',
+  pagar: 'Cobrar adeudos',
+  renovar: 'Renovar',
+  verHistorial: 'Ver historial',
+  exportar: 'Exportar',
+  generar: 'Generar reportes',
+  registrarManual: 'Registro manual',
+  verGraficas: 'Ver gráficas',
+  verAnalisis: 'Ver análisis',
+  crearCorte: 'Crear corte',
+  verCortesAnteriores: 'Ver cortes anteriores',
+  imprimirTicket: 'Imprimir ticket',
+  gestionarCompras: 'Gestionar compras',
+  ajustarStock: 'Ajustar stock',
+  gestionarCategorias: 'Gestionar categorías',
+  verComparaciones: 'Ver comparaciones',
+  verConceptos: 'Ver conceptos',
+  crearConcepto: 'Crear concepto',
+  editarConcepto: 'Editar concepto',
+  eliminarConcepto: 'Eliminar concepto',
+  gestionarRoles: 'Gestionar roles',
+  desactivarUsuarios: 'Desactivar usuarios',
+  datosGimnasio: 'Datos del ticket',
+  apariencia: 'Apariencia',
+  notificaciones: 'Alertas',
+  metodosPago: 'Métodos de pago',
+}
+
+// Catálogo visible alineado a las funcionalidades reales de cada módulo.
 const MODULOS_SISTEMA = [
-  { id: 'dashboard', nombre: 'Dashboard', icono: '📊', acciones: ['ver'] },
-  { id: 'membresias', nombre: 'Membresías', icono: '🎫', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
-  { id: 'socios', nombre: 'Socios', icono: '👥', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
-  { id: 'asistencia', nombre: 'Asistencia', icono: '📝', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
-  { id: 'ventas', nombre: 'Ventas', icono: '💰', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
-  { id: 'inventario', nombre: 'Inventario', icono: '📦', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
-  { id: 'movimientos', nombre: 'Movimientos', icono: '💸', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
-  { id: 'reportes', nombre: 'Reportes', icono: '📈', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
-  { id: 'usuarios', nombre: 'Usuarios', icono: '👤', acciones: ['ver', 'crear', 'editar', 'eliminar'] },
-  { id: 'configuracion', nombre: 'Configuración', icono: '⚙️', acciones: ['ver', 'editar'] },
+  { id: 'dashboard', nombre: 'Dashboard', icono: '📊', acciones: ['ver', 'verGraficas'] },
+  { id: 'membresias', nombre: 'Membresías', icono: '🎫', acciones: ['ver', 'crear', 'editar', 'eliminar', 'activar', 'desactivar'] },
+  { id: 'socios', nombre: 'Socios', icono: '👥', acciones: ['ver', 'crear', 'editar', 'eliminar', 'pagar', 'renovar'] },
+  { id: 'asistencia', nombre: 'Asistencia', icono: '📝', acciones: ['ver', 'registrarManual', 'verHistorial', 'exportar'] },
+  { id: 'ventas', nombre: 'Ventas', icono: '💰', acciones: ['ver', 'crear', 'verAnalisis', 'crearCorte', 'verCortesAnteriores', 'imprimirTicket', 'exportar'] },
+  { id: 'inventario', nombre: 'Inventario', icono: '📦', acciones: ['ver', 'crear', 'editar', 'eliminar', 'gestionarCompras', 'ajustarStock', 'gestionarCategorias'] },
+  { id: 'movimientos', nombre: 'Movimientos', icono: '💸', acciones: ['ver', 'crear', 'editar', 'eliminar', 'verComparaciones', 'verConceptos', 'crearConcepto', 'editarConcepto', 'eliminarConcepto', 'exportar'] },
+  { id: 'reportes', nombre: 'Reportes', icono: '📈', acciones: ['ver', 'verGraficas', 'verComparaciones', 'verHistorial', 'generar', 'exportar', 'eliminar'] },
+  { id: 'usuarios', nombre: 'Usuarios', icono: '👤', acciones: ['ver', 'crear', 'editar', 'eliminar', 'gestionarRoles', 'desactivarUsuarios'] },
+  { id: 'configuracion', nombre: 'Configuración', icono: '⚙️', acciones: ['ver', 'apariencia', 'notificaciones', 'metodosPago', 'datosGimnasio'] },
 ]
 
 export function RolesTab({}: RolesTabProps) {
@@ -162,10 +196,16 @@ export function RolesTab({}: RolesTabProps) {
   const construirPermisosEdicion = (permisosRol?: Record<string, any>) => {
     const base: Record<string, Record<string, boolean>> = JSON.parse(JSON.stringify(defaultPermisos))
 
-    MODULOS_SISTEMA.forEach((modulo) => {
-      modulo.acciones.forEach((accion) => {
-        base[modulo.id][accion] = Boolean(permisosRol?.[modulo.id]?.[accion])
-      })
+    Object.entries(permisosRol || {}).forEach(([moduloId, acciones]) => {
+      if (!base[moduloId]) {
+        base[moduloId] = {}
+      }
+
+      if (acciones && typeof acciones === 'object') {
+        Object.entries(acciones).forEach(([accion, valor]) => {
+          base[moduloId][accion] = Boolean(valor)
+        })
+      }
     })
 
     return base
@@ -550,7 +590,7 @@ export function RolesTab({}: RolesTabProps) {
                             checked={nuevoRol.permisos[modulo.id]?.[accion] || false}
                             onCheckedChange={() => togglePermiso(modulo.id, accion)}
                           />
-                          <span className="text-sm capitalize">{accion}</span>
+                          <span className="text-sm">{ACTION_LABELS[accion] || accion}</span>
                         </label>
                       ))}
                     </div>
@@ -631,7 +671,7 @@ export function RolesTab({}: RolesTabProps) {
                             checked={rolEditable.permisos[modulo.id]?.[accion] || false}
                             onCheckedChange={() => togglePermisoEdicion(modulo.id, accion)}
                           />
-                          <span className="text-sm capitalize">{accion}</span>
+                          <span className="text-sm">{ACTION_LABELS[accion] || accion}</span>
                         </label>
                       ))}
                     </div>

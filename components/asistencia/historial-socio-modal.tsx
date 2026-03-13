@@ -26,9 +26,15 @@ interface HistorialSocioModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   socioId: string | null
+  canExportar?: boolean
 }
 
-export function HistorialSocioModal({ open, onOpenChange, socioId }: HistorialSocioModalProps) {
+export function HistorialSocioModal({
+  open,
+  onOpenChange,
+  socioId,
+  canExportar = true,
+}: HistorialSocioModalProps) {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<HistorialSocioResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -211,7 +217,7 @@ export function HistorialSocioModal({ open, onOpenChange, socioId }: HistorialSo
               <Calendar className="h-5 w-5" />
               Historial de Asistencias
             </span>
-            {data && (
+            {data && canExportar && (
               <Button
                 variant="outline"
                 size="sm"

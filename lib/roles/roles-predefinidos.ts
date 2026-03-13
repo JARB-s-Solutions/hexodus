@@ -16,10 +16,7 @@ const PERMISOS_ADMINISTRADOR: ConjuntoPermisos = {
     crear: true,
     editar: true,
     eliminar: true,
-    verGraficas: true,
-    verAnalisis: true,
-    verHorasPico: true,
-    verResumenGeneral: true
+    verGraficas: true
   },
   membresias: {
     ver: true,
@@ -27,28 +24,22 @@ const PERMISOS_ADMINISTRADOR: ConjuntoPermisos = {
     editar: true,
     eliminar: true,
     activar: true,
-    desactivar: true,
-    renovar: true,
-    verHistorial: true,
-    aplicarDescuentos: true
+    desactivar: true
   },
   socios: {
     ver: true,
     crear: true,
     editar: true,
     eliminar: true,
-    exportar: true,
-    importar: true,
-    verHistorial: true,
-    editarFoto: true
+    pagar: true,
+    renovar: true
   },
   asistencia: {
     ver: true,
     crear: true,
     editar: true,
     eliminar: true,
-    registrarEntrada: true,
-    registrarSalida: true,
+    registrarManual: true,
     verHistorial: true,
     exportar: true
   },
@@ -59,21 +50,18 @@ const PERMISOS_ADMINISTRADOR: ConjuntoPermisos = {
     eliminar: true,
     verAnalisis: true,
     crearCorte: true,
-    consultarCorte: true,
-    verHistorial: true,
+    verCortesAnteriores: true,
     imprimirTicket: true,
-    aplicarDescuentos: true
+    exportar: true
   },
   inventario: {
     ver: true,
     crear: true,
     editar: true,
     eliminar: true,
+    gestionarCompras: true,
     ajustarStock: true,
-    verHistorial: true,
-    gestionarCategorias: true,
-    eliminarCategoria: true,
-    exportar: true
+    gestionarCategorias: true
   },
   movimientos: {
     ver: true,
@@ -92,8 +80,10 @@ const PERMISOS_ADMINISTRADOR: ConjuntoPermisos = {
     crear: true,
     editar: true,
     eliminar: true,
+    verGraficas: true,
+    verComparaciones: true,
     exportar: true,
-    programarReportes: true,
+    generar: true,
     verHistorial: true
   },
   usuarios: {
@@ -102,7 +92,6 @@ const PERMISOS_ADMINISTRADOR: ConjuntoPermisos = {
     editar: true,
     eliminar: true,
     gestionarRoles: true,
-    asignarPermisos: true,
     desactivarUsuarios: true
   },
   configuracion: {
@@ -113,8 +102,7 @@ const PERMISOS_ADMINISTRADOR: ConjuntoPermisos = {
     datosGimnasio: true,
     apariencia: true,
     notificaciones: true,
-    metodosPago: true,
-    avanzado: true
+    metodosPago: true
   },
   notificaciones: {
     ver: true,
@@ -134,105 +122,93 @@ const PERMISOS_RECEPCIONISTA: ConjuntoPermisos = {
     crear: false,
     editar: false,
     eliminar: false,
-    verGraficas: false,        // NO: Solo horas pico y asistencias
-    verAnalisis: false,         // NO
-    verHorasPico: true,         // SÍ
-    verResumenGeneral: true     // SÍ: Accesos rápidos
+    verGraficas: false
   },
   membresias: {
-    ver: true,                  // SÍ: Ver membresías
-    crear: false,               // NO: No agregar
-    editar: false,              // NO: No editar
-    eliminar: false,            // NO: No eliminar
-    activar: false,             // NO: No activar
-    desactivar: false,          // NO: No desactivar
-    renovar: false,             // NO
-    verHistorial: true,         // SÍ: Ver historial
-    aplicarDescuentos: false    // NO
+    ver: true,
+    crear: false,
+    editar: false,
+    eliminar: false,
+    activar: false,
+    desactivar: false
   },
   socios: {
-    ver: true,                  // SÍ: Todo menos eliminar
-    crear: true,                // SÍ
-    editar: true,               // SÍ
-    eliminar: false,            // NO: No eliminar
-    exportar: true,             // SÍ
-    importar: false,            // NO
-    verHistorial: true,         // SÍ
-    editarFoto: true            // SÍ
+    ver: true,
+    crear: true,
+    editar: true,
+    eliminar: false,
+    pagar: true,
+    renovar: true
   },
   asistencia: {
-    ver: true,                  // SÍ: Todo
-    crear: true,                // SÍ
-    editar: true,               // SÍ
-    eliminar: true,             // SÍ
-    registrarEntrada: true,     // SÍ
-    registrarSalida: true,      // SÍ
-    verHistorial: true,         // SÍ
-    exportar: true              // SÍ
+    ver: true,
+    crear: true,
+    editar: true,
+    eliminar: true,
+    registrarManual: true,
+    verHistorial: true,
+    exportar: true
   },
   ventas: {
-    ver: true,                  // SÍ: Historial y cortes
-    crear: true,                // SÍ: Crear ventas
-    editar: false,              // NO
-    eliminar: false,            // NO
-    verAnalisis: false,         // NO: No análisis
-    crearCorte: true,           // SÍ: Crear cortes
-    consultarCorte: true,       // SÍ
-    verHistorial: true,         // SÍ: Ver historial
-    imprimirTicket: true,       // SÍ
-    aplicarDescuentos: false    // NO
+    ver: true,
+    crear: true,
+    editar: false,
+    eliminar: false,
+    verAnalisis: false,
+    crearCorte: true,
+    verCortesAnteriores: true,
+    imprimirTicket: true,
+    exportar: false
   },
   inventario: {
-    ver: true,                  // SÍ: Todo menos eliminar
-    crear: true,                // SÍ
-    editar: true,               // SÍ
-    eliminar: false,            // NO: No eliminar productos
-    ajustarStock: true,         // SÍ
-    verHistorial: true,         // SÍ
-    gestionarCategorias: false, // NO: Solo visualizar
-    eliminarCategoria: false,   // NO
-    exportar: true              // SÍ
+    ver: true,
+    crear: true,
+    editar: true,
+    eliminar: false,
+    gestionarCompras: true,
+    ajustarStock: true,
+    gestionarCategorias: false
   },
   movimientos: {
-    ver: true,                  // SÍ: Ver historial
-    crear: true,                // SÍ: Registrar movimiento
-    editar: false,              // NO
-    eliminar: false,            // NO
-    verComparaciones: false,    // NO: No mostrar comparaciones
-    verConceptos: true,         // SÍ: Solo visualizar conceptos
-    crearConcepto: false,       // NO
-    editarConcepto: false,      // NO
-    eliminarConcepto: false,    // NO
-    exportar: false             // NO
+    ver: true,
+    crear: true,
+    editar: false,
+    eliminar: false,
+    verComparaciones: false,
+    verConceptos: true,
+    crearConcepto: false,
+    editarConcepto: false,
+    eliminarConcepto: false,
+    exportar: false
   },
   reportes: {
-    ver: false,                 // NO: Nada de reportes
-    crear: false,               // NO
-    editar: false,              // NO
-    eliminar: false,            // NO
-    exportar: false,            // NO
-    programarReportes: false,   // NO
-    verHistorial: false         // NO
+    ver: false,
+    crear: false,
+    editar: false,
+    eliminar: false,
+    verGraficas: false,
+    verComparaciones: false,
+    exportar: false,
+    generar: false,
+    verHistorial: false
   },
   usuarios: {
-    ver: false,                 // NO: Nada de gestión de usuarios
-    crear: false,               // NO
-    editar: false,              // NO
-    eliminar: false,            // NO
-    gestionarRoles: false,      // NO
-    asignarPermisos: false,     // NO
-    desactivarUsuarios: false   // NO
+    ver: false,
+    crear: false,
+    editar: false,
+    eliminar: false,
+    gestionarRoles: false,
+    desactivarUsuarios: false
   },
   configuracion: {
-    ver: false,                 // NO: Nada de configuración
-    crear: false,               // NO
-    editar: false,              // NO
-    eliminar: false,            // NO
-    datosGimnasio: false,       // NO
-    apariencia: false,          // NO
-    notificaciones: false,      // NO
-    metodosPago: false,         // NO
-    avanzado: false             // NO
+    ver: false,
+    crear: false,
+    editar: false,
+    eliminar: false,
+    datosGimnasio: false,
+    apariencia: false,
+    notificaciones: false,
+    metodosPago: false
   },
   notificaciones: {
     ver: true,                  // SÍ: Ver notificaciones

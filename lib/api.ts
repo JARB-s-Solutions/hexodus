@@ -92,7 +92,7 @@ export async function apiGet<T>(
   
   console.log('🌐 GET Request:')
   console.log('  URL:', url)
-  console.log('  Token:', token ? `Bearer ${token.substring(0, 20)}...` : 'NO TOKEN')
+  console.log('  Token:', token ? 'PRESENTE' : 'NO TOKEN')
   
   const response = await fetchWithTimeout(url, {
     method: 'GET',
@@ -132,8 +132,8 @@ export async function apiPost<T>(
   
   console.log('📤 POST Request:')
   console.log('  URL:', url)
-  console.log('  Token:', token ? `Bearer ${token.substring(0, 20)}...` : 'NO TOKEN')
-  console.log('  Body:', JSON.stringify(data, null, 2))
+  console.log('  Token:', token ? 'PRESENTE' : 'NO TOKEN')
+  console.log('  Body:', data ? '[OMITIDO POR SEGURIDAD]' : 'SIN BODY')
   
   const response = await fetchWithTimeout(url, {
     method: 'POST',
@@ -175,8 +175,8 @@ export async function apiPut<T>(
   
   console.log('✏️  PUT Request:')
   console.log('  URL:', url)
-  console.log('  Token:', token ? `Bearer ${token.substring(0, 20)}...` : 'NO TOKEN')
-  console.log('  Body:', JSON.stringify(data, null, 2))
+  console.log('  Token:', token ? 'PRESENTE' : 'NO TOKEN')
+  console.log('  Body:', data ? '[OMITIDO POR SEGURIDAD]' : 'SIN BODY')
   
   const response = await fetchWithTimeout(url, {
     method: 'PUT',
@@ -261,7 +261,16 @@ export async function apiDelete<T>(
     throw new ApiError(response.status, message, error.errors)
   }
 
-  return response.json()
+  const responseText = await response.text()
+  if (!responseText) {
+    return undefined as T
+  }
+
+  try {
+    return JSON.parse(responseText) as T
+  } catch {
+    return responseText as T
+  }
 }
 
 export const API_ENDPOINTS = {

@@ -9,6 +9,7 @@ import type {
   ForgotPasswordRequest,
   ForgotPasswordResponse,
   User,
+  PermisosBackend,
 } from './types/auth'
 
 // MODO DE DESARROLLO: Usar Mock API (sin backend)
@@ -174,6 +175,26 @@ export const AuthService = {
     } catch {
       return null
     }
+  },
+
+  /**
+   * Verificar permiso granular del usuario actual o de un usuario dado.
+   */
+  hasPermission(modulo: string, accion: string, user?: User | null): boolean {
+    const currentUser = user ?? this.getUser()
+    if (!currentUser) return false
+
+    if (
+      currentUser.esAdministrador ||
+      (currentUser.permisos as PermisosBackend | undefined)?.todo === 'absoluto'
+    ) {
+      return true
+    }
+
+    const permisosModulo = currentUser.permisos?.[modulo]
+    if (!permisosModulo || typeof permisosModulo !== 'object') return false
+
+    return (permisosModulo as Record<string, boolean | undefined>)[accion] === true
   },
 
   /**

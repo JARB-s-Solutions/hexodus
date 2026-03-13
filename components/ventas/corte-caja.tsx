@@ -58,11 +58,19 @@ interface CorteCajaProps {
   ventasHoy: Venta[]
   allVentas: Venta[]
   fondoInicial: number
+  canCrearCorte?: boolean
+  canExportar?: boolean
 }
 
 // ====== Main Component ======
 
-export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps) {
+export function CorteCaja({
+  ventasHoy,
+  allVentas,
+  fondoInicial,
+  canCrearCorte = true,
+  canExportar = true,
+}: CorteCajaProps) {
   const { toast } = useToast()
   
   // Estados de datos del API
@@ -259,13 +267,15 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
 
         {/* Top Action Buttons */}
         <div className="flex flex-wrap items-center gap-3 mb-5">
-          <button
-            onClick={() => setShowNuevoModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase bg-primary text-primary-foreground glow-primary glow-primary-hover transition-all"
-          >
-            <PlusCircle className="h-4 w-4" />
-            Nuevo
-          </button>
+          {canCrearCorte && (
+            <button
+              onClick={() => setShowNuevoModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase bg-primary text-primary-foreground glow-primary glow-primary-hover transition-all"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Nuevo
+            </button>
+          )}
           <button
             onClick={() => {
               if (selectedCorte) cargarDetalle(selectedCorte.id)
@@ -281,21 +291,25 @@ export function CorteCaja({ ventasHoy, allVentas, fondoInicial }: CorteCajaProps
             Ver Detalle
           </button>
           <div className="flex-1" />
-          <button
-            onClick={handleEliminar}
-            disabled={!selectedCorte}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase border border-destructive text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Trash2 className="h-4 w-4" />
-            Eliminar
-          </button>
-          <button
-            onClick={handleExportar}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase border border-success text-success hover:bg-success/10 transition-colors"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Exportar a Excel
-          </button>
+          {canCrearCorte && (
+            <button
+              onClick={handleEliminar}
+              disabled={!selectedCorte}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase border border-destructive text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-4 w-4" />
+              Eliminar
+            </button>
+          )}
+          {canExportar && (
+            <button
+              onClick={handleExportar}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase border border-success text-success hover:bg-success/10 transition-colors"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar a Excel
+            </button>
+          )}
         </div>
 
         {/* Date Filters + Efectivo en Caja */}

@@ -8,27 +8,41 @@ export interface PermisosModulo {
   crear?: boolean
   editar?: boolean
   eliminar?: boolean
+  activar?: boolean
+  desactivar?: boolean
   // socios
   verHistorial?: boolean
   pagar?: boolean
   renovar?: boolean
+  exportar?: boolean
+  generar?: boolean
   // inventario
+  gestionarCompras?: boolean
   ajustarStock?: boolean
   gestionarCategorias?: boolean
   // ventas
   crearCorte?: boolean
   verCortesAnteriores?: boolean
   verAnalisis?: boolean
+  imprimirTicket?: boolean
   // movimientos
   verComparaciones?: boolean
+  verConceptos?: boolean
+  crearConcepto?: boolean
+  editarConcepto?: boolean
+  eliminarConcepto?: boolean
   // dashboard
   verGraficas?: boolean
-  // reportes
-  verReporteFinanciero?: boolean
   // asistencia
   registrarManual?: boolean
+  // usuarios
+  gestionarRoles?: boolean
+  desactivarUsuarios?: boolean
   // configuracion
-  gestionarSistema?: boolean
+  datosGimnasio?: boolean
+  apariencia?: boolean
+  notificaciones?: boolean
+  metodosPago?: boolean
   // comodín
   todo?: 'absoluto'
   [key: string]: boolean | 'absoluto' | undefined

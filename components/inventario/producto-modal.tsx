@@ -14,9 +14,18 @@ interface ProductoModalProps {
   producto?: ProductoExtendido | null
   categorias?: CategoriaAPI[]
   onRefreshCategorias?: () => Promise<void> // Callback para recargar categorías
+  canGestionarCategorias?: boolean
 }
 
-export function ProductoModal({ open, onClose, onSave, producto, categorias = [], onRefreshCategorias }: ProductoModalProps) {
+export function ProductoModal({
+  open,
+  onClose,
+  onSave,
+  producto,
+  categorias = [],
+  onRefreshCategorias,
+  canGestionarCategorias = true,
+}: ProductoModalProps) {
   const isEdit = !!producto
   const [nombre, setNombre] = useState("")
   const [codigo, setCodigo] = useState("")
@@ -237,14 +246,16 @@ export function ProductoModal({ open, onClose, onSave, producto, categorias = []
                       <option key={cat.id} value={cat.id}>{cat.nombre}</option>
                     ))}
                   </select>
-                  <button
-                    type="button"
-                    onClick={() => setCategoriaModalOpen(true)}
-                    className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent/20 text-accent rounded-lg text-xs font-medium transition-all border border-accent/20"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Crear nueva categoría
-                  </button>
+                  {canGestionarCategorias && (
+                    <button
+                      type="button"
+                      onClick={() => setCategoriaModalOpen(true)}
+                      className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-accent/10 hover:bg-accent/20 text-accent rounded-lg text-xs font-medium transition-all border border-accent/20"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Crear nueva categoría
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -375,7 +386,7 @@ export function ProductoModal({ open, onClose, onSave, producto, categorias = []
       </div>
 
       {/* Modal inline de categoría */}
-      {categoriaModalOpen && (
+      {categoriaModalOpen && canGestionarCategorias && (
         <CategoriaModal
           open={categoriaModalOpen}
           onClose={() => setCategoriaModalOpen(false)}

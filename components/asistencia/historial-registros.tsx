@@ -36,6 +36,7 @@ interface Props {
   loading?: boolean
   error?: string | null
   onRecargar?: () => void
+  canExportar?: boolean
   onVerHistorialSocio?: (socioId: string) => void
   // Props para paginación (solo para historial completo)
   paginaActual?: number
@@ -62,6 +63,7 @@ export function HistorialRegistros({
   loading = false,
   error = null,
   onRecargar,
+  canExportar = true,
   onVerHistorialSocio,
   paginaActual,
   totalPaginas,
@@ -165,14 +167,16 @@ export function HistorialRegistros({
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
           )}
-          <button
-            onClick={() => exportRegistrosCSV(registrosFiltrados)}
-            disabled={loading || registrosFiltrados.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-accent border border-accent/30 hover:bg-accent/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Exportar
-          </button>
+          {canExportar && (
+            <button
+              onClick={() => exportRegistrosCSV(registrosFiltrados)}
+              disabled={loading || registrosFiltrados.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-accent border border-accent/30 hover:bg-accent/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Exportar
+            </button>
+          )}
           <button
             onClick={onLimpiar}
             disabled={loading || registros.length === 0}

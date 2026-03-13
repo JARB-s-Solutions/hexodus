@@ -37,29 +37,20 @@ export interface AccionesBasicas {
 
 export interface PermisosDashboard extends AccionesBasicas {
   verGraficas: boolean
-  verAnalisis: boolean
-  verHorasPico: boolean
-  verResumenGeneral: boolean
 }
 
 export interface PermisosMembresias extends AccionesBasicas {
   activar: boolean
   desactivar: boolean
-  renovar: boolean
-  verHistorial: boolean
-  aplicarDescuentos: boolean
 }
 
 export interface PermisosSocios extends AccionesBasicas {
-  exportar: boolean
-  importar: boolean
-  verHistorial: boolean
-  editarFoto: boolean
+  pagar: boolean
+  renovar: boolean
 }
 
 export interface PermisosAsistencia extends AccionesBasicas {
-  registrarEntrada: boolean
-  registrarSalida: boolean
+  registrarManual: boolean
   verHistorial: boolean
   exportar: boolean
 }
@@ -67,18 +58,15 @@ export interface PermisosAsistencia extends AccionesBasicas {
 export interface PermisosVentas extends AccionesBasicas {
   verAnalisis: boolean
   crearCorte: boolean
-  consultarCorte: boolean
-  verHistorial: boolean
+  verCortesAnteriores: boolean
   imprimirTicket: boolean
-  aplicarDescuentos: boolean
+  exportar: boolean
 }
 
 export interface PermisosInventario extends AccionesBasicas {
+  gestionarCompras: boolean
   ajustarStock: boolean
-  verHistorial: boolean
   gestionarCategorias: boolean
-  eliminarCategoria: boolean
-  exportar: boolean
 }
 
 export interface PermisosMovimientos extends AccionesBasicas {
@@ -91,14 +79,15 @@ export interface PermisosMovimientos extends AccionesBasicas {
 }
 
 export interface PermisosReportes extends AccionesBasicas {
+  verGraficas: boolean
+  verComparaciones: boolean
   exportar: boolean
-  programarReportes: boolean
+  generar: boolean
   verHistorial: boolean
 }
 
 export interface PermisosUsuarios extends AccionesBasicas {
   gestionarRoles: boolean
-  asignarPermisos: boolean
   desactivarUsuarios: boolean
 }
 
@@ -107,7 +96,6 @@ export interface PermisosConfiguracion extends AccionesBasicas {
   apariencia: boolean
   notificaciones: boolean
   metodosPago: boolean
-  avanzado: boolean
 }
 
 // ============================================================================

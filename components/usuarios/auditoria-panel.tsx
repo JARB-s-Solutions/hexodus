@@ -302,6 +302,11 @@ export function AuditoriaPanel() {
             ) : (
               registros.map((r) => (
                 <React.Fragment key={r.id}>
+                  {(() => {
+                    const nombreUsuario = r.usuario?.nombreCompleto || `Usuario #${r.usuarioId}`
+                    const username = r.usuario?.username || 'sistema'
+
+                    return (
                   <tr
                     className="border-b border-border/50 hover:bg-accent/5 transition-colors"
                   >
@@ -310,8 +315,8 @@ export function AuditoriaPanel() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col leading-tight">
-                        <span className="font-medium text-foreground">{r.usuario.nombreCompleto}</span>
-                        <span className="text-xs text-muted-foreground">@{r.usuario.username}</span>
+                        <span className="font-medium text-foreground">{nombreUsuario}</span>
+                        <span className="text-xs text-muted-foreground">@{username}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -344,6 +349,8 @@ export function AuditoriaPanel() {
                       </button>
                     </td>
                   </tr>
+                    )
+                  })()}
                   {/* Fila de detalles expandidos */}
                   {expandido === r.id && (
                     <tr key={`${r.id}-detail`} className="border-b border-border/50 bg-muted/20">

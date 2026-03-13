@@ -15,6 +15,8 @@ interface InventarioToolbarProps {
   onNuevaCompra: () => void
   totalFiltrados: number
   totalProductos: number
+  canCrearProducto?: boolean
+  canGestionarCompras?: boolean
 }
 
 export function InventarioToolbar({
@@ -29,6 +31,8 @@ export function InventarioToolbar({
   onNuevaCompra,
   totalFiltrados,
   totalProductos,
+  canCrearProducto = true,
+  canGestionarCompras = true,
 }: InventarioToolbarProps) {
   const hasFilters = busqueda || categoriaFiltro !== "todas" || stockFiltro !== "todos"
 
@@ -58,22 +62,28 @@ export function InventarioToolbar({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onNuevoProducto}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground font-semibold text-sm rounded-lg transition-all duration-300 hover:bg-[#FF5A5A] glow-primary glow-primary-hover whitespace-nowrap"
-          >
-            <PackagePlus className="h-4 w-4" />
-            <span>Nuevo Producto</span>
-          </button>
-          <button
-            onClick={onNuevaCompra}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-accent/15 text-accent border border-accent/30 font-semibold text-sm rounded-lg transition-all duration-300 hover:bg-accent/25 whitespace-nowrap"
-          >
-            <ShoppingCart className="h-4 w-4" />
-            <span>Nueva Compra</span>
-          </button>
-        </div>
+        {(canCrearProducto || canGestionarCompras) && (
+          <div className="flex items-center gap-2">
+            {canCrearProducto && (
+              <button
+                onClick={onNuevoProducto}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground font-semibold text-sm rounded-lg transition-all duration-300 hover:bg-[#FF5A5A] glow-primary glow-primary-hover whitespace-nowrap"
+              >
+                <PackagePlus className="h-4 w-4" />
+                <span>Nuevo Producto</span>
+              </button>
+            )}
+            {canGestionarCompras && (
+              <button
+                onClick={onNuevaCompra}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-accent/15 text-accent border border-accent/30 font-semibold text-sm rounded-lg transition-all duration-300 hover:bg-accent/25 whitespace-nowrap"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                <span>Nueva Compra</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Filter row */}

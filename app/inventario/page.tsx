@@ -17,11 +17,24 @@ import type { ProductoExtendido, CreateProductoRequest } from "@/lib/types/produ
 import { extenderProducto, reducirProducto, mapProductoToAPI, mapProductoToUpdateAPI, calcularEstadoStock } from "@/lib/types/productos"
 import type { Categoria as CategoriaAPI } from "@/lib/types/categorias"
 import type { Categoria, EstadoStock, CompraItem } from "@/lib/inventario-data"
+import { useAuthContext } from "@/lib/contexts/auth-context"
 import { Package, Tag } from "lucide-react"
 
 export default function InventarioPage() {
+  const { tienePermiso } = useAuthContext()
+
   // Tabs
   const [activeTab, setActiveTab] = useState<'productos' | 'categorias'>('productos')
+
+  const puedeGestionarCategorias = tienePermiso('inventario', 'gestionarCategorias')
+  const puedeCrearProducto = tienePermiso('inventario', 'crear')
+  const puedeGestionarCompras = tienePermiso('inventario', 'gestionarCompras')
+
+  useEffect(() => {
+    if (activeTab === 'categorias' && !puedeGestionarCategorias) {
+      setActiveTab('productos')
+    }
+  }, [activeTab, puedeGestionarCategorias])
   
   // Data
   const [productos, setProductos] = useState<ProductoExtendido[]>([])
@@ -305,20 +318,22 @@ export default function InventarioPage() {
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full" />
               )}
             </button>
-            <button
-              onClick={() => setActiveTab('categorias')}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all relative ${
-                activeTab === 'categorias'
-                  ? 'text-accent'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Tag className="h-4 w-4" />
-              Categorías
-              {activeTab === 'categorias' && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full" />
-              )}
-            </button>
+            {puedeGestionarCategorias && (
+              <button
+                onClick={() => setActiveTab('categorias')}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all relative ${
+                  activeTab === 'categorias'
+                    ? 'text-accent'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Tag className="h-4 w-4" />
+                Categorías
+                {activeTab === 'categorias' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full" />
+                )}
+              </button>
+            )}
           </div>
 
           {/* Tab: Productos */}
@@ -338,6 +353,8 @@ export default function InventarioPage() {
                 onNuevaCompra={() => setCompraModalOpen(true)}
                 totalFiltrados={filtrados.length}
                 totalProductos={activos.length}
+                canCrearProducto={puedeCrearProducto}
+                canGestionarCompras={puedeGestionarCompras}
               />
 
               <InventarioTable
@@ -351,7 +368,7 @@ export default function InventarioPage() {
           )}
 
           {/* Tab: Categorías */}
-          {activeTab === 'categorias' && (
+          {activeTab === 'categorias' && puedeGestionarCategorias && (
             <CategoriasTab
               categorias={categorias}
               onRefresh={cargarDatos}
@@ -372,6 +389,7 @@ export default function InventarioPage() {
           producto={editProducto}
           categorias={categorias}
           onRefreshCategorias={cargarDatos}
+          canGestionarCategorias={puedeGestionarCategorias}
         />
         <CompraModal
           open={compraModalOpen}

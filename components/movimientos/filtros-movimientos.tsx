@@ -22,6 +22,7 @@ interface FiltrosMovimientosProps {
   onLimpiar: () => void
   onExportar: () => void
   metodosPago?: MetodoPago[]
+  canExportar?: boolean
 }
 
 export function FiltrosMovimientos({
@@ -38,6 +39,7 @@ export function FiltrosMovimientos({
   onLimpiar,
   onExportar,
   metodosPago = [],
+  canExportar = true,
 }: FiltrosMovimientosProps) {
   console.log("🔍 FiltrosMovimientos - Estado actual:", {
     busqueda,
@@ -206,15 +208,17 @@ export function FiltrosMovimientos({
         </div>
 
         {/* Export */}
-        <div className="pt-1">
-          <button
-            onClick={onExportar}
-            className="w-full py-2.5 font-medium rounded-lg text-xs border border-accent/30 text-accent hover:bg-accent/10 transition-all duration-200 flex items-center justify-center gap-2"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Exportar CSV
-          </button>
-        </div>
+        {canExportar && (
+          <div className="pt-1">
+            <button
+              onClick={onExportar}
+              className="w-full py-2.5 font-medium rounded-lg text-xs border border-accent/30 text-accent hover:bg-accent/10 transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Exportar CSV
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

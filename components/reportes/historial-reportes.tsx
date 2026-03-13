@@ -33,12 +33,20 @@ interface HistorialReportesProps {
   reportes: ReporteHistorial[]
   onDescargar: (reporte: ReporteHistorial) => void
   onEliminar: (id: string) => void
+  canDescargar?: boolean
+  canEliminar?: boolean
 }
 
 type SortKey = "id" | "tipo" | "fechaGenerado" | "estado"
 type SortDir = "asc" | "desc"
 
-export function HistorialReportes({ reportes, onDescargar, onEliminar }: HistorialReportesProps) {
+export function HistorialReportes({
+  reportes,
+  onDescargar,
+  onEliminar,
+  canDescargar = true,
+  canEliminar = true,
+}: HistorialReportesProps) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10)
   const [sortKey, setSortKey] = useState<SortKey>("fechaGenerado")
@@ -215,20 +223,24 @@ export function HistorialReportes({ reportes, onDescargar, onEliminar }: Histori
                       >
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => onDescargar(r)}
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-success hover:bg-success/10 transition-all"
-                        title="Descargar"
-                      >
-                        <Download className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => onEliminar(r.id)}
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {canDescargar && (
+                        <button
+                          onClick={() => onDescargar(r)}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-success hover:bg-success/10 transition-all"
+                          title="Descargar"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canEliminar && (
+                        <button
+                          onClick={() => onEliminar(r.id)}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                     {/* Expanded summary row */}
                     {expandedId === r.id && (
