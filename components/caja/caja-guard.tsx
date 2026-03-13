@@ -45,6 +45,16 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
         return
       }
 
+      const requiereGestionCaja =
+        AuthService.hasPermission("ventas", "crearCorte") ||
+        AuthService.hasPermission("ventas", "verCortesAnteriores")
+
+      if (!requiereGestionCaja) {
+        console.log("✅ Usuario sin subpermisos de caja, no se requiere modal de caja")
+        setShowModal(false)
+        return
+      }
+
       // 2. SEGUNDO: Si está autenticado y no está en ruta pública, verificar caja
       const requiereCaja = !RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))
 

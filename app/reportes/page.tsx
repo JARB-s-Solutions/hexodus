@@ -15,6 +15,7 @@ import { formatCurrency, type TipoReporte } from "@/lib/reportes-data"
 import { ReportesService } from "@/lib/services/reportes"
 import { exportReporteFinancieroToCSV } from "@/lib/export-excel"
 import { useToast } from "@/hooks/use-toast"
+import { useAuthContext } from "@/lib/contexts/auth-context"
 
 function getPeriodoLabel(periodo: string): string {
   const labels: Record<string, string> = {
@@ -31,6 +32,7 @@ function getPeriodoLabel(periodo: string): string {
 
 export default function ReportesPage() {
   const { toast } = useToast()
+  const { tienePermiso } = useAuthContext()
   const [periodo, setPeriodo] = useState("mes")
   const [tipoReporte, setTipoReporte] = useState<TipoReporte | "todos">("todos")
   const [fechaInicio, setFechaInicio] = useState("")
@@ -61,6 +63,25 @@ export default function ReportesPage() {
   const [pageHistorial, setPageHistorial] = useState(1)
   const [limitHistorial] = useState(10)
   const [refreshHistorial, setRefreshHistorial] = useState(0) // Para forzar recarga
+  const puedeVerGraficas = tienePermiso("reportes", "verGraficas")
+  const puedeVerComparaciones = tienePermiso("reportes", "verComparaciones")
+  const puedeVerHistorial = tienePermiso("reportes", "verHistorial")
+  const puedeExportar = tienePermiso("reportes", "exportar")
+  const puedeGenerar = tienePermiso("reportes", "generar")
+  const puedeEliminarHistorial = tienePermiso("reportes", "eliminar")
+
+  const tabsDisponibles = [
+    { key: "resumen", label: "Resumen General" },
+    ...(puedeVerGraficas ? [{ key: "graficas", label: "Graficas" }] : []),
+    ...(puedeVerComparaciones ? [{ key: "comparaciones", label: "Comparaciones" }] : []),
+    ...(puedeVerHistorial ? [{ key: "historial", label: "Historial" }] : []),
+  ] as const
+
+  useEffect(() => {
+    if (!tabsDisponibles.some((tab) => tab.key === activeTab)) {
+      setActiveTab("resumen")
+    }
+  }, [activeTab, tabsDisponibles])
 
   // ------ Debug: Verificar token al montar componente ------
   useEffect(() => {
@@ -112,8 +133,15 @@ export default function ReportesPage() {
       }
     }
 
+    if (!puedeVerGraficas) {
+      setGraficasData(null)
+      setErrorGraficas(null)
+      setLoadingGraficas(false)
+      return
+    }
+
     cargarGraficas()
-  }, [periodo, tipoReporte, fechaInicio, fechaFin])
+  }, [periodo, tipoReporte, fechaInicio, fechaFin, puedeVerGraficas])
 
   // ------ Effect para cargar resumen (KPIs) desde backend ------
   useEffect(() => {
@@ -256,8 +284,15 @@ export default function ReportesPage() {
       }
     }
 
+    if (!puedeVerComparaciones) {
+      setComparacionesData(null)
+      setErrorComparaciones(null)
+      setLoadingComparaciones(false)
+      return
+    }
+
     cargarComparaciones()
-  }, [periodo, tabComparacion])
+  }, [periodo, tabComparacion, puedeVerComparaciones])
 
   // ------ Effect para cargar historial de reportes desde backend ------
   useEffect(() => {
@@ -325,13 +360,20 @@ export default function ReportesPage() {
     }
 
     // Solo cargar historial cuando el tab esté activo
+    if (!puedeVerHistorial) {
+      setReportesHistorial([])
+      setLoadingHistorial(false)
+      setErrorHistorial(null)
+      return
+    }
+
     if (activeTab === 'historial') {
       console.log('✅ Tab historial activo - Cargando datos...')
       cargarHistorial()
     } else {
       console.log('⏸️  Tab historial no activo - Saltando carga')
     }
-  }, [activeTab, pageHistorial, limitHistorial, refreshHistorial])
+  }, [activeTab, pageHistorial, limitHistorial, refreshHistorial, puedeVerHistorial])
 
   // ------ Handlers ------
   const handleLimpiar = useCallback(() => {
@@ -527,14 +569,7 @@ export default function ReportesPage() {
             className="flex items-center gap-1 bg-card rounded-lg p-1 w-fit overflow-x-auto"
             style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}
           >
-            {(
-              [
-                { key: "resumen", label: "Resumen General" },
-                { key: "graficas", label: "Graficas" },
-                { key: "comparaciones", label: "Comparaciones" },
-                { key: "historial", label: "Historial" },
-              ] as const
-            ).map((tab) => (
+            {tabsDisponibles.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
@@ -564,7 +599,8 @@ export default function ReportesPage() {
                 onFechaFinChange={setFechaFin}
                 onLimpiar={handleLimpiar}
                 onExportar={handleExportar}
-                onNuevoReporte={() => setModalGenerar(true)}
+                onNuevoReporte={puedeGenerar ? () => setModalGenerar(true) : undefined}
+                canExportar={puedeExportar}
               />
             </div>
 
@@ -616,7 +652,7 @@ export default function ReportesPage() {
               )}
 
               {/* ====== GRAFICAS TAB ====== */}
-              {activeTab === "graficas" && (
+              {activeTab === "graficas" && puedeVerGraficas && (
                 <div>
                   {loadingGraficas ? (
                     <div className="flex items-center justify-center py-20">
@@ -648,7 +684,7 @@ export default function ReportesPage() {
               )}
 
               {/* ====== COMPARACIONES TAB ====== */}
-              {activeTab === "comparaciones" && (
+              {activeTab === "comparaciones" && puedeVerComparaciones && (
                 <div className="space-y-5">
                   {loadingComparaciones ? (
                     <div className="flex items-center justify-center py-20">
@@ -697,7 +733,7 @@ export default function ReportesPage() {
               )}
 
               {/* ====== HISTORIAL TAB ====== */}
-              {activeTab === "historial" && (
+              {activeTab === "historial" && puedeVerHistorial && (
                 <div>
                   {loadingHistorial ? (
                     <div className="flex items-center justify-center py-20">
@@ -716,6 +752,8 @@ export default function ReportesPage() {
                       reportes={reportesHistorial}
                       onDescargar={handleDescargarReporte}
                       onEliminar={handleEliminarReporte}
+                      canDescargar={puedeExportar}
+                      canEliminar={puedeEliminarHistorial}
                     />
                   )}
                 </div>

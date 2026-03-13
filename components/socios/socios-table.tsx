@@ -372,8 +372,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                     {/* Acciones */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
-                        {/* Cobrar: solo si sin pagar y tiene permiso de ventas */}
-                        {estadoPago === 'sin_pagar' && onCobrar && tienePermiso('ventas', 'crear') && (
+                        {estadoPago === 'sin_pagar' && onCobrar && tienePermiso('socios', 'pagar') && (
                           <button
                             onClick={() => onCobrar(s)}
                             className="p-1.5 rounded-md text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-all"
@@ -382,7 +381,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                             <DollarSign className="h-4 w-4" />
                           </button>
                         )}
-                        {vigencia === 'vencida' && onRenovar && (tienePermiso('membresias', 'renovar') || tienePermiso('ventas', 'crear')) && (
+                        {vigencia === 'vencida' && onRenovar && tienePermiso('socios', 'renovar') && (
                           <button
                             onClick={() => onRenovar(s)}
                             className="p-1.5 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-all"

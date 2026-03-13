@@ -22,6 +22,7 @@ interface ReportesFiltersProps {
   onLimpiar: () => void
   onExportar: () => void
   onNuevoReporte?: () => void
+  canExportar?: boolean
 }
 
 export function ReportesFilters({
@@ -36,6 +37,7 @@ export function ReportesFilters({
   onLimpiar,
   onExportar,
   onNuevoReporte,
+  canExportar = true,
 }: ReportesFiltersProps) {
   return (
     <div className="space-y-5">
@@ -61,23 +63,25 @@ export function ReportesFilters({
       )}
 
       {/* Export Card */}
-      <div
-        className="bg-card rounded-xl p-5 flex flex-col items-center"
-        style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
-      >
-        <Download className="h-10 w-10 mb-3 text-accent" />
-        <h2 className="text-lg font-semibold text-foreground mb-2">Exportar Reporte</h2>
-        <p className="text-xs text-center mb-4 text-muted-foreground">
-          Descarga el resumen financiero en formato Excel/CSV con los datos del periodo seleccionado.
-        </p>
-        <button
-          onClick={onExportar}
-          className="w-full py-2.5 font-semibold rounded-lg text-sm text-accent border border-accent hover:bg-accent/10 transition-all duration-300 flex items-center justify-center gap-2"
+      {canExportar && (
+        <div
+          className="bg-card rounded-xl p-5 flex flex-col items-center"
+          style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
         >
-          <Download className="h-4 w-4" />
-          Descargar Excel
-        </button>
-      </div>
+          <Download className="h-10 w-10 mb-3 text-accent" />
+          <h2 className="text-lg font-semibold text-foreground mb-2">Exportar Reporte</h2>
+          <p className="text-xs text-center mb-4 text-muted-foreground">
+            Descarga el resumen financiero en formato Excel/CSV con los datos del periodo seleccionado.
+          </p>
+          <button
+            onClick={onExportar}
+            className="w-full py-2.5 font-semibold rounded-lg text-sm text-accent border border-accent hover:bg-accent/10 transition-all duration-300 flex items-center justify-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Descargar Excel
+          </button>
+        </div>
+      )}
 
       {/* Filters Card */}
       <div

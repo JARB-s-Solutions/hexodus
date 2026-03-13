@@ -25,9 +25,13 @@ import type {
 } from "@/lib/types/ventas"
 import { formatCurrency, formatDateTime } from "@/lib/types/ventas"
 import { useToast } from "@/hooks/use-toast"
+import { useAuthContext } from "@/lib/contexts/auth-context"
+
+type VentasTabKey = "historial" | "analytics" | "caja"
 
 export default function VentasPage() {
   const { toast } = useToast()
+  const { tienePermiso } = useAuthContext()
   const searchParams = useSearchParams()
   
   // Estados principales
@@ -56,16 +60,37 @@ export default function VentasPage() {
   const [detalleVentaParaImprimir, setDetalleVentaParaImprimir] = useState<DetalleVenta | null>(null)
 
   // Active tab — inicializa desde query param ?tab=caja|analytics|historial
-  const initialTab = ((): "historial" | "analytics" | "caja" => {
+  const initialTab = ((): VentasTabKey => {
     const tab = searchParams.get("tab")
     if (tab === "caja" || tab === "analytics" || tab === "historial") return tab
     return "historial"
   })()
-  const [activeTab, setActiveTab] = useState<"historial" | "analytics" | "caja">(initialTab)
+  const [activeTab, setActiveTab] = useState<VentasTabKey>(initialTab)
 
   // Estados para análisis de ventas
   const [analisisData, setAnalisisData] = useState<AnalisisVentasData | null>(null)
   const [analisisLoading, setAnalisisLoading] = useState(false)
+  const puedeCrearVenta = tienePermiso("ventas", "crear")
+  const puedeVerAnalisis = tienePermiso("ventas", "verAnalisis")
+  const puedeExportarVentas = tienePermiso("ventas", "exportar")
+  const puedeImprimirTicket = tienePermiso("ventas", "imprimirTicket")
+  const puedeVerCaja =
+    tienePermiso("ventas", "crearCorte") ||
+    tienePermiso("ventas", "verCortesAnteriores")
+  const puedeCrearCorte = tienePermiso("ventas", "crearCorte")
+
+  const tabsDisponibles = useMemo<Array<{ key: VentasTabKey; label: string }>>(() => {
+    const tabs: Array<{ key: VentasTabKey; label: string }> = [{ key: "historial", label: "Historial" }]
+    if (puedeVerAnalisis) tabs.push({ key: "analytics", label: "Análisis" })
+    if (puedeVerCaja) tabs.push({ key: "caja", label: "Corte de Caja" })
+    return tabs
+  }, [puedeVerAnalisis, puedeVerCaja])
+
+  useEffect(() => {
+    if (!tabsDisponibles.some((tab) => tab.key === activeTab)) {
+      setActiveTab(tabsDisponibles[0]?.key ?? "historial")
+    }
+  }, [activeTab, tabsDisponibles])
 
   // Cargar ventas desde el API
   useEffect(() => {
@@ -85,10 +110,10 @@ export default function VentasPage() {
 
   // Cargar análisis cuando se cambie al tab de analytics o cambien los filtros
   useEffect(() => {
-    if (activeTab === "analytics") {
+    if (activeTab === "analytics" && puedeVerAnalisis) {
       cargarAnalisis()
     }
-  }, [activeTab, periodo, fechaInicio, fechaFin])
+  }, [activeTab, periodo, fechaInicio, fechaFin, puedeVerAnalisis])
 
   async function cargarVentas(page?: number, limit?: number) {
     try {
@@ -259,8 +284,10 @@ export default function VentasPage() {
         try {
           console.log('📄 Obteniendo detalle de venta para imprimir...')
           const detalleVenta = await VentasService.getById(resultado.venta_id)
-          setDetalleVentaParaImprimir(detalleVenta)
-          setModalImprimirTicket(true)
+          if (puedeImprimirTicket) {
+            setDetalleVentaParaImprimir(detalleVenta)
+            setModalImprimirTicket(true)
+          }
         } catch (errorDetalle: any) {
           console.error('❌ Error al obtener detalle para impresión:', errorDetalle)
           // No bloqueamos el flujo, solo notificamos
@@ -274,7 +301,7 @@ export default function VentasPage() {
         })
       }
     },
-    [toast]
+    [toast, puedeImprimirTicket]
   )
 
   const handleLimpiarFiltros = useCallback(() => {
@@ -289,9 +316,69 @@ export default function VentasPage() {
   }, [pagination.limit])
 
   const handleExportar = useCallback(() => {
-    // TODO: Implementar exportación con nuevos tipos
-    console.log('Exportar ventas:', ventas)
-  }, [ventas])
+    if (!puedeExportarVentas) {
+      return
+    }
+
+    if (ventas.length === 0) {
+      toast({
+        title: "Sin datos",
+        description: "No hay ventas para exportar con los filtros actuales",
+      })
+      return
+    }
+
+    try {
+      const headers = [
+        "ID Venta",
+        "Cliente",
+        "Productos",
+        "Total",
+        "Fecha y Hora",
+        "Metodo de Pago",
+        "Estado",
+      ]
+
+      const rows = ventas.map((venta) => [
+        venta.idVenta,
+        venta.cliente,
+        venta.productosResumen,
+        formatCurrency(venta.total),
+        formatDateTime(venta.fechaHora),
+        venta.metodoPago,
+        venta.status,
+      ])
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+      ].join("\n")
+
+      const BOM = "\uFEFF"
+      const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      const fecha = new Date().toISOString().split("T")[0]
+      link.href = url
+      link.download = `ventas_${fecha}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      toast({
+        title: "Exportacion completada",
+        description: `Se exportaron ${ventas.length} ventas`,
+      })
+    } catch (error) {
+      console.error("Error al exportar ventas:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo exportar el archivo CSV",
+        variant: "destructive",
+      })
+    }
+  }, [ventas, toast, puedeExportarVentas])
 
   const handleAplicarFiltros = useCallback(() => {
     if (periodo === "personalizado" && fechaInicio && fechaFin) {
@@ -358,13 +445,7 @@ export default function VentasPage() {
           {/* Tabs */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-1 bg-card rounded-lg p-1" style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
-              {(
-                [
-                  { key: "historial", label: "Historial" },
-                  { key: "analytics", label: "Análisis" },
-                  { key: "caja", label: "Corte de Caja" },
-                ] as const
-              ).map((tab) => (
+              {tabsDisponibles.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
@@ -401,6 +482,8 @@ export default function VentasPage() {
                   onAplicarFiltros={handleAplicarFiltros}
                   onExportar={handleExportar}
                   totalVentas={pagination.totalRecords}
+                  canCrearVenta={puedeCrearVenta}
+                  canExportar={puedeExportarVentas}
                 />
 
                 {/* Table */}
@@ -415,7 +498,7 @@ export default function VentasPage() {
               </>
             )}
 
-            {activeTab === "analytics" && (
+            {activeTab === "analytics" && puedeVerAnalisis && (
               <>
                 {/* Toolbar de filtros para análisis */}
                 <AnalyticsToolbar
@@ -450,11 +533,13 @@ export default function VentasPage() {
               </>
             )}
 
-            {activeTab === "caja" && (
+            {activeTab === "caja" && puedeVerCaja && (
               <CorteCaja
                 ventasHoy={ventas}
                 allVentas={ventas}
                 fondoInicial={5000}
+                canCrearCorte={puedeCrearCorte}
+                canExportar={puedeExportarVentas}
               />
             )}
           </div>
@@ -463,7 +548,7 @@ export default function VentasPage() {
 
       {/* Modals */}
       <NuevaVentaModal
-        open={modalNuevaVenta}
+        open={modalNuevaVenta && puedeCrearVenta}
         onClose={() => setModalNuevaVenta(false)}
         onConfirm={handleNuevaVenta}
       />
@@ -472,17 +557,19 @@ export default function VentasPage() {
         ventaId={detalleVentaId}
         open={!!detalleVentaId}
         onClose={() => setDetalleVentaId(null)}
-        onPrintInvoice={handlePrintInvoice}
+        onPrintInvoice={puedeImprimirTicket ? handlePrintInvoice : undefined}
       />
 
-      <ImprimirTicketVentaModal
-        open={modalImprimirTicket}
-        onClose={() => {
-          setModalImprimirTicket(false)
-          setDetalleVentaParaImprimir(null)
-        }}
-        detalleVenta={detalleVentaParaImprimir}
-      />
+      {puedeImprimirTicket && (
+        <ImprimirTicketVentaModal
+          open={modalImprimirTicket}
+          onClose={() => {
+            setModalImprimirTicket(false)
+            setDetalleVentaParaImprimir(null)
+          }}
+          detalleVenta={detalleVentaParaImprimir}
+        />
+      )}
     </div>
   )
 }

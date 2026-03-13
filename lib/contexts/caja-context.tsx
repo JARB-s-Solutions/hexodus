@@ -28,6 +28,25 @@ export function CajaProvider({ children }: { children: React.ReactNode }) {
         setLoading(false)
         return
       }
+
+      const puedeGestionarCaja =
+        AuthService.hasPermission("ventas", "crearCorte") ||
+        AuthService.hasPermission("ventas", "verCortesAnteriores")
+
+      if (!puedeGestionarCaja) {
+        console.log("⏸️ Usuario sin permisos de caja, omitiendo consulta de estado")
+        const user = AuthService.getUser()
+        setEstadoCaja({
+          abierta: false,
+          corte_id: null,
+          monto_inicial: 0,
+          monto_actual: 0,
+          fecha_apertura: null,
+          usuario: user?.nombre_completo || user?.username || "Usuario",
+        })
+        setLoading(false)
+        return
+      }
       
       console.log("🔄 Refrescando estado de caja...")
       console.log("   ✅ Usuario autenticado, consultando backend...")
@@ -110,12 +129,11 @@ export function CajaProvider({ children }: { children: React.ReactNode }) {
       
       const user = AuthService.getUser()
 
-      // Si el error es 403 (sin permiso), el usuario no gestiona caja.
-      // No bloquear el acceso — asumir caja abierta para no crear bucle infinito.
+      // Si el error es 403 (sin permiso), no forzar estado abierto.
       if (error?.status === 403) {
-        console.warn("   ⚠️ Sin permiso para consultar caja (403). Asumiendo caja ABIERTA para no bloquear acceso.")
+        console.warn("   ⚠️ Sin permiso para consultar caja (403). Omitiendo estado de caja.")
         setEstadoCaja({
-          abierta: true,
+          abierta: false,
           corte_id: null,
           monto_inicial: 0,
           monto_actual: 0,

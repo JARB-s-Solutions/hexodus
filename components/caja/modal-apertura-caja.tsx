@@ -85,24 +85,12 @@ export function ModalAperturaCaja({ open, onSuccess }: ModalAperturaCajaProps) {
         
         if (diffHoras > 12) {
           // Caja antigua (más de 12 horas) - Mostrar modal de cierre automático
-          console.log("🤖 Caja antigua detectada (>${diffHoras.toFixed(0)}h) - Cierre automático disponible")
-          
-          toast({
-            title: "⚠️ Caja Anterior Sin Cerrar",
-            description: `Detectada caja abierta hace ${Math.floor(diffHoras)} horas. Se cerrará automáticamente.`,
-            variant: "destructive",
-          })
+          console.log(`🤖 Caja antigua detectada (>${diffHoras.toFixed(0)}h) - Cierre automático disponible`)
           
           setShowModalCierreAutomatico(true)
         } else {
           // Caja del mismo día - Mostrar modal de cierre manual
           console.log("📝 Caja del mismo día (<12h) - Cierre manual requerido")
-          
-          toast({
-            title: "⚠️ Caja Pendiente",
-            description: "Hay una caja anterior sin cerrar. Debes cerrarla primero.",
-            variant: "destructive",
-          })
           
           setShowModalCierre(true)
         }

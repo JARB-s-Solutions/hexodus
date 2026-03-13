@@ -206,13 +206,15 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice }: De
 
               {/* Footer Actions */}
               <div className="flex justify-between items-center gap-4">
-                <button
-                  onClick={() => onPrintInvoice?.(detalleVenta)}
-                  className="flex items-center gap-2 px-6 py-3 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-medium text-white transition-colors"
-                >
-                  <Printer className="h-4 w-4" />
-                  Imprimir Ticket
-                </button>
+                {onPrintInvoice && (
+                  <button
+                    onClick={() => onPrintInvoice(detalleVenta)}
+                    className="flex items-center gap-2 px-6 py-3 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-medium text-white transition-colors"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Imprimir Ticket
+                  </button>
+                )}
                 <button
                   onClick={onClose}
                   className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 rounded-lg text-sm font-medium text-white transition-colors"

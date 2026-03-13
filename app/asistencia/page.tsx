@@ -14,6 +14,7 @@ import { CobrarMembresiaModal } from "@/components/socios/cobrar-membresia-modal
 import { AsistenciaService } from "@/lib/services/asistencia"
 import { SociosService } from "@/lib/services/socios"
 import { useToast } from "@/hooks/use-toast"
+import { useAuthContext } from "@/lib/contexts/auth-context"
 import {
   DEFAULT_CONFIG,
   type RegistroAcceso,
@@ -28,6 +29,11 @@ export default function AsistenciaPage() {
 
   const router = useRouter()
   const { toast } = useToast()
+  const { tienePermiso } = useAuthContext()
+  const puedeRegistrarManual = tienePermiso("asistencia", "registrarManual")
+  const puedeVerHistorial = tienePermiso("asistencia", "verHistorial")
+  const puedeExportar = tienePermiso("asistencia", "exportar")
+  const puedeCobrarAdeudos = tienePermiso("socios", "pagar")
   
   // Estados para tab activo
   const [tabActivo, setTabActivo] = useState<"hoy" | "historial" | "socio">("hoy")
@@ -79,6 +85,12 @@ export default function AsistenciaPage() {
   const [socioAdeudo, setSocioAdeudo] = useState<SocioTipo | null>(null)
   const [loadingKpis, setLoadingKpis] = useState(false)
   const [errorKpis, setErrorKpis] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (tabActivo !== "hoy" && !puedeVerHistorial) {
+      setTabActivo("hoy")
+    }
+  }, [tabActivo, puedeVerHistorial])
   
   const ventanaRef = useRef<Window | null>(null)
 
@@ -424,6 +436,8 @@ export default function AsistenciaPage() {
     const abrirCobroAdeudo = async (registro: RegistroAcceso) => {
       const socioId = registro.socioDbId
 
+      if (!puedeCobrarAdeudos) return
+
       if (!socioId || Number.isNaN(Number(socioId))) {
         toast({
           title: "No se pudo abrir cobro",
@@ -470,14 +484,14 @@ export default function AsistenciaPage() {
         void cargarAsistenciasHoy()
         void cargarKpis()
 
-        if (nuevoRegistro.tipo === 'denegado' && nuevoRegistro.accionRecomendada === 'cobrar_adeudo') {
+        if (puedeCobrarAdeudos && nuevoRegistro.tipo === 'denegado' && nuevoRegistro.accionRecomendada === 'cobrar_adeudo') {
           abrirCobroAdeudo(nuevoRegistro)
         }
       }
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [toast, tabActivo, cargarAsistenciasHoy, cargarKpis])
+  }, [toast, tabActivo, cargarAsistenciasHoy, cargarKpis, puedeCobrarAdeudos])
 
   // Save config to localStorage for scanner window
   useEffect(() => {
@@ -611,7 +625,7 @@ export default function AsistenciaPage() {
 
       <main className="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-5">
         <AsistenciaHeader 
-          onRegistroManual={() => setModalRegistroManual(true)}
+          onRegistroManual={puedeRegistrarManual ? () => setModalRegistroManual(true) : undefined}
           onRegistroHuella={() => router.push('/asistencia/huella')}
         />
 
@@ -654,26 +668,30 @@ export default function AsistenciaPage() {
               >
                 Asistencias de Hoy ({registrosHoy.length})
               </button>
-              <button
-                onClick={() => setTabActivo("historial")}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
-                  tabActivo === "historial"
-                    ? "bg-primary text-primary-foreground glow-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Historial Completo ({totalRegistrosHistorial})
-              </button>
-              <button
-                onClick={() => setTabActivo("socio")}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
-                  tabActivo === "socio"
-                    ? "bg-primary text-primary-foreground glow-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Historial por Socio
-              </button>
+              {puedeVerHistorial && (
+                <>
+                  <button
+                    onClick={() => setTabActivo("historial")}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                      tabActivo === "historial"
+                        ? "bg-primary text-primary-foreground glow-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Historial Completo ({totalRegistrosHistorial})
+                  </button>
+                  <button
+                    onClick={() => setTabActivo("socio")}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+                      tabActivo === "socio"
+                        ? "bg-primary text-primary-foreground glow-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Historial por Socio
+                  </button>
+                </>
+              )}
             </div>
             
             {/* Tab Content */}
@@ -684,11 +702,12 @@ export default function AsistenciaPage() {
                 loading={loadingHoy}
                 error={errorHoy}
                 onRecargar={cargarAsistenciasHoy}
-                onVerHistorialSocio={handleVerHistorialSocio}
+                canExportar={puedeExportar}
+                onVerHistorialSocio={puedeVerHistorial ? handleVerHistorialSocio : undefined}
               />
             )}
             
-            {tabActivo === "historial" && (
+            {tabActivo === "historial" && puedeVerHistorial && (
               <HistorialRegistros
                 registros={registrosHistorial}
                 onLimpiar={handleLimpiarHistorial}
@@ -696,6 +715,7 @@ export default function AsistenciaPage() {
                 error={errorHistorial}
                 onRecargar={() => cargarHistorialCompleto(paginaHistorial)}
                 onVerHistorialSocio={handleVerHistorialSocio}
+                canExportar={puedeExportar}
                 // Props de paginación
                 paginaActual={paginaHistorial}
                 totalPaginas={totalPaginasHistorial}
@@ -716,7 +736,7 @@ export default function AsistenciaPage() {
               />
             )}
             
-            {tabActivo === "socio" && (
+            {tabActivo === "socio" && puedeVerHistorial && (
               <HistorialSocioTab 
                 onError={(mensaje) => toast({
                   title: "Error",
@@ -740,25 +760,28 @@ export default function AsistenciaPage() {
         open={modalHistorialSocio !== null}
         onOpenChange={(open) => !open && setModalHistorialSocio(null)}
         socioId={modalHistorialSocio}
+        canExportar={puedeExportar}
       />
 
-      <CobrarMembresiaModal
-        open={modalCobroAdeudoOpen}
-        onClose={() => {
-          setModalCobroAdeudoOpen(false)
-          setSocioAdeudo(null)
-        }}
-        socio={socioAdeudo}
-        onSuccess={() => {
-          setModalCobroAdeudoOpen(false)
-          setSocioAdeudo(null)
-          recargarDatos()
-          toast({
-            title: "Pago registrado",
-            description: "El adeudo fue pagado correctamente. Puedes reintentar el acceso del socio.",
-          })
-        }}
-      />
+      {puedeCobrarAdeudos && (
+        <CobrarMembresiaModal
+          open={modalCobroAdeudoOpen}
+          onClose={() => {
+            setModalCobroAdeudoOpen(false)
+            setSocioAdeudo(null)
+          }}
+          socio={socioAdeudo}
+          onSuccess={() => {
+            setModalCobroAdeudoOpen(false)
+            setSocioAdeudo(null)
+            recargarDatos()
+            toast({
+              title: "Pago registrado",
+              description: "El adeudo fue pagado correctamente. Puedes reintentar el acceso del socio.",
+            })
+          }}
+        />
+      )}
     </div>
   )
 }

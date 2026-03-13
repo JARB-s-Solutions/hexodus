@@ -21,7 +21,7 @@ export interface AuditoriaEntry {
   detalles: Record<string, unknown>
   ip: string
   userAgent: string
-  usuario: AuditoriaUsuario
+  usuario: AuditoriaUsuario | null
 }
 
 export interface AuditoriaPaginacion {

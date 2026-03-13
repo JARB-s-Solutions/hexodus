@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Unlock, Lock, DollarSign, Clock, User, ChevronDown, FileText } from "lucide-react"
 import { useCaja } from "@/lib/contexts/caja-context"
+import { AuthService } from "@/lib/auth"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +43,13 @@ export function IndicadorCaja() {
   const { estadoCaja, loading } = useCaja()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const router = useRouter()
+  const puedeVerCaja =
+    AuthService.hasPermission("ventas", "crearCorte") ||
+    AuthService.hasPermission("ventas", "verCortesAnteriores")
+
+  if (!puedeVerCaja) {
+    return null
+  }
 
   if (loading || !estadoCaja) {
     return (

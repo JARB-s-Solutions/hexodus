@@ -22,9 +22,13 @@ import type {
 } from "@/lib/types/movimientos"
 import { CONCEPTOS_INGRESO as conceptosIngreso, CONCEPTOS_GASTO as conceptosGasto } from "@/lib/types/movimientos"
 import { useToast } from "@/hooks/use-toast"
+import { useAuthContext } from "@/lib/contexts/auth-context"
+
+type MovimientosTabKey = "historial" | "comparaciones" | "conceptos"
 
 export default function MovimientosPage() {
   const { toast } = useToast()
+  const { tienePermiso } = useAuthContext()
 
   // Data state
   const [movimientos, setMovimientos] = useState<Movimiento[]>([])
@@ -86,7 +90,27 @@ export default function MovimientosPage() {
   }, [modalOpen, modalMode, selectedMov])
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<"historial" | "comparaciones" | "conceptos">("historial")
+  const [activeTab, setActiveTab] = useState<MovimientosTabKey>("historial")
+  const puedeExportar = tienePermiso("movimientos", "exportar")
+  const puedeVerComparaciones = tienePermiso("movimientos", "verComparaciones")
+  const puedeVerConceptos =
+    tienePermiso("movimientos", "verConceptos") ||
+    tienePermiso("movimientos", "crearConcepto") ||
+    tienePermiso("movimientos", "editarConcepto") ||
+    tienePermiso("movimientos", "eliminarConcepto")
+
+  const tabsDisponibles = useMemo<Array<{ key: MovimientosTabKey; label: string }>>(() => {
+    const tabs: Array<{ key: MovimientosTabKey; label: string }> = [{ key: "historial", label: "Historial" }]
+    if (puedeVerComparaciones) tabs.push({ key: "comparaciones", label: "Comparaciones" })
+    if (puedeVerConceptos) tabs.push({ key: "conceptos", label: "Conceptos" })
+    return tabs
+  }, [puedeVerComparaciones, puedeVerConceptos])
+
+  useEffect(() => {
+    if (!tabsDisponibles.some((tab) => tab.key === activeTab)) {
+      setActiveTab(tabsDisponibles[0]?.key ?? "historial")
+    }
+  }, [activeTab, tabsDisponibles])
 
   // Log cambios de tab
   useEffect(() => {
@@ -121,6 +145,12 @@ export default function MovimientosPage() {
     }
 
     const cargarConceptos = async () => {
+      if (!puedeVerConceptos) {
+        setConceptos([])
+        setConceptosLoading(false)
+        return
+      }
+
       try {
         setConceptosLoading(true)
         console.log("📋 Iniciando carga de conceptos...")
@@ -139,7 +169,7 @@ export default function MovimientosPage() {
 
     cargarMetodosPago()
     cargarConceptos()
-  }, [])
+  }, [puedeVerConceptos])
 
   // ==============================
   // Cargar movimientos desde API
@@ -501,13 +531,7 @@ export default function MovimientosPage() {
             {/* Tabs */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-1 bg-card rounded-lg p-1" style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
-                {(
-                  [
-                    { key: "historial", label: "Historial" },
-                    { key: "comparaciones", label: "Comparaciones" },
-                    { key: "conceptos", label: "Conceptos" },
-                  ] as const
-                ).map((tab) => (
+                {tabsDisponibles.map((tab) => (
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
@@ -548,6 +572,7 @@ export default function MovimientosPage() {
                     onLimpiar={handleLimpiar}
                     onExportar={handleExportar}
                     metodosPago={metodosPago}
+                    canExportar={puedeExportar}
                   />
                 </div>
               </div>
@@ -593,12 +618,12 @@ export default function MovimientosPage() {
             )}
 
             {/* Tab: Comparaciones */}
-            {activeTab === "comparaciones" && (
+            {activeTab === "comparaciones" && puedeVerComparaciones && (
               <ComparacionesMovimientos />
             )}
 
             {/* Tab: Conceptos */}
-            {activeTab === "conceptos" && (
+            {activeTab === "conceptos" && puedeVerConceptos && (
               <ConceptosTable
                 conceptos={conceptos}
                 loading={conceptosLoading}
@@ -648,6 +673,7 @@ export default function MovimientosPage() {
                 onLimpiar={handleLimpiar}
                 onExportar={handleExportar}
                 metodosPago={metodosPago}
+                canExportar={puedeExportar}
               />
             </div>
           </div>

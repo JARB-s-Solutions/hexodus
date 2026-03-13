@@ -20,6 +20,8 @@ interface VentasToolbarProps {
   onAplicarFiltros?: () => void
   onExportar: () => void
   totalVentas: number
+  canCrearVenta?: boolean
+  canExportar?: boolean
 }
 
 export function VentasToolbar({
@@ -38,6 +40,8 @@ export function VentasToolbar({
   onAplicarFiltros,
   onExportar,
   totalVentas,
+  canCrearVenta = true,
+  canExportar = true,
 }: VentasToolbarProps) {
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
   const [loadingMetodos, setLoadingMetodos] = useState(true)
@@ -159,21 +163,25 @@ export function VentasToolbar({
         </div>
 
         {/* Action Buttons */}
-        <button
-          onClick={onNuevaVenta}
-          className="px-4 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap"
-        >
-          <Plus className="h-4 w-4" />
-          Nueva Venta
-        </button>
-        
-        <button
-          onClick={onExportar}
-          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap"
-        >
-          <Download className="h-4 w-4" />
-          Exportar
-        </button>
+        {canCrearVenta && (
+          <button
+            onClick={onNuevaVenta}
+            className="px-4 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap"
+          >
+            <Plus className="h-4 w-4" />
+            Nueva Venta
+          </button>
+        )}
+
+        {canExportar && (
+          <button
+            onClick={onExportar}
+            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap"
+          >
+            <Download className="h-4 w-4" />
+            Exportar
+          </button>
+        )}
       </div>
     </div>
   )
