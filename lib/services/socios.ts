@@ -214,6 +214,25 @@ export class SociosService {
   }
 
   /**
+   * Renovar membresía vencida
+   * POST /api/socios/:id/renovar
+   */
+  static async renovarMembresia(id: number, planId: number, metodoPagoId: number): Promise<string> {
+    console.log(`🔄 POST /api/socios/${id}/renovar - Renovando membresía`)
+    console.log('📤 plan_id:', planId)
+    console.log('📤 metodo_pago_id:', metodoPagoId)
+
+    const response = await apiPost<{ message?: string }>(`/socios/${id}/renovar`, {
+      plan_id: planId,
+      metodo_pago_id: metodoPagoId,
+    })
+
+    const mensaje = response?.message || 'Membresía renovada correctamente.'
+    console.log('✅ Renovación completada:', mensaje)
+    return mensaje
+  }
+
+  /**
    * Buscar socios por nombre o código
    */
   static async buscar(query: string): Promise<Array<{
