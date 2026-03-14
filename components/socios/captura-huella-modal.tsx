@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { X, Fingerprint, CheckCircle2, AlertCircle } from "lucide-react"
+import { consumirNdjson, type MotorResultadoEvento } from "@/lib/motor-biometrico"
 
-const MOTOR_URL = "http://localhost:4000"
+const MOTOR_URL = process.env.NEXT_PUBLIC_MOTOR_URL || "http://localhost:4000"
 
 interface CapturaHuellaModalProps {
   open: boolean
@@ -34,49 +35,40 @@ export function CapturaHuellaModal({ open, onClose, onCapture }: CapturaHuellaMo
 
     try {
       const res = await fetch(`${MOTOR_URL}/enrolar`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
-      if (!res.body) throw new Error("El navegador no soporta streams de respuesta.")
+      let eventoResultado: MotorResultadoEvento | null = null
 
-      const streamReader = res.body.getReader()
-      const decoder = new TextDecoder("utf-8")
-
-      while (true) {
-        const { done, value } = await streamReader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        const lineas = chunk.split("\n").filter((l) => l.trim() !== "")
-
-        for (const linea of lineas) {
-          try {
-            const data = JSON.parse(linea)
-
-            if (data.tipo === "mensaje") {
-              setStatus(data.texto)
-            } else if (data.tipo === "resultado") {
-              if (data.success) {
-                // Codificar en Base64 para almacenamiento seguro (mismo patrón que el prototipo)
-                const huellaEnBase64 = btoa(data.huellaTemplate)
-                setStatus('✅ ¡Huella capturada exitosamente!')
-                setSuccess(true)
-                setCapturing(false)
-
-                setTimeout(() => {
-                  onCapture(huellaEnBase64)
-                  onClose()
-                }, 1000)
-              } else {
-                throw new Error(data.message || "El motor no pudo capturar la huella.")
-              }
-            }
-          } catch (parseErr: any) {
-            // Ignorar líneas que no son JSON válido
-            if (parseErr?.message && !parseErr.message.includes("JSON")) {
-              throw parseErr
-            }
-          }
+      await consumirNdjson(res, (evento) => {
+        if (evento.tipo === "mensaje") {
+          setStatus(evento.texto)
+          return
         }
+
+        if (evento.tipo === "resultado") {
+          eventoResultado = evento
+        }
+      })
+
+      const resultado = eventoResultado as MotorResultadoEvento | null
+      if (!resultado) {
+        throw new Error("No llegó resultado final de enrolamiento")
       }
+
+      if (!resultado.success || !resultado.huellaTemplate) {
+        throw new Error(resultado.message || "El motor no pudo capturar la huella.")
+      }
+
+      // Codificar en Base64 para almacenamiento seguro (mismo patrón que el prototipo)
+      const huellaEnBase64 = btoa(resultado.huellaTemplate)
+      setStatus('✅ ¡Huella capturada exitosamente!')
+      setSuccess(true)
+      setCapturing(false)
+
+      setTimeout(() => {
+        onCapture(huellaEnBase64)
+        onClose()
+      }, 1000)
     } catch (err: any) {
       console.error('❌ Error en captura de huella:', err)
       const msg = err?.message?.includes("fetch")
