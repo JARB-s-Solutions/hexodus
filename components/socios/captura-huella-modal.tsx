@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { X, Fingerprint, CheckCircle2, AlertCircle } from "lucide-react"
 
+const MOTOR_URL = "http://localhost:4000"
+
 interface CapturaHuellaModalProps {
   open: boolean
   onClose: () => void
@@ -26,54 +28,62 @@ export function CapturaHuellaModal({ open, onClose, onCapture }: CapturaHuellaMo
   }, [open])
 
   const handleCapturar = async () => {
-
     setCapturing(true)
     setError(null)
-    setStatus('🔍 Buscando lector de huellas...')
+    setStatus('Iniciando conexión con el motor biométrico...')
 
     try {
-      // Import dinámico para evitar errores en SSR
-      const { FingerprintReader, SampleFormat } = await import('@digitalpersona/devices')
-      const reader = new FingerprintReader()
+      const res = await fetch(`${MOTOR_URL}/enrolar`)
 
-      const devices = await reader.enumerateDevices()
-      
-      if (devices.length === 0) {
-        throw new Error('No se detectó ningún lector de huellas. Conecta el dispositivo.')
+      if (!res.body) throw new Error("El navegador no soporta streams de respuesta.")
+
+      const streamReader = res.body.getReader()
+      const decoder = new TextDecoder("utf-8")
+
+      while (true) {
+        const { done, value } = await streamReader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lineas = chunk.split("\n").filter((l) => l.trim() !== "")
+
+        for (const linea of lineas) {
+          try {
+            const data = JSON.parse(linea)
+
+            if (data.tipo === "mensaje") {
+              setStatus(data.texto)
+            } else if (data.tipo === "resultado") {
+              if (data.success) {
+                // Codificar en Base64 para almacenamiento seguro (mismo patrón que el prototipo)
+                const huellaEnBase64 = btoa(data.huellaTemplate)
+                setStatus('✅ ¡Huella capturada exitosamente!')
+                setSuccess(true)
+                setCapturing(false)
+
+                setTimeout(() => {
+                  onCapture(huellaEnBase64)
+                  onClose()
+                }, 1000)
+              } else {
+                throw new Error(data.message || "El motor no pudo capturar la huella.")
+              }
+            }
+          } catch (parseErr: any) {
+            // Ignorar líneas que no son JSON válido
+            if (parseErr?.message && !parseErr.message.includes("JSON")) {
+              throw parseErr
+            }
+          }
+        }
       }
-
-      setStatus('🟢 Lector detectado. Coloca tu dedo en el sensor...')
-      console.log('✅ Lector detectado:', devices[0])
-
-      reader.on('SamplesAcquired', (event: any) => {
-        const template = event.samples[0].Data
-        console.log('✅ Huella capturada:', template.substring(0, 50) + '...')
-        
-        reader.stopAcquisition()
-        setStatus('✅ ¡Huella capturada exitosamente!')
-        setSuccess(true)
-        setCapturing(false)
-        
-        // Esperar un momento antes de cerrar para mostrar el éxito
-        setTimeout(() => {
-          onCapture(template)
-          onClose()
-        }, 1000)
-      })
-
-      reader.on('ErrorOccurred', (errorEvent: any) => {
-        console.error('❌ Error del lector:', errorEvent)
-        reader.stopAcquisition()
-        setError(`Error del lector: ${errorEvent.message || 'Desconocido'}`)
-        setStatus('❌ Error al capturar')
-        setCapturing(false)
-      })
-
-      await reader.startAcquisition(SampleFormat.Intermediate, devices[0])
     } catch (err: any) {
-      console.error('❌ Error en captura:', err)
-      setError(err.message || 'Error desconocido al capturar huella')
-      setStatus('❌ Error')
+      console.error('❌ Error en captura de huella:', err)
+      const msg = err?.message?.includes("fetch")
+        ? "No se pudo conectar al motor biométrico. Verifica que esté corriendo en el puerto 4000."
+        : (err?.message || "Error desconocido al capturar huella.")
+      setError(msg)
+      setStatus('❌ Error al capturar')
       setCapturing(false)
     }
   }
