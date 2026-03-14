@@ -4,12 +4,13 @@ import { useState, useEffect, useRef } from "react"
 import { Fingerprint, CheckCircle2, XCircle, AlertTriangle, Clock, Wifi, WifiOff, Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AuthService } from "@/lib/auth"
+import { consumirNdjson, type MotorEstadoResponse, type MotorResultadoEvento } from "@/lib/motor-biometrico"
 
 // ============================================================================
 // CONSTANTES
 // ============================================================================
 
-const MOTOR_URL = "http://localhost:4000"
+const MOTOR_URL = process.env.NEXT_PUBLIC_MOTOR_URL || "http://localhost:4000"
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://hexodusapi.vercel.app/api"
 
 // ============================================================================
@@ -122,6 +123,20 @@ export default function AsistenciaHuellaPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const verificarEstadoMotor = async (): Promise<MotorEstadoResponse> => {
+    const response = await fetch(`${MOTOR_URL}/estado`)
+    if (!response.ok) {
+      throw new Error(`No se pudo consultar el estado del motor (HTTP ${response.status}).`)
+    }
+
+    const estado = (await response.json()) as MotorEstadoResponse
+    if (!estado.lectorConectado) {
+      throw new Error("El lector de huellas no está conectado al motor biométrico.")
+    }
+
+    return estado
+  }
+
   // ============================================================================
   // INICIALIZAR MOTOR: Cargar huellas en cache del motor C#
   // ============================================================================
@@ -146,25 +161,36 @@ export default function AsistenciaHuellaPage() {
       const sociosDb: Array<{ codigoSocio: string; huellaTemplate: string }> = dataSync.data
 
       // 2. Decodificar Base64 y enviar al motor C#
-      const payloadMotor = sociosDb.map((socio) => {
-        let templateLimpio = socio.huellaTemplate || ""
-        if (templateLimpio && !templateLimpio.trim().startsWith("<")) {
-          try {
-            templateLimpio = atob(templateLimpio)
-          } catch {
-            templateLimpio = ""
+      await verificarEstadoMotor()
+
+      const payloadMotor = sociosDb
+        .map((socio) => {
+          let templateLimpio = socio.huellaTemplate || ""
+          if (templateLimpio && !templateLimpio.trim().startsWith("<")) {
+            try {
+              templateLimpio = atob(templateLimpio)
+            } catch {
+              templateLimpio = ""
+            }
           }
-        }
-        return { CodigoSocio: socio.codigoSocio, HuellaTemplate: templateLimpio }
-      })
+
+          return {
+            codigoSocio: socio.codigoSocio,
+            huellaTemplate: templateLimpio,
+          }
+        })
+        .filter((socio) => socio.codigoSocio && socio.huellaTemplate)
 
       const resMotor = await fetch(`${MOTOR_URL}/cargar-cache`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ BaseDeDatos: payloadMotor }),
+        body: JSON.stringify({ baseDeDatos: payloadMotor }),
       })
 
       if (!resMotor.ok) throw new Error("Error al inyectar huellas en el motor biométrico.")
+
+      const dataMotor = await resMotor.json()
+      if (!dataMotor.success) throw new Error(dataMotor.message || "El motor rechazó la carga de caché.")
 
       if (isMounted.current) {
         setMotorListo(true)
@@ -202,44 +228,37 @@ export default function AsistenciaHuellaPage() {
 
     try {
       const resMotor = await fetch(`${MOTOR_URL}/comparar`, { method: "POST" })
+      if (!resMotor.ok) throw new Error(`HTTP ${resMotor.status}`)
 
-      if (!resMotor.body) throw new Error("El navegador no soporta streams de respuesta.")
+      let resultadoComparacion: MotorResultadoEvento | null = null
 
-      const streamReader = resMotor.body.getReader()
-      const decoder = new TextDecoder("utf-8")
+      await consumirNdjson(resMotor, (evento) => {
+        if (evento.tipo === "mensaje") {
+          return
+        }
+
+        if (evento.tipo === "resultado") {
+          resultadoComparacion = evento
+        }
+      })
 
       let matchSuccess = false
       let codigoSocioMatch = ""
       let confidenceMatch = 100
 
-      while (true) {
-        const { done, value } = await streamReader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        const lineas = chunk.split("\n").filter((l) => l.trim() !== "")
-
-        for (const linea of lineas) {
-          try {
-            const data = JSON.parse(linea)
-            if (data.tipo === "resultado") {
-              if (!data.success) {
-                clearInterval(progressInterval)
-                setProgress(100)
-                setEstado("error")
-                setErrorMsg(data.message || "Huella no reconocida.")
-                safePlay(audioErrorRef)
-                iniciarCountdown(5)
-                return
-              }
-              matchSuccess = true
-              codigoSocioMatch = data.codigoSocio
-              confidenceMatch = data.confidence ?? 100
-            }
-          } catch {
-            // ignorar líneas no JSON
-          }
-        }
+      const resultado = resultadoComparacion as MotorResultadoEvento | null
+      if (resultado?.success && resultado.codigoSocio) {
+        matchSuccess = true
+        codigoSocioMatch = resultado.codigoSocio
+        confidenceMatch = resultado.confidence ?? 100
+      } else if (resultado && !resultado.success) {
+        clearInterval(progressInterval)
+        setProgress(100)
+        setEstado("error")
+        setErrorMsg(resultado.message || "Huella no reconocida.")
+        safePlay(audioErrorRef)
+        iniciarCountdown(5)
+        return
       }
 
       clearInterval(progressInterval)
