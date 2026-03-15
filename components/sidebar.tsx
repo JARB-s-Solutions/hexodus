@@ -21,7 +21,7 @@ import {
 import { useAuthContext } from "@/lib/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "@/components/theme-provider-custom"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +29,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/ui/dropdown-menu"
 
 /** Cada ítem del menú mapea al módulo de permisos del backend */
 const navItems = [

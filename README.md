@@ -56,8 +56,20 @@ cp .env.example .env.local
 Edita `.env.local` con tus configuraciones:
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001/api
+NEXT_PUBLIC_MOTOR_URL=http://localhost:4000
 NEXT_PUBLIC_TOKEN_EXPIRATION=604800
+HUELLA_MOTOR_CALLBACK_SECRET=
 ```
+
+Para el motor de huella always-on, configura el callback del backend hacia:
+- Desarrollo: `http://localhost:3000/api/asistencia/huella/callback`
+- Produccion: `https://hexodus.vercel.app/api/asistencia/huella/callback`
+
+Si desplegaras el frontend en Vercel y el kiosko seguira hablando con el motor local en
+`http://localhost:4000`, recuerda permitir CORS desde `https://hexodus.vercel.app` en tu motor local.
+
+Si decides proteger el callback, usa el mismo valor en `HUELLA_MOTOR_CALLBACK_SECRET`
+y en el header `x-motor-secret` que envie tu motor local.
 
 4. **Ejecutar en desarrollo**
 ```bash

@@ -16,32 +16,14 @@ http://localhost:3000/asistencia/huella
 5. **Auto-reset** - Vuelve automáticamente al inicio
 6. **Manejo de errores** - Casos edge cubiertos
 
-## 🔌 Integración recomendada Front/Back con motor biométrico
+## ❌ Lo que FALTA (Backend)
 
-Motor esperado (por defecto `http://localhost:4000`, configurable con `NEXT_PUBLIC_MOTOR_URL`):
+1. **Endpoint**: `POST /api/asistencia/validar-huella`
+   - Debe recibir el template de la huella
+   - Comparar con BD
+   - Retornar datos del socio si hay match
 
-1. `GET /estado` → validar salud del motor y lector conectado.
-2. `POST /cargar-cache` → cargar huellas en RAM con payload exacto:
-
-```json
-{
-  "baseDeDatos": [
-    {
-      "codigoSocio": "SOC001",
-      "huellaTemplate": "<Fmd>...</Fmd>"
-    }
-  ]
-}
-```
-
-3. `POST /comparar` y `GET /enrolar` → consumirse como stream **NDJSON** (línea por línea).
-4. Callback del motor al backend: `POST /api/biometrico/evento` con `{ codigoSocio, fechaUtc, origen }`.
-
-> En este repositorio el front ya consume `enrolar/comparar` por NDJSON y envía `cargar-cache` con `baseDeDatos/codigoSocio/huellaTemplate` para mantener el contrato del motor.
-
-## ❌ Pendiente
-
-1. **Sonidos adicionales**:
+2. **Sonidos adicionales**:
    - `warning.wav`
    - `error.wav`
    - `beep-start.wav`

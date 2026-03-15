@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/ui/dialog"
+import { Button } from "@/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar"
+import { Badge } from "@/ui/badge"
+import { ScrollArea } from "@/ui/scroll-area"
+import { Separator } from "@/ui/separator"
 import { AsistenciaService, HistorialSocioResponse } from "@/lib/services/asistencia"
 import { 
   Loader2, 

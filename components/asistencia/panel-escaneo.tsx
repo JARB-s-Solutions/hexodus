@@ -14,10 +14,10 @@ import {
   RotateCcw,
   Settings2,
 } from "lucide-react"
-import { Switch } from "@/components/ui/switch"
-import { Slider } from "@/components/ui/slider"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Switch } from "@/ui/switch"
+import { Slider } from "@/ui/slider"
+import { Input } from "@/ui/input"
+import { Label } from "@/ui/label"
 import type { ConfigRegistro } from "@/lib/asistencia-data"
 
 interface Props {

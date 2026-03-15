@@ -1,10 +1,57 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { X, Fingerprint, CheckCircle2, AlertCircle } from "lucide-react"
-import { consumirNdjson, type MotorResultadoEvento } from "@/lib/motor-biometrico"
 
 const MOTOR_URL = process.env.NEXT_PUBLIC_MOTOR_URL || "http://localhost:4000"
+
+const MENSAJES_TRANSITORIOS = [
+  "lectura fallida",
+  "read failed",
+  "scan canceled",
+  "scan cancelled",
+  "captura cancelada",
+  "lectura cancelada",
+  "no finger",
+  "sin dedo",
+  "sin huella",
+  "no se detecto",
+  "no se detectó",
+  "timeout",
+  "time out",
+  "tiempo agotado",
+  "tiempo de espera",
+  "esperando huella",
+  "waiting for finger",
+  "coloca tu dedo",
+  "coloque su dedo",
+  "ponga el dedo",
+  "toque 1 de 4",
+  "toque 2 de 4",
+  "toque 3 de 4",
+  "toque 4 de 4",
+  "touch 1 of 4",
+  "touch 2 of 4",
+  "touch 3 of 4",
+  "touch 4 of 4",
+  "iniciando enrolamiento",
+  "starting enrollment",
+]
+
+const MENSAJES_TERMINALES = [
+  "error",
+  "fallo",
+  "failed",
+  "cancel",
+  "cancelado",
+  "cancelled",
+  "rechaz",
+  "desconect",
+  "denied",
+  "permiso",
+  "duplic",
+  "inval",
+]
 
 interface CapturaHuellaModalProps {
   open: boolean
@@ -12,16 +59,60 @@ interface CapturaHuellaModalProps {
   onCapture: (template: string) => void
 }
 
+const normalizarTexto = (texto: string) =>
+  texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+
+const esMensajeTransitorio = (texto: string) => {
+  const normalizado = normalizarTexto(texto)
+  return MENSAJES_TRANSITORIOS.some((patron) => normalizado.includes(normalizarTexto(patron)))
+}
+
+const esMensajeTerminal = (texto: string) => {
+  const normalizado = normalizarTexto(texto)
+  return MENSAJES_TERMINALES.some((patron) => normalizado.includes(normalizarTexto(patron)))
+}
+
+const normalizarLineaStream = (linea: string) => linea.replace(/^data:\s*/i, "").trim()
+
+const extraerTemplateDesdeTexto = (texto: string) => {
+  const match = texto.match(/<Fmd[\s\S]*<\/Fmd>/i)
+  return match?.[0]?.trim() || ""
+}
+
+const extraerTemplate = (payload: Record<string, unknown>) => {
+  const candidates = [
+    payload.huellaTemplate,
+    payload.huella_template,
+    payload.fingerprintTemplate,
+    payload.fingerprint_template,
+    payload.template,
+    payload.templateXml,
+    payload.templateXML,
+    payload.xml,
+  ]
+
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim()
+    }
+  }
+
+  return ""
+}
+
 export function CapturaHuellaModal({ open, onClose, onCapture }: CapturaHuellaModalProps) {
-  const [status, setStatus] = useState('Listo para capturar')
+  const [status, setStatus] = useState("Listo para capturar")
   const [capturing, setCapturing] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Resetear estado cuando se abre el modal
   useEffect(() => {
     if (open) {
-      setStatus('Listo para capturar')
+      setStatus("Listo para capturar")
       setCapturing(false)
       setSuccess(false)
       setError(null)
@@ -31,51 +122,154 @@ export function CapturaHuellaModal({ open, onClose, onCapture }: CapturaHuellaMo
   const handleCapturar = async () => {
     setCapturing(true)
     setError(null)
-    setStatus('Iniciando conexión con el motor biométrico...')
+    setSuccess(false)
+    setStatus("Iniciando conexion con el motor biometrico...")
 
     try {
-      const res = await fetch(`${MOTOR_URL}/enrolar`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-      let eventoResultado: MotorResultadoEvento | null = null
-
-      await consumirNdjson(res, (evento) => {
-        if (evento.tipo === "mensaje") {
-          setStatus(evento.texto)
-          return
-        }
-
-        if (evento.tipo === "resultado") {
-          eventoResultado = evento
-        }
+      const res = await fetch(`${MOTOR_URL}/enrolar`, {
+        cache: "no-store",
       })
 
-      const resultado = eventoResultado as MotorResultadoEvento | null
-      if (!resultado) {
-        throw new Error("No llegó resultado final de enrolamiento")
+      if (!res.ok) {
+        throw new Error("El motor biometrico rechazo la captura de huella.")
       }
 
-      if (!resultado.success || !resultado.huellaTemplate) {
-        throw new Error(resultado.message || "El motor no pudo capturar la huella.")
+      if (!res.body) {
+        throw new Error("El navegador no soporta streams de respuesta.")
       }
 
-      // Codificar en Base64 para almacenamiento seguro (mismo patrón que el prototipo)
-      const huellaEnBase64 = btoa(resultado.huellaTemplate)
-      setStatus('✅ ¡Huella capturada exitosamente!')
+      const streamReader = res.body.getReader()
+      const decoder = new TextDecoder("utf-8")
+
+      let buffer = ""
+      let templateCapturado = ""
+      let ultimoMensaje = ""
+      let mensajeErrorTerminal = ""
+
+      while (true) {
+        const { done, value } = await streamReader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lineas = buffer.split("\n")
+        buffer = lineas.pop() || ""
+
+        for (const linea of lineas) {
+          const contenido = normalizarLineaStream(linea)
+          if (!contenido) continue
+
+          const templateEnTextoPlano = extraerTemplateDesdeTexto(contenido)
+          if (templateEnTextoPlano) {
+            templateCapturado = templateEnTextoPlano
+            break
+          }
+
+          try {
+            const data = JSON.parse(contenido) as Record<string, unknown>
+            const tipo = String(data.tipo || data.type || "").trim().toLowerCase()
+            const mensaje = String(data.texto || data.message || data.mensaje || "").trim()
+
+            if (mensaje) {
+              ultimoMensaje = mensaje
+            }
+
+            if (tipo === "mensaje" || tipo === "status" || tipo === "info") {
+              setStatus(mensaje || "Esperando huella...")
+              continue
+            }
+
+            const template = extraerTemplate(data)
+            const successFlag = typeof data.success === "boolean"
+              ? data.success
+              : Boolean(template)
+
+            if (template && successFlag) {
+              templateCapturado = template
+              break
+            }
+
+            if (tipo === "resultado" || tipo === "result" || typeof data.success === "boolean") {
+              if (!successFlag) {
+                const detalle = mensaje || ultimoMensaje || ""
+
+                if (!detalle || esMensajeTransitorio(detalle) || !esMensajeTerminal(detalle)) {
+                  setStatus(detalle || "Esperando huella. Coloca tu dedo en el sensor...")
+                  continue
+                }
+
+                mensajeErrorTerminal = detalle
+                break
+              }
+            }
+          } catch (parseErr: any) {
+            if (parseErr?.message && !parseErr.message.includes("JSON")) {
+              throw parseErr
+            }
+
+            ultimoMensaje = contenido
+
+            if (!esMensajeTerminal(contenido) || esMensajeTransitorio(contenido)) {
+              setStatus(contenido)
+              continue
+            }
+
+            mensajeErrorTerminal = contenido
+            break
+          }
+        }
+
+        if (templateCapturado || mensajeErrorTerminal) {
+          break
+        }
+      }
+
+      if (!templateCapturado && buffer.trim()) {
+        try {
+          const contenidoFinal = normalizarLineaStream(buffer.trim())
+          const templatePlanoFinal = extraerTemplateDesdeTexto(contenidoFinal)
+
+          if (templatePlanoFinal) {
+            templateCapturado = templatePlanoFinal
+          } else {
+            const data = JSON.parse(contenidoFinal) as Record<string, unknown>
+            const template = extraerTemplate(data)
+            if (template) {
+              templateCapturado = template
+            } else if (typeof data.success === "boolean" && !data.success) {
+              const detalle = String(data.message || data.mensaje || ultimoMensaje || "").trim()
+              if (detalle && esMensajeTerminal(detalle) && !esMensajeTransitorio(detalle)) {
+                mensajeErrorTerminal = detalle
+              }
+            }
+          }
+        } catch {
+          const contenidoFinal = normalizarLineaStream(buffer.trim())
+          if (contenidoFinal && esMensajeTerminal(contenidoFinal) && !esMensajeTransitorio(contenidoFinal)) {
+            mensajeErrorTerminal = contenidoFinal
+          }
+        }
+      }
+
+      if (!templateCapturado) {
+        throw new Error(mensajeErrorTerminal || ultimoMensaje || "No se pudo capturar la huella.")
+      }
+
+      const huellaEnBase64 = btoa(templateCapturado)
+      setStatus("Huella capturada exitosamente")
       setSuccess(true)
       setCapturing(false)
 
       setTimeout(() => {
         onCapture(huellaEnBase64)
         onClose()
-      }, 1000)
+      }, 800)
     } catch (err: any) {
-      console.error('❌ Error en captura de huella:', err)
+      console.error("Error en captura de huella:", err)
       const msg = err?.message?.includes("fetch")
-        ? "No se pudo conectar al motor biométrico. Verifica que esté corriendo en el puerto 4000."
+        ? "No se pudo conectar al motor biometrico. Verifica que este corriendo en el puerto 4000."
         : (err?.message || "Error desconocido al capturar huella.")
       setError(msg)
-      setStatus('❌ Error al capturar')
+      setStatus("Error al capturar")
       setCapturing(false)
     }
   }
@@ -89,42 +283,39 @@ export function CapturaHuellaModal({ open, onClose, onCapture }: CapturaHuellaMo
       onClick={(e) => { if (e.target === e.currentTarget && !capturing) onClose() }}
     >
       <div
-        className="w-full max-w-md rounded-2xl overflow-hidden animate-slide-up"
+        className="w-full max-w-md overflow-hidden rounded-2xl animate-slide-up"
         style={{
           background: "linear-gradient(180deg, rgba(22,24,36,0.97), rgba(18,20,32,0.95))",
           border: "1px solid rgba(255,255,255,0.09)",
           boxShadow: "0 24px 60px rgba(0,0,0,0.55)",
         }}
       >
-        {/* Header */}
         <div
-          className="flex items-center justify-between px-6 py-4 border-b border-border/30"
+          className="flex items-center justify-between border-b border-border/30 px-6 py-4"
           style={{ background: "linear-gradient(180deg, rgba(13,18,36,0.70), rgba(12,15,28,0.28))" }}
         >
-          <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+          <h3 className="flex items-center gap-2 text-lg font-bold text-foreground">
             <Fingerprint className="h-5 w-5 text-accent" />
             Captura de Huella Dactilar
           </h3>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             disabled={capturing}
-            className="text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 text-center space-y-6">
-          {/* Icono animado */}
+        <div className="space-y-6 p-6 text-center">
           <div className="flex justify-center">
-            <div className={`w-24 h-24 rounded-full flex items-center justify-center ${
-              success 
-                ? 'bg-[#22C55E]/10 border-2 border-[#22C55E]' 
-                : error 
-                ? 'bg-red-500/10 border-2 border-red-500'
-                : 'bg-accent/10 border-2 border-accent'
-            } ${capturing ? 'animate-pulse' : ''}`}>
+            <div className={`flex h-24 w-24 items-center justify-center rounded-full ${
+              success
+                ? "border-2 border-[#22C55E] bg-[#22C55E]/10"
+                : error
+                ? "border-2 border-red-500 bg-red-500/10"
+                : "border-2 border-accent bg-accent/10"
+            } ${capturing ? "animate-pulse" : ""}`}>
               {success ? (
                 <CheckCircle2 className="h-12 w-12 text-[#22C55E]" />
               ) : error ? (
@@ -135,48 +326,41 @@ export function CapturaHuellaModal({ open, onClose, onCapture }: CapturaHuellaMo
             </div>
           </div>
 
-          {/* Status */}
           <div>
             <p className={`text-lg font-semibold ${
-              success 
-                ? 'text-[#22C55E]' 
-                : error 
-                ? 'text-red-500'
-                : 'text-foreground'
+              success ? "text-[#22C55E]" : error ? "text-red-500" : "text-foreground"
             }`}>
               {status}
             </p>
             {error && (
-              <p className="text-sm text-red-400 mt-2 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
+              <p className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
                 {error}
               </p>
             )}
           </div>
 
-          {/* Instrucciones */}
           {!capturing && !success && !error && (
-            <div className="text-sm text-muted-foreground bg-card/30 p-4 rounded-xl border border-border/30 text-left">
-              <p className="font-semibold mb-2">📋 Instrucciones:</p>
-              <ol className="space-y-1 list-decimal list-inside">
+            <div className="rounded-xl border border-border/30 bg-card/30 p-4 text-left text-sm text-muted-foreground">
+              <p className="mb-2 font-semibold">Instrucciones:</p>
+              <ol className="list-inside list-decimal space-y-1">
                 <li>Conecta el lector de huellas al equipo</li>
                 <li>Haz clic en "Capturar Huella"</li>
                 <li>Coloca tu dedo en el sensor cuando se solicite</li>
-                <li>Mantén el dedo firme hasta que se complete</li>
+                <li>Manten el dedo firme hasta que se complete</li>
               </ol>
             </div>
           )}
 
-          {/* Botón */}
           {!success && (
             <button
               type="button"
               onClick={handleCapturar}
               disabled={capturing}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold rounded-xl text-primary-foreground bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-6 py-3 text-sm font-bold text-primary-foreground transition-all hover:from-primary/90 hover:to-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {capturing ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
                   Capturando...
                 </>
               ) : (

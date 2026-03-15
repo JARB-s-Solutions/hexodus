@@ -7,6 +7,8 @@ import {
 } from "lucide-react"
 import { SociosService } from "@/lib/services/socios"
 import { MembresiasService } from "@/lib/services/membresias"
+import { AuthService } from "@/lib/auth"
+import { sincronizarCacheMotorHuella } from "@/lib/motor-huella"
 import { CheckoutSocioModal } from "./checkout-socio-modal"
 import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 import { CapturaFacialModal } from "./captura-facial-modal"
@@ -90,7 +92,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   // ===== Estado del flujo de registro =====
   const [loading, setLoading] = useState(false)
   const [loadingSocioData, setLoadingSocioData] = useState(false) // Nuevo: carga de datos completos
-  const [cotizacion, setCotizacion] = useState<CotizacionResponse | null>(null)
+  const [cotizacion, setCotizacion] = useState<CotizacionResponse["data"] | null>(null)
   const [showCheckout, setShowCheckout] = useState(false)
   const [showImprimirTicket, setShowImprimirTicket] = useState(false) // Modal de impresión
   const [datosSocioCreado, setDatosSocioCreado] = useState<any>(null) // Datos del socio recién creado
@@ -311,6 +313,23 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
 
   if (!open) return null
 
+  const sincronizarMotorSiHayHuella = async (template?: string) => {
+    if (!template) return
+
+    const token = AuthService.getToken()
+    if (!token) return
+
+    try {
+      await sincronizarCacheMotorHuella(token)
+    } catch (error: any) {
+      console.error("Error sincronizando cache de huellas:", error)
+      toast({
+        title: "Socio guardado, pero falta sincronizar",
+        description: error?.message || "No se pudo actualizar la cache del lector biometrico.",
+      })
+    }
+  }
+
   // ===== STEP 1: Validar y continuar =====
   const handleContinuar = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -414,6 +433,20 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       console.log('✏️ Actualizando socio ID:', socio.id)
       console.log('🔄 Editar membresía:', editarMembresia)
       
+      const biometriaActualizada: NonNullable<Partial<CreateSocioRequest>["biometria"]> = {}
+
+      if (fotoPerfilUrl) {
+        biometriaActualizada.foto_perfil_url = fotoPerfilUrl
+      }
+
+      if (faceEncoding.length > 0) {
+        biometriaActualizada.face_encoding = faceEncoding
+      }
+
+      if (fingerprintTemplate) {
+        biometriaActualizada.fingerprint_template = fingerprintTemplate
+      }
+
       // Construir solo los campos modificados
       const datosActualizados: Partial<CreateSocioRequest> = {
         personal: {
@@ -427,11 +460,10 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
           inicio_contrato: firmoContrato && contratoInicio ? contratoInicio : undefined,
           fin_contrato: firmoContrato && contratoFin ? contratoFin : undefined,
         },
-        biometria: {
-          foto_perfil_url: fotoPerfilUrl || undefined,
-          face_encoding: faceEncoding.length > 0 ? faceEncoding : undefined,
-          fingerprint_template: fingerprintTemplate || undefined,
-        },
+      }
+
+      if (Object.keys(biometriaActualizada).length > 0) {
+        datosActualizados.biometria = biometriaActualizada
       }
       
       // SOLO incluir membresía si el toggle está activado
@@ -479,6 +511,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       }
       
       await SociosService.update(socio.id, datosActualizados)
+      await sincronizarMotorSiHayHuella(fingerprintTemplate)
       
       toast({
         title: "✅ Socio actualizado",
@@ -506,8 +539,8 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
     console.log('💳 Confirmando pago para nuevo socio:')
     console.log('   Método de pago ID:', metodoPagoId)
     console.log('   Método de pago:', nombreMetodoPago)
-    console.log('   Total a cobrar:', cotizacion.total_a_pagar)
-    console.log('   Plan:', cotizacion.plan_nombre)
+    console.log('   Total a cobrar:', cotizacion.desglose_cobro.total_a_pagar)
+    console.log('   Plan:', cotizacion.nombre_plan)
     
     setLoading(true)
     try {
@@ -525,6 +558,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       console.log('   metodo_pago_id:', metodoPagoId)
       
       const response = await SociosService.create(datosFinales)
+      await sincronizarMotorSiHayHuella(datosFinales.biometria.fingerprint_template)
       
       toast({
         title: "¡Socio registrado!",
@@ -572,8 +606,8 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
     
     console.log('⚠️ Inscribiendo socio SIN PAGO:')
     console.log('   Nombre:', nombre)
-    console.log('   Plan:', cotizacion.plan_nombre)
-    console.log('   Monto pendiente:', cotizacion.total_a_pagar)
+    console.log('   Plan:', cotizacion.nombre_plan)
+    console.log('   Monto pendiente:', cotizacion.desglose_cobro.total_a_pagar)
     console.warn('   💵 El cobro quedará PENDIENTE')
     
     setLoading(true)
@@ -593,6 +627,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       console.log('   metodo_pago_id:', 'undefined (no se envía)')
       
       await SociosService.create(datosFinales)
+      await sincronizarMotorSiHayHuella(datosFinales.biometria.fingerprint_template)
       
       toast({
         title: "¡Socio inscrito!",

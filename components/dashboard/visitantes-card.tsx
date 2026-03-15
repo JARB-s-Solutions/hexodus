@@ -3,9 +3,9 @@
 import { useState, useCallback, useEffect } from "react"
 import { UserCheck, RefreshCw, LogIn, LogOut, User, Clock, TrendingUp, Users, Activity } from "lucide-react"
 import { AsistenciaService, AsistenciasHoyResponse } from "@/lib/services/asistencia"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar"
+import { Badge } from "@/ui/badge"
+import { Skeleton } from "@/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 export function VisitantesCard() {

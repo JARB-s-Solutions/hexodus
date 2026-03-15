@@ -16,17 +16,17 @@ import {
   Calendar,
   X,
 } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { Input } from "@/ui/input"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+} from "@/ui/select"
+import { Button } from "@/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar"
+import { Badge } from "@/ui/badge"
 import type { RegistroAcceso } from "@/lib/asistencia-data"
 import { formatHora, exportRegistrosCSV } from "@/lib/asistencia-data"
 
