@@ -170,10 +170,16 @@ export interface GetSociosResponse {
  * Socio completo (desde la API - GET /api/socios/:id)
  */
 export interface SocioAPI {
+  id?: number
   codigo_socio: string
   nombre_completo: string
   correo: string
   foto_perfil_url?: string
+  face_descriptor?: number[] | string | null
+  face_encoding?: number[] | string | null
+  face_encoding_updated_at?: string
+  fingerprint_template?: string | null
+  fingerprint_updated_at?: string
   genero: Genero
   telefono: string
   membresia: string
@@ -236,18 +242,43 @@ export interface MetodoPago {
   activo: boolean
 }
 
+function parseNumericArray(value: unknown): number[] | undefined {
+  if (Array.isArray(value)) {
+    return value.every((item) => typeof item === 'number') ? value : undefined
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) && parsed.every((item) => typeof item === 'number')
+        ? parsed
+        : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  return undefined
+}
+
 /**
  * Mapear socio de API a Frontend
  */
 export function mapSocioFromAPI(api: SocioAPI): Socio {
+  const faceEncoding = parseNumericArray(api.face_encoding ?? api.face_descriptor)
+
   return {
-    id: 0, // No viene en la respuesta de detalle
+    id: api.id || (api as any).socio_id || 0,
     codigoSocio: api.codigo_socio,
     nombre: api.nombre_completo,
     correo: api.correo,
     telefono: api.telefono,
     genero: api.genero,
     fotoPerfil: api.foto_perfil_url,
+    faceEncoding,
+    faceEncodingUpdatedAt: api.face_encoding_updated_at,
+    fingerprintTemplate: api.fingerprint_template || undefined,
+    fingerprintUpdatedAt: api.fingerprint_updated_at,
     firmoContrato: api.firmo_contrato,
     inicioContrato: api.fecha_inicio_contrato,
     finContrato: api.fecha_fin_contrato,

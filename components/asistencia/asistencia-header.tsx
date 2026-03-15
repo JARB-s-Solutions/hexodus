@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { LogOut, UserPlus, Fingerprint } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button } from "@/ui/button"
 import { AuthService } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
 import { NotificacionesBell } from "@/components/notificaciones-bell"
@@ -57,7 +57,7 @@ export function AsistenciaHeader({ onRegistroManual, onRegistroHuella }: Asisten
 
   return (
     <header
-      className="flex items-center justify-between p-4 rounded-xl sticky top-0 z-20 bg-card"
+      className="flex items-center justify-between p-4 rounded-xl sticky top-0 z-10 bg-card"
       style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
     >
       <div>

@@ -6,7 +6,7 @@ import { LogOut } from "lucide-react"
 import { AuthService } from "@/lib/auth"
 import type { User } from "@/lib/types/auth"
 import { useToast } from "@/hooks/use-toast"
-import { Button } from "@/components/ui/button"
+import { Button } from "@/ui/button"
 import { IndicadorCaja } from "@/components/caja/indicador-caja"
 import { NotificacionesBell } from "@/components/notificaciones-bell"
 
@@ -74,7 +74,7 @@ export function DashboardHeader() {
   }
 
   return (
-    <header className="flex items-center justify-between p-4 mx-4 mt-4 mb-0 rounded-xl sticky top-4 z-20 bg-card">
+    <header className="flex items-center justify-between p-4 mx-4 mt-4 mb-0 rounded-xl sticky top-4 z-10 bg-card">
       <div>
         <h1 className="text-xl font-semibold text-foreground">
           Bienvenido - <span className="text-primary">{getUserName()}</span>

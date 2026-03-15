@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { X, DollarSign, CreditCard, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
+import { Button } from "@/ui/button"
+import { Label } from "@/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { SociosService } from "@/lib/services/socios"
 import type { Socio, MetodoPago } from "@/lib/types/socios"

@@ -50,7 +50,7 @@ export function SociosHeader() {
   }
 
   return (
-    <header className="flex items-center justify-between p-4 mx-4 mt-4 mb-0 rounded-xl sticky top-4 z-20 bg-card">
+    <header className="flex items-center justify-between p-4 mx-4 mt-4 mb-0 rounded-xl sticky top-4 z-10 bg-card">
       <div>
         <h1 className="text-xl font-semibold text-foreground">
           Gestión de Socios - <span className="text-primary">Administrador General</span>

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useCallback, useEffect } from "react"
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@/ui/badge"
 import { AuditoriaService, type AuditoriaEntry, type FiltrosAuditoria } from "@/lib/services/auditoria"
 import { useToast } from "@/hooks/use-toast"
 

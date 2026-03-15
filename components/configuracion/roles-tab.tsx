@@ -12,12 +12,12 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
+} from "@/ui/dialog"
+import { Input } from "@/ui/input"
+import { Textarea } from "@/ui/textarea"
+import { Checkbox } from "@/ui/checkbox"
+import { Button } from "@/ui/button"
+import { Label } from "@/ui/label"
 
 interface RolesTabProps {
   // Placeholder para compatibilidad con otros tabs

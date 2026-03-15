@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { X, Printer, AlertTriangle, CheckCircle, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/ui/button"
+import { Dialog, DialogContent } from "@/ui/dialog"
+import { Alert, AlertDescription } from "@/ui/alert"
 import { getPrinterInstance, formatVentaTicketData, isWebUSBSupported } from "@/lib/services/thermal-printer"
 import type { DetalleVenta } from "@/lib/types/ventas"
 

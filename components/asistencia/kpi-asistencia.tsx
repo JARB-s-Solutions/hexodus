@@ -1,7 +1,7 @@
 "use client"
 
 import { Users, Activity, AlertCircle, Timer, Loader2, RefreshCw } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button } from "@/ui/button"
 import type { KpiAsistencia } from "@/lib/asistencia-data"
 
 interface Props {

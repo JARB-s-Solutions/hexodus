@@ -1,4 +1,4 @@
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage, AvatarFallback } from "@/ui/avatar"
 import { getIniciales } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 
