@@ -258,8 +258,14 @@ class AsistenciaServiceClass {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Error al registrar asistencia manual')
+        const error = await response.json().catch(() => ({}))
+        throw new Error(
+          error.error ||
+          error.message ||
+          error.motivo_texto ||
+          error.motivo_codigo ||
+          'Error al registrar asistencia manual'
+        )
       }
 
       return await response.json()
