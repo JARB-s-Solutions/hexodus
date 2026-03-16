@@ -38,6 +38,7 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
   const [error, setError] = useState<string | null>(null)
   const [socioRegistrado, setSocioRegistrado] = useState<SocioRegistrado | null>(null)
   const [countdown, setCountdown] = useState(5)
+  const [socioSeleccionadoId, setSocioSeleccionadoId] = useState<number | null>(null)
   const { toast } = useToast()
   
   // Estados para búsqueda de socios
@@ -96,6 +97,7 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
         setBusqueda("")
         setResultadosBusqueda([])
         setMostrarResultados(false)
+        setSocioSeleccionadoId(null)
       }, 200)
     }
   }, [open])
@@ -136,19 +138,65 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
     }
   }, [busqueda])
 
-  const obtenerMensajeErrorRegistro = (mensajeOriginal?: string) => {
-    const mensaje = (mensajeOriginal || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  const analizarErrorRegistro = (mensajeOriginal?: string) => {
+    const mensajeOriginalLimpio = (mensajeOriginal || "").trim()
+    const mensajeNormalizado = mensajeOriginalLimpio
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
 
-    const membresiaVencida =
-      (mensaje.includes("membresia") && (mensaje.includes("vencida") || mensaje.includes("expirada"))) ||
-      mensaje.includes("membership expired") ||
-      mensaje.includes("membresia_vencida")
+    const esMembresiaVencida =
+      mensajeNormalizado.includes("membresia_vencida") ||
+      mensajeNormalizado.includes("membership expired") ||
+      mensajeNormalizado.includes("vigencia_membresia") ||
+      mensajeNormalizado.includes("fecha_fin_membresia") ||
+      (mensajeNormalizado.includes("membresia") &&
+        (mensajeNormalizado.includes("vencida") || mensajeNormalizado.includes("expirada") || mensajeNormalizado.includes("vencio")))
 
-    if (membresiaVencida) {
-      return "No se pudo registrar la asistencia: la membresía del socio está vencida."
+    if (esMembresiaVencida) {
+      return {
+        mensaje: "No se pudo registrar la asistencia porque la membresía del socio está vencida.",
+        esMembresiaVencida: true,
+      }
     }
 
-    return mensajeOriginal || "No se pudo registrar la asistencia"
+    const esMensajeGenericoBackend =
+      mensajeNormalizado === "error al registrar asistencia manual" ||
+      mensajeNormalizado === "error al registrar asistencia" ||
+      mensajeNormalizado === "error interno" ||
+      mensajeNormalizado === "internal server error"
+
+    return {
+      mensaje: esMensajeGenericoBackend
+        ? "No se pudo registrar la asistencia manual. Verifica el estado de la membresía o intenta de nuevo."
+        : (mensajeOriginalLimpio || "No se pudo registrar la asistencia"),
+      esMembresiaVencida: false,
+    }
+  }
+
+
+  const resolverErrorConEstadoSocio = async (analisisError: { mensaje: string; esMembresiaVencida: boolean }) => {
+    if (analisisError.esMembresiaVencida || !socioSeleccionadoId) {
+      return analisisError
+    }
+
+    try {
+      const socio = await SociosService.getById(socioSeleccionadoId)
+      const fechaVencimiento = socio.fechaVencimientoMembresia ? new Date(socio.fechaVencimientoMembresia) : null
+      const fechaVencida = !!fechaVencimiento && !Number.isNaN(fechaVencimiento.getTime()) && fechaVencimiento.getTime() < Date.now()
+      const estadoVencido = String(socio.estadoSocio || '').toLowerCase() === 'inactivo'
+
+      if (fechaVencida || estadoVencido) {
+        return {
+          mensaje: "No se pudo registrar la asistencia porque la membresía del socio está vencida.",
+          esMembresiaVencida: true,
+        }
+      }
+    } catch (error) {
+      console.warn('[RegistroManual] No se pudo validar estado de membresía desde socio seleccionado:', error)
+    }
+
+    return analisisError
   }
 
   const reproducirSonido = () => {
@@ -232,10 +280,10 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
           onRegistroExitoso(response.data)
         }
       } else {
-        const mensajeError = obtenerMensajeErrorRegistro(response.message)
-        setError(mensajeError)
+        const analisisError = await resolverErrorConEstadoSocio(analizarErrorRegistro(response.message))
+        setError(analisisError.mensaje)
 
-        if (mensajeError.includes("membresía")) {
+        if (analisisError.esMembresiaVencida) {
           toast({
             variant: "destructive",
             title: "Membresía vencida",
@@ -245,10 +293,10 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
       }
     } catch (err: any) {
       console.error('[RegistroManual] Error:', err)
-      const mensajeError = obtenerMensajeErrorRegistro(err?.message)
-      setError(mensajeError)
+      const analisisError = await resolverErrorConEstadoSocio(analizarErrorRegistro(err?.message))
+      setError(analisisError.mensaje)
 
-      if (mensajeError.includes("membresía")) {
+      if (analisisError.esMembresiaVencida) {
         toast({
           variant: "destructive",
           title: "Membresía vencida",
@@ -263,11 +311,13 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
   const handleCodigoChange = (value: string) => {
     // Permitir editar libremente
     setClave(value.toUpperCase())
+    setSocioSeleccionadoId(null)
   }
 
   const handleSeleccionarSocio = (socio: typeof resultadosBusqueda[0]) => {
     setClave(socio.codigo)
     setBusqueda(socio.nombre)
+    setSocioSeleccionadoId(socio.id)
     setMostrarResultados(false)
     setResultadosBusqueda([])
   }
