@@ -232,7 +232,7 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
 
   const handleSeleccionarSocio = (socio: typeof resultadosBusqueda[0]) => {
     setClave(socio.codigo)
-    setBusqueda("")
+    setBusqueda(socio.nombre)
     setMostrarResultados(false)
     setResultadosBusqueda([])
   }
