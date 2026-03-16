@@ -214,8 +214,11 @@ class AsistenciaServiceClass {
    */
   private getAuthHeaders(): HeadersInit {
     const token = AuthService.getToken()
+    const zonaHorariaCliente = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Mexico_City'
+
     return {
       'Content-Type': 'application/json',
+      'X-Timezone': zonaHorariaCliente,
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     }
   }
