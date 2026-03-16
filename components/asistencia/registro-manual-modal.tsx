@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/ui/dialog"
 import { Button } from "@/ui/button"
 import { Input } from "@/ui/input"
@@ -37,6 +38,7 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
   const [error, setError] = useState<string | null>(null)
   const [socioRegistrado, setSocioRegistrado] = useState<SocioRegistrado | null>(null)
   const [countdown, setCountdown] = useState(5)
+  const { toast } = useToast()
   
   // Estados para búsqueda de socios
   const [busqueda, setBusqueda] = useState("")
@@ -134,6 +136,21 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
     }
   }, [busqueda])
 
+  const obtenerMensajeErrorRegistro = (mensajeOriginal?: string) => {
+    const mensaje = (mensajeOriginal || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+
+    const membresiaVencida =
+      (mensaje.includes("membresia") && (mensaje.includes("vencida") || mensaje.includes("expirada"))) ||
+      mensaje.includes("membership expired") ||
+      mensaje.includes("membresia_vencida")
+
+    if (membresiaVencida) {
+      return "No se pudo registrar la asistencia: la membresía del socio está vencida."
+    }
+
+    return mensajeOriginal || "No se pudo registrar la asistencia"
+  }
+
   const reproducirSonido = () => {
     if (audioSuccessRef.current) {
       audioSuccessRef.current.currentTime = 0
@@ -215,11 +232,29 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
           onRegistroExitoso(response.data)
         }
       } else {
-        setError(response.message || "No se pudo registrar la asistencia")
+        const mensajeError = obtenerMensajeErrorRegistro(response.message)
+        setError(mensajeError)
+
+        if (mensajeError.includes("membresía")) {
+          toast({
+            variant: "destructive",
+            title: "Membresía vencida",
+            description: "No es posible registrar asistencia hasta renovar la membresía del socio.",
+          })
+        }
       }
     } catch (err: any) {
       console.error('[RegistroManual] Error:', err)
-      setError(err.message || "Error al registrar la asistencia")
+      const mensajeError = obtenerMensajeErrorRegistro(err?.message)
+      setError(mensajeError)
+
+      if (mensajeError.includes("membresía")) {
+        toast({
+          variant: "destructive",
+          title: "Membresía vencida",
+          description: "No es posible registrar asistencia hasta renovar la membresía del socio.",
+        })
+      }
     } finally {
       setRegistrando(false)
     }

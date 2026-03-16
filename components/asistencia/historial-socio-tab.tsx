@@ -257,13 +257,15 @@ export function HistorialSocioTab({ onError }: HistorialSocioTabProps) {
                 {new Date(historialData.data.estadisticas.ultima_asistencia).toLocaleDateString('es-MX', {
                   day: '2-digit',
                   month: 'short',
-                  year: 'numeric'
+                  year: 'numeric',
+                  timeZone: 'America/Mexico_City'
                 })}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {new Date(historialData.data.estadisticas.ultima_asistencia).toLocaleTimeString('es-MX', {
                   hour: '2-digit',
-                  minute: '2-digit'
+                  minute: '2-digit',
+                  timeZone: 'America/Mexico_City'
                 })}
               </p>
             </CardContent>
@@ -310,14 +312,16 @@ export function HistorialSocioTab({ onError }: HistorialSocioTabProps) {
                         {new Date(registro.timestamp).toLocaleDateString('es-MX', {
                           day: '2-digit',
                           month: 'short',
-                          year: 'numeric'
+                          year: 'numeric',
+                          timeZone: 'America/Mexico_City'
                         })}
                       </td>
                       <td className="py-3 px-4">
                         {new Date(registro.timestamp).toLocaleTimeString('es-MX', {
                           hour: '2-digit',
                           minute: '2-digit',
-                          second: '2-digit'
+                          second: '2-digit',
+                          timeZone: 'America/Mexico_City'
                         })}
                       </td>
                       <td className="py-3 px-4">

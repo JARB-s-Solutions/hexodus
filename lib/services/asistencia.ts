@@ -214,8 +214,11 @@ class AsistenciaServiceClass {
    */
   private getAuthHeaders(): HeadersInit {
     const token = AuthService.getToken()
+    const zonaHorariaCliente = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Mexico_City'
+
     return {
       'Content-Type': 'application/json',
+      'X-Timezone': zonaHorariaCliente,
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     }
   }
@@ -258,8 +261,14 @@ class AsistenciaServiceClass {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Error al registrar asistencia manual')
+        const error = await response.json().catch(() => ({}))
+        throw new Error(
+          error.error ||
+          error.message ||
+          error.motivo_texto ||
+          error.motivo_codigo ||
+          'Error al registrar asistencia manual'
+        )
       }
 
       return await response.json()
