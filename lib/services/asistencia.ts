@@ -258,8 +258,33 @@ class AsistenciaServiceClass {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Error al registrar asistencia manual')
+        const raw = await response.text()
+
+        let errorData: any = {}
+        try {
+          errorData = raw ? JSON.parse(raw) : {}
+        } catch {
+          errorData = { raw }
+        }
+
+        const posiblesMensajes = [
+          errorData?.error,
+          errorData?.message,
+          errorData?.motivo_texto,
+          errorData?.motivo_codigo,
+          errorData?.data?.error,
+          errorData?.data?.message,
+          errorData?.data?.motivo_texto,
+          errorData?.data?.motivo_codigo,
+          errorData?.details?.message,
+          errorData?.raw,
+        ]
+          .filter((valor) => typeof valor === 'string')
+          .map((valor: string) => valor.trim())
+          .filter(Boolean)
+
+        const mensaje = posiblesMensajes[0] || 'Error al registrar asistencia manual'
+        throw new Error(mensaje)
       }
 
       return await response.json()
