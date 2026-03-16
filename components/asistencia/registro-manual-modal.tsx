@@ -39,7 +39,7 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
   const [socioRegistrado, setSocioRegistrado] = useState<SocioRegistrado | null>(null)
   const [countdown, setCountdown] = useState(5)
   const [socioSeleccionadoId, setSocioSeleccionadoId] = useState<number | null>(null)
-  const { toast } = useToast()
+  const { toast, dismiss } = useToast()
   
   // Estados para búsqueda de socios
   const [busqueda, setBusqueda] = useState("")
@@ -56,6 +56,7 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
   
   // Audio ref
   const audioSuccessRef = useRef<HTMLAudioElement | null>(null)
+  const toastMembresiaRef = useRef<string | null>(null)
 
   // Cargar audio al montar el componente
   useEffect(() => {
@@ -208,6 +209,21 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
     }
   }
 
+
+  const mostrarToastMembresiaVencida = () => {
+    if (toastMembresiaRef.current) {
+      dismiss(toastMembresiaRef.current)
+    }
+
+    const nuevoToast = toast({
+      variant: "destructive",
+      title: "Membresía vencida",
+      description: "Renueva la membresía para registrar asistencia manual.",
+    })
+
+    toastMembresiaRef.current = nuevoToast.id
+  }
+
   const handleRegistrar = async () => {
     // Validar que el código no esté vacío (debe tener algo después de "SOC-")
     if (clave.trim().length <= 4 || clave.trim() === "SOC-") {
@@ -284,11 +300,7 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
         setError(analisisError.mensaje)
 
         if (analisisError.esMembresiaVencida) {
-          toast({
-            variant: "destructive",
-            title: "Membresía vencida",
-            description: "No es posible registrar asistencia hasta renovar la membresía del socio.",
-          })
+          mostrarToastMembresiaVencida()
         }
       }
     } catch (err: any) {
@@ -297,11 +309,7 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
       setError(analisisError.mensaje)
 
       if (analisisError.esMembresiaVencida) {
-        toast({
-          variant: "destructive",
-          title: "Membresía vencida",
-          description: "No es posible registrar asistencia hasta renovar la membresía del socio.",
-        })
+        mostrarToastMembresiaVencida()
       }
     } finally {
       setRegistrando(false)
