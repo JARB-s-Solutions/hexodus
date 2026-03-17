@@ -15,6 +15,7 @@ import {
   User,
   Clock,
   Calendar,
+  Activity,
 } from "lucide-react"
 import type { Movimiento } from "@/lib/types/movimientos"
 

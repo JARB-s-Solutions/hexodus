@@ -44,12 +44,23 @@ export interface PeriodoComparacion {
 export interface MovimientoAPI {
   id: number
   folio: string
-  fecha_hora: string // ISO 8601: "2026-03-04T03:43:06.029Z"
+  fecha_hora?: string | null // ISO 8601: "2026-03-04T03:43:06.029Z"
+  fecha?: string | null
+  created_at?: string | null
   tipo: "Ingreso" | "Egreso"
   concepto: string
   nota_movimiento: string | null
   monto: number
-  metodo: string // "N/A", "Efectivo", "Tarjeta", "Transferencia SPEI", etc.
+  metodo?: string | null // "N/A", "Efectivo", "Tarjeta", "Transferencia SPEI", etc.
+  metodo_pago?: string | null
+  metodo_pago_nombre?: string | null
+  // Variantes observadas para nombre del socio en payloads de membresías
+  socio_nombre?: string | null
+  nombre_socio?: string | null
+  socio?: {
+    nombre?: string | null
+    nombre_completo?: string | null
+  } | null
   responsable: string
 }
 
@@ -81,8 +92,8 @@ export interface MovimientosResponse {
 /**
  * Convierte el formato de método de pago del API a formato frontend
  */
-export function mapMetodoPago(metodoAPI: string): TipoPago {
-  const metodoLower = metodoAPI.toLowerCase()
+export function mapMetodoPago(metodoAPI?: string | null): TipoPago {
+  const metodoLower = (metodoAPI || "").toLowerCase()
   
   if (metodoLower.includes("efectivo")) return "efectivo"
   if (metodoLower.includes("tarjeta")) return "tarjeta"
@@ -92,31 +103,85 @@ export function mapMetodoPago(metodoAPI: string): TipoPago {
   return "efectivo"
 }
 
+
+function getMetodoPagoRaw(apiMov: MovimientoAPI): string | null {
+  if (apiMov.metodo) return apiMov.metodo
+  if (apiMov.metodo_pago) return apiMov.metodo_pago
+  if (apiMov.metodo_pago_nombre) return apiMov.metodo_pago_nombre
+  return null
+}
+
+function getFechaHoraRaw(apiMov: MovimientoAPI): string | null {
+  if (apiMov.fecha_hora) return apiMov.fecha_hora
+  if (apiMov.created_at) return apiMov.created_at
+  if (apiMov.fecha) return apiMov.fecha
+  return null
+}
+
+function getSocioNombreRaw(apiMov: MovimientoAPI): string | null {
+  const nombre =
+    apiMov.socio_nombre ||
+    apiMov.nombre_socio ||
+    apiMov.socio?.nombre_completo ||
+    apiMov.socio?.nombre ||
+    null
+
+  if (!nombre) return null
+  return nombre.trim() || null
+}
+
+function incluirNombreSocioEnConcepto(concepto: string, socioNombre: string | null): string {
+  if (!socioNombre) return concepto
+
+  const conceptoLower = concepto.toLowerCase()
+  const nombreLower = socioNombre.toLowerCase()
+
+  if (conceptoLower.includes(nombreLower)) return concepto
+
+  // Caso típico: "Renovación de socio SOC-615561 - Plan: Visita"
+  if (/socio\s+SOC-\d+/i.test(concepto)) {
+    return concepto.replace(/(socio\s+SOC-\d+)/i, `$1 - ${socioNombre}`)
+  }
+
+  // Fallback: si el concepto está relacionado a socio, añadir nombre al final
+  if (conceptoLower.includes("socio")) {
+    return `${concepto} - ${socioNombre}`
+  }
+
+  return concepto
+}
+
 /**
  * Convierte MovimientoAPI (backend) a Movimiento (frontend)
  */
 export function mapMovimientoFromAPI(apiMov: MovimientoAPI): Movimiento {
+  const metodoRaw = getMetodoPagoRaw(apiMov)
+  const fechaHoraRaw = getFechaHoraRaw(apiMov)
+  const socioNombreRaw = getSocioNombreRaw(apiMov)
+  const conceptoConNombre = incluirNombreSocioEnConcepto(apiMov.concepto, socioNombreRaw)
+
   console.log("🔄 Mapeando movimiento del API:", {
     folio: apiMov.folio,
     tipo: apiMov.tipo,
-    concepto: apiMov.concepto,
+    concepto: conceptoConNombre,
     monto: apiMov.monto,
-    metodo: apiMov.metodo,
-    fecha_hora: apiMov.fecha_hora,
+    metodo: metodoRaw,
+    fecha_hora: fechaHoraRaw,
   })
 
   // Parsear fecha_hora: "2026-03-04T03:43:06.029Z"
-  const fechaHora = new Date(apiMov.fecha_hora)
-  const fecha = fechaHora.toISOString().split("T")[0] // "2026-03-04"
-  const hora = fechaHora.toTimeString().slice(0, 5) // "HH:MM"
+  const fechaHora = fechaHoraRaw ? new Date(fechaHoraRaw) : null
+  const fechaEsValida = !!fechaHora && !Number.isNaN(fechaHora.getTime())
+  const fecha = fechaEsValida ? fechaHora.toISOString().split("T")[0] : ""
+  const hora = fechaEsValida ? fechaHora.toTimeString().slice(0, 5) : ""
 
   const movimientoMapeado = {
     id: apiMov.folio, // Usar folio como ID único
     folio: apiMov.folio,
-    tipo: apiMov.tipo.toLowerCase() as TipoMovimiento,
-    concepto: apiMov.concepto,
+    tipo: (apiMov.tipo || "Ingreso").toLowerCase() as TipoMovimiento,
+    concepto: conceptoConNombre,
     total: apiMov.monto,
-    tipoPago: mapMetodoPago(apiMov.metodo),
+    tipoPago: mapMetodoPago(metodoRaw),
     fecha,
     hora,
     usuario: apiMov.responsable,

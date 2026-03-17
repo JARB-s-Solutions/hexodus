@@ -184,14 +184,18 @@ export default function MovimientosPage() {
       if (tipo === "ingreso") tipoAPI = "Ingresos"
       else if (tipo === "egreso") tipoAPI = "Egresos"
 
+      const busquedaNormalizada = busqueda.trim()
+      const fechaInicioParam = fechaInicio && fechaFin && fechaInicio > fechaFin ? fechaFin : fechaInicio
+      const fechaFinParam = fechaInicio && fechaFin && fechaInicio > fechaFin ? fechaInicio : fechaFin
+
       const params = {
         page: pagination.current_page,
         limit: pagination.limit,
         tipo: tipoAPI,
         metodo_pago: tipoPago || undefined,
-        search: busqueda || undefined,
-        fecha_inicio: fechaInicio || undefined,
-        fecha_fin: fechaFin || undefined,
+        search: busquedaNormalizada || undefined,
+        fecha_inicio: fechaInicioParam || undefined,
+        fecha_fin: fechaFinParam || undefined,
       }
 
       console.log("🔄 Cargando movimientos con params:", params)
@@ -553,12 +557,10 @@ export default function MovimientosPage() {
                 {/* KPIs */}
                 <KpiMovimientos kpis={kpis} />
 
-            {/* Main content: Filters sidebar + Table */}
-            <div className="flex gap-4">
-              {/* Desktop filters */}
-              <div className="hidden lg:block w-64 flex-shrink-0">
-                <div className="sticky top-0">
+                {/* Barra de filtros (desktop/tablet) */}
+                <div className="hidden lg:block">
                   <FiltrosMovimientos
+                    layout="bar"
                     busqueda={busqueda}
                     onBusquedaChange={handleBusquedaChange}
                     tipo={tipo}
@@ -575,10 +577,9 @@ export default function MovimientosPage() {
                     canExportar={puedeExportar}
                   />
                 </div>
-              </div>
 
-              {/* Table */}
-              <div className="flex-1 min-w-0">
+            {/* Main content: Table */}
+            <div className="min-w-0">
                 {loading && movimientos.length === 0 ? (
                   <div className="flex items-center justify-center h-96 bg-card rounded-lg border border-border">
                     <div className="text-center space-y-3">
@@ -611,7 +612,6 @@ export default function MovimientosPage() {
                     onLimitChange={handleLimitChange}
                   />
                 )}
-              </div>
             </div>
 
               </>
