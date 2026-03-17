@@ -349,15 +349,18 @@
 
 @keyframes scan {
   0% {
-    transform: translateY(-100%);
+    top: -2px;
   }
   100% {
-    transform: translateY(200%);
+    top: 100%;
   }
 }
 
 .animate-scan {
-  animation: scan 2s ease-in-out infinite;
+  position: absolute;
+  left: 0;
+  right: 0;
+  animation: scan 2s linear infinite;
 }
 
 @keyframes bounce-once {
