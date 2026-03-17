@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { CajaProvider, useCaja } from "@/lib/contexts/caja-context"
 import { ModalAperturaCaja } from "@/components/caja/modal-apertura-caja"
@@ -15,6 +15,14 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
+  const openModalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearOpenModalTimeout = () => {
+    if (openModalTimeoutRef.current) {
+      clearTimeout(openModalTimeoutRef.current)
+      openModalTimeoutRef.current = null
+    }
+  }
 
   useEffect(() => {
     // 1. PRIMERO: Verificar autenticación
@@ -34,6 +42,7 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
       // Si no está autenticado y no está en rutas públicas, redirigir a login
       if (!isAuthenticated && !RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))) {
         console.log("🚫 Usuario no autenticado, redirigiendo a login...")
+        clearOpenModalTimeout()
         router.push("/login")
         return
       }
@@ -41,6 +50,7 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
       // Si está en ruta pública pero está autenticado, no mostrar modal
       if (RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))) {
         console.log("✅ Ruta pública detectada, no mostrar modal")
+        clearOpenModalTimeout()
         setShowModal(false)
         return
       }
@@ -51,6 +61,7 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
 
       if (!requiereGestionCaja) {
         console.log("✅ Usuario sin subpermisos de caja, no se requiere modal de caja")
+        clearOpenModalTimeout()
         setShowModal(false)
         return
       }
@@ -65,14 +76,24 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
       //    - está autenticado
       if (!loading && estadoCaja !== null && requiereCaja && isAuthenticated) {
         if (!estadoCaja.abierta) {
-          console.log("⚠️ CAJA CERRADA DETECTADA - Mostrando modal de apertura")
-          setShowModal(true)
+          if (!openModalTimeoutRef.current) {
+            console.log("⚠️ CAJA CERRADA DETECTADA - Validando antes de mostrar modal")
+            openModalTimeoutRef.current = setTimeout(() => {
+              openModalTimeoutRef.current = null
+              setShowModal(true)
+            }, 1200)
+          }
         } else {
           console.log("✅ CAJA ABIERTA - Acceso permitido")
+          clearOpenModalTimeout()
           setShowModal(false)
         }
       }
       // Si loading es true o estadoCaja es null, no hacer nada (esperar)
+    }
+
+    return () => {
+      clearOpenModalTimeout()
     }
   }, [estadoCaja, loading, pathname, router])
 
