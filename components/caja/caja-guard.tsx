@@ -8,7 +8,7 @@ import { IndicadorCaja } from "@/components/caja/indicador-caja"
 import { AuthService } from "@/lib/auth"
 
 // Rutas que no requieren caja abierta
-const RUTAS_SIN_CAJA = ["/login", "/register"]
+const RUTAS_SIN_CAJA = ["/login", "/register", "/recuperar-password"]
 
 function CajaGuardInner({ children }: { children: React.ReactNode }) {
   const { estadoCaja, loading } = useCaja()
