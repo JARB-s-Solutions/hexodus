@@ -26,6 +26,10 @@ import { useAuthContext } from "@/lib/contexts/auth-context"
 
 type MovimientosTabKey = "historial" | "comparaciones" | "conceptos"
 
+function getTodayDate(): string {
+  return new Date().toISOString().split("T")[0]
+}
+
 export default function MovimientosPage() {
   const { toast } = useToast()
   const { tienePermiso } = useAuthContext()
@@ -60,8 +64,8 @@ export default function MovimientosPage() {
   const [busqueda, setBusqueda] = useState("")
   const [tipo, setTipo] = useState("todos")
   const [tipoPago, setTipoPago] = useState("")
-  const [fechaInicio, setFechaInicio] = useState("")
-  const [fechaFin, setFechaFin] = useState("")
+  const [fechaInicio, setFechaInicio] = useState(() => getTodayDate())
+  const [fechaFin, setFechaFin] = useState(() => getTodayDate())
 
   // Log cambios de filtros
   useEffect(() => {
@@ -290,11 +294,12 @@ export default function MovimientosPage() {
 
   const handleLimpiar = useCallback(() => {
     console.log("🧹 Limpiando filtros...")
+    const today = getTodayDate()
     setBusqueda("")
     setTipo("todos")
     setTipoPago("")
-    setFechaInicio("")
-    setFechaFin("")
+    setFechaInicio(today)
+    setFechaFin(today)
     setPagination((prev) => ({ ...prev, current_page: 1 }))
     console.log("✅ Filtros limpiados")
   }, [])
