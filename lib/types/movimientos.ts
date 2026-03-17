@@ -44,12 +44,12 @@ export interface PeriodoComparacion {
 export interface MovimientoAPI {
   id: number
   folio: string
-  fecha_hora: string // ISO 8601: "2026-03-04T03:43:06.029Z"
+  fecha_hora: string | null // ISO 8601: "2026-03-04T03:43:06.029Z"
   tipo: "Ingreso" | "Egreso"
   concepto: string
   nota_movimiento: string | null
   monto: number
-  metodo: string // "N/A", "Efectivo", "Tarjeta", "Transferencia SPEI", etc.
+  metodo: string | null // "N/A", "Efectivo", "Tarjeta", "Transferencia SPEI", etc.
   responsable: string
 }
 
@@ -81,8 +81,8 @@ export interface MovimientosResponse {
 /**
  * Convierte el formato de método de pago del API a formato frontend
  */
-export function mapMetodoPago(metodoAPI: string): TipoPago {
-  const metodoLower = metodoAPI.toLowerCase()
+export function mapMetodoPago(metodoAPI?: string | null): TipoPago {
+  const metodoLower = (metodoAPI || "").toLowerCase()
   
   if (metodoLower.includes("efectivo")) return "efectivo"
   if (metodoLower.includes("tarjeta")) return "tarjeta"
@@ -106,14 +106,15 @@ export function mapMovimientoFromAPI(apiMov: MovimientoAPI): Movimiento {
   })
 
   // Parsear fecha_hora: "2026-03-04T03:43:06.029Z"
-  const fechaHora = new Date(apiMov.fecha_hora)
-  const fecha = fechaHora.toISOString().split("T")[0] // "2026-03-04"
-  const hora = fechaHora.toTimeString().slice(0, 5) // "HH:MM"
+  const fechaHora = apiMov.fecha_hora ? new Date(apiMov.fecha_hora) : null
+  const fechaEsValida = !!fechaHora && !Number.isNaN(fechaHora.getTime())
+  const fecha = fechaEsValida ? fechaHora.toISOString().split("T")[0] : ""
+  const hora = fechaEsValida ? fechaHora.toTimeString().slice(0, 5) : ""
 
   const movimientoMapeado = {
     id: apiMov.folio, // Usar folio como ID único
     folio: apiMov.folio,
-    tipo: apiMov.tipo.toLowerCase() as TipoMovimiento,
+    tipo: (apiMov.tipo || "Ingreso").toLowerCase() as TipoMovimiento,
     concepto: apiMov.concepto,
     total: apiMov.monto,
     tipoPago: mapMetodoPago(apiMov.metodo),
