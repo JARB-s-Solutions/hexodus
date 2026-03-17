@@ -23,6 +23,7 @@ interface FiltrosMovimientosProps {
   onExportar: () => void
   metodosPago?: MetodoPago[]
   canExportar?: boolean
+  layout?: "panel" | "bar"
 }
 
 export function FiltrosMovimientos({
@@ -40,6 +41,7 @@ export function FiltrosMovimientos({
   onExportar,
   metodosPago = [],
   canExportar = true,
+  layout = "panel",
 }: FiltrosMovimientosProps) {
   console.log("🔍 FiltrosMovimientos - Estado actual:", {
     busqueda,
@@ -61,6 +63,94 @@ export function FiltrosMovimientos({
 
   // Usar métodos de pago del API o fallback
   const metodosDisponibles = metodosPago.length > 0 ? metodosPago : metodosDefault
+
+  if (layout === "bar") {
+    return (
+      <div className="bg-card rounded-xl border border-border p-4" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.2)" }}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 pr-1">
+            <SlidersHorizontal className="h-4 w-4 text-accent" />
+            <h2 className="text-sm font-semibold text-foreground">Filtros</h2>
+          </div>
+
+          <div className="relative flex-[1_1_220px] min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+            <input
+              id="buscar-mov-bar"
+              type="text"
+              value={busqueda}
+              onChange={(e) => onBusquedaChange(e.target.value)}
+              placeholder="Buscar concepto, folio o usuario"
+              className="w-full pl-9 pr-9 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
+            />
+            {busqueda && (
+              <button
+                onClick={() => onBusquedaChange("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <select
+            value={tipo}
+            onChange={(e) => onTipoChange(e.target.value)}
+            className="h-10 min-w-[130px] px-3 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/30"
+          >
+            <option value="todos">Todos</option>
+            <option value="ingreso">Ingresos</option>
+            <option value="egreso">Egresos</option>
+          </select>
+
+          <select
+            value={tipoPago}
+            onChange={(e) => onTipoPagoChange(e.target.value)}
+            className="h-10 min-w-[150px] px-3 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/30"
+          >
+            <option value="">Todos los métodos</option>
+            {metodosDisponibles.map((metodo) => (
+              <option key={metodo.id} value={metodo.nombre}>
+                {metodo.nombre}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="date"
+            value={fechaInicio}
+            onChange={(e) => onFechaInicioChange(e.target.value)}
+            className="h-10 min-w-[140px] px-3 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/30"
+            aria-label="Fecha inicial"
+          />
+
+          <input
+            type="date"
+            value={fechaFin}
+            onChange={(e) => onFechaFinChange(e.target.value)}
+            className="h-10 min-w-[140px] px-3 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/30"
+            aria-label="Fecha final"
+          />
+
+          {hasFilters && (
+            <button onClick={onLimpiar} className="h-10 px-3 text-xs font-medium text-accent border border-accent/30 rounded-lg hover:bg-accent/10">
+              Limpiar
+            </button>
+          )}
+
+          {canExportar && (
+            <button
+              onClick={onExportar}
+              className="h-10 px-3 text-xs font-medium border border-accent/30 text-accent rounded-lg hover:bg-accent/10 transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Exportar CSV
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
