@@ -50,6 +50,7 @@ function handleHttpError(status: number, message: string): void {
  */
 interface FetchOptions extends RequestInit {
   timeout?: number
+  skipAuth?: boolean
 }
 
 /**
@@ -107,7 +108,16 @@ export async function apiGet<T>(
   console.log('  Status:', response.status, response.statusText)
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
+    const responseText = await response.text().catch(() => '')
+    let error: Record<string, any> = {}
+
+    if (responseText) {
+      try {
+        error = JSON.parse(responseText)
+      } catch {
+        error = { message: responseText }
+      }
+    }
     console.error('❌ GET Error:', error)
     const message = error.error || error.message || 'Error en la petición'
     handleHttpError(response.status, message)
@@ -127,7 +137,8 @@ export async function apiPost<T>(
   data?: unknown,
   options: FetchOptions = {}
 ): Promise<T> {
-  const token = localStorage.getItem('auth_token')
+  const { skipAuth = false, ...requestOptions } = options
+  const token = skipAuth ? null : localStorage.getItem('auth_token')
   const url = `${API_BASE_URL}${endpoint}`
   
   console.log('📤 POST Request:')
@@ -140,20 +151,55 @@ export async function apiPost<T>(
     headers: {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
+      ...requestOptions.headers,
     },
     body: data ? JSON.stringify(data) : undefined,
-    ...options,
+    ...requestOptions,
   })
 
   console.log('  Status:', response.status, response.statusText)
   console.log('  Response.ok:', response.ok)
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    console.error('❌ POST Error Response Body:', error)
-    const errorMessage = error.error || error.message || 'Error en la petición'
-    handleHttpError(response.status, errorMessage)
+    const responseText = await response.text().catch(() => '')
+    let error: Record<string, any> = {}
+
+    if (responseText) {
+      try {
+        error = JSON.parse(responseText)
+      } catch {
+        error = { message: responseText }
+      }
+    }
+
+    const isPublicAuthEndpoint =
+      endpoint === API_ENDPOINTS.LOGIN ||
+      endpoint === API_ENDPOINTS.FORGOT_PASSWORD ||
+      endpoint === API_ENDPOINTS.RESET_PASSWORD
+
+    // En flujos públicos de auth (login/forgot/reset) evitamos console.error
+    // para no disparar overlay de error en desarrollo en casos manejados por UI.
+    if (!isPublicAuthEndpoint) {
+      console.error('❌ POST Error Response Body:', error)
+    } else {
+      console.warn('⚠️ POST auth response error:', {
+        endpoint,
+        status: response.status,
+        error,
+      })
+    }
+
+    const errorMessage =
+      error.error ||
+      error.message ||
+      error.details?.message ||
+      response.statusText ||
+      'Error en la petición'
+
+    if (!isPublicAuthEndpoint) {
+      handleHttpError(response.status, errorMessage)
+    }
+
     throw new ApiError(response.status, errorMessage, error.errors)
   }
 
