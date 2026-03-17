@@ -44,12 +44,16 @@ export interface PeriodoComparacion {
 export interface MovimientoAPI {
   id: number
   folio: string
-  fecha_hora: string | null // ISO 8601: "2026-03-04T03:43:06.029Z"
+  fecha_hora?: string | null // ISO 8601: "2026-03-04T03:43:06.029Z"
+  fecha?: string | null
+  created_at?: string | null
   tipo: "Ingreso" | "Egreso"
   concepto: string
   nota_movimiento: string | null
   monto: number
-  metodo: string | null // "N/A", "Efectivo", "Tarjeta", "Transferencia SPEI", etc.
+  metodo?: string | null // "N/A", "Efectivo", "Tarjeta", "Transferencia SPEI", etc.
+  metodo_pago?: string | null
+  metodo_pago_nombre?: string | null
   responsable: string
 }
 
@@ -92,6 +96,21 @@ export function mapMetodoPago(metodoAPI?: string | null): TipoPago {
   return "efectivo"
 }
 
+
+function getMetodoPagoRaw(apiMov: MovimientoAPI): string | null {
+  if (apiMov.metodo) return apiMov.metodo
+  if (apiMov.metodo_pago) return apiMov.metodo_pago
+  if (apiMov.metodo_pago_nombre) return apiMov.metodo_pago_nombre
+  return null
+}
+
+function getFechaHoraRaw(apiMov: MovimientoAPI): string | null {
+  if (apiMov.fecha_hora) return apiMov.fecha_hora
+  if (apiMov.created_at) return apiMov.created_at
+  if (apiMov.fecha) return apiMov.fecha
+  return null
+}
+
 /**
  * Convierte MovimientoAPI (backend) a Movimiento (frontend)
  */
@@ -101,12 +120,15 @@ export function mapMovimientoFromAPI(apiMov: MovimientoAPI): Movimiento {
     tipo: apiMov.tipo,
     concepto: apiMov.concepto,
     monto: apiMov.monto,
-    metodo: apiMov.metodo,
-    fecha_hora: apiMov.fecha_hora,
+    metodo: getMetodoPagoRaw(apiMov),
+    fecha_hora: getFechaHoraRaw(apiMov),
   })
 
+  const metodoRaw = getMetodoPagoRaw(apiMov)
+  const fechaHoraRaw = getFechaHoraRaw(apiMov)
+
   // Parsear fecha_hora: "2026-03-04T03:43:06.029Z"
-  const fechaHora = apiMov.fecha_hora ? new Date(apiMov.fecha_hora) : null
+  const fechaHora = fechaHoraRaw ? new Date(fechaHoraRaw) : null
   const fechaEsValida = !!fechaHora && !Number.isNaN(fechaHora.getTime())
   const fecha = fechaEsValida ? fechaHora.toISOString().split("T")[0] : ""
   const hora = fechaEsValida ? fechaHora.toTimeString().slice(0, 5) : ""
@@ -117,7 +139,7 @@ export function mapMovimientoFromAPI(apiMov: MovimientoAPI): Movimiento {
     tipo: (apiMov.tipo || "Ingreso").toLowerCase() as TipoMovimiento,
     concepto: apiMov.concepto,
     total: apiMov.monto,
-    tipoPago: mapMetodoPago(apiMov.metodo),
+    tipoPago: mapMetodoPago(metodoRaw),
     fecha,
     hora,
     usuario: apiMov.responsable,
