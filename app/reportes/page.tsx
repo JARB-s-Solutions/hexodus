@@ -33,7 +33,7 @@ function getPeriodoLabel(periodo: string): string {
 export default function ReportesPage() {
   const { toast } = useToast()
   const { tienePermiso } = useAuthContext()
-  const [periodo, setPeriodo] = useState("mes")
+  const [periodo, setPeriodo] = useState("dia")
   const [tipoReporte, setTipoReporte] = useState<TipoReporte | "todos">("todos")
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
@@ -377,7 +377,7 @@ export default function ReportesPage() {
 
   // ------ Handlers ------
   const handleLimpiar = useCallback(() => {
-    setPeriodo("mes")
+    setPeriodo("dia")
     setTipoReporte("todos")
     setFechaInicio("")
     setFechaFin("")
