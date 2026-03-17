@@ -180,6 +180,7 @@ export interface GetMovimientosParams {
   limit?: number
   tipo?: "Ingresos" | "Egresos" | "Todos"
   metodo_pago?: string
+  metodo_pago_id?: number
   search?: string
   fecha_inicio?: string // YYYY-MM-DD
   fecha_fin?: string // YYYY-MM-DD
