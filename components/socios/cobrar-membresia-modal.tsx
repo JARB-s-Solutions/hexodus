@@ -6,7 +6,8 @@ import { Button } from "@/ui/button"
 import { Label } from "@/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { SociosService } from "@/lib/services/socios"
-import type { Socio, MetodoPago } from "@/lib/types/socios"
+import type { Socio, MetodoPago, CotizacionResponse } from "@/lib/types/socios"
+import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 
 interface CobrarMembresiaModalProps {
   open: boolean
@@ -20,6 +21,9 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
   const [metodoPagoSeleccionado, setMetodoPagoSeleccionado] = useState<number | null>(null)
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
   const [procesando, setProcesando] = useState(false)
+  const [showImprimirTicket, setShowImprimirTicket] = useState(false)
+  const [cotizacionParaTicket, setCotizacionParaTicket] = useState<CotizacionResponse['data'] | null>(null)
+  const [metodoPagoParaTicket, setMetodoPagoParaTicket] = useState("")
 
   // Cargar métodos de pago al abrir el modal
   useEffect(() => {
@@ -80,14 +84,38 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
         description: mensaje || `Se ha registrado el pago de ${socio.nombre}`,
       })
 
-      // Resetear estado y cerrar
+      // Intentar obtener cotización para el ticket
+      try {
+        let planId = socio.planId
+        let fechaInicio = socio.fechaInicioMembresia
+
+        // Si los datos no vienen en la lista, buscar el socio completo
+        if (!planId || planId <= 0 || !fechaInicio) {
+          const socioActualizado = await SociosService.getById(socio.id)
+          planId = socioActualizado.planId
+          fechaInicio = socioActualizado.fechaInicioMembresia
+        }
+
+        if (planId > 0 && fechaInicio) {
+          const cotizacion = await SociosService.cotizar({
+            plan_id: planId,
+            fecha_inicio: fechaInicio.split('T')[0],
+          })
+          const metodoPagoNombre = metodosPago.find(m => m.metodo_pago_id === metodoPagoSeleccionado)?.nombre || "N/A"
+          setCotizacionParaTicket(cotizacion)
+          setMetodoPagoParaTicket(metodoPagoNombre)
+          setMetodoPagoSeleccionado(null)
+          setShowImprimirTicket(true)
+          return // El cierre real ocurre cuando se cierra el modal de impresión
+        }
+      } catch (cotizError) {
+        console.warn('No se pudo obtener cotización para el ticket:', cotizError)
+      }
+
+      // Fallback: cerrar normalmente si cotizar falla
       setMetodoPagoSeleccionado(null)
       onClose()
-      
-      // Llamar callback de éxito si existe
-      if (onSuccess) {
-        onSuccess()
-      }
+      if (onSuccess) onSuccess()
     } catch (error: any) {
       console.error("❌ Error cobrando membresía:", error)
       toast({
@@ -101,13 +129,33 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
   }
 
   const handleClose = () => {
-    if (!procesando) {
+    if (!procesando && !showImprimirTicket) {
       setMetodoPagoSeleccionado(null)
       onClose()
     }
   }
 
+  const handleImpresionClose = () => {
+    setShowImprimirTicket(false)
+    setCotizacionParaTicket(null)
+    setMetodoPagoParaTicket("")
+    onClose()
+    onSuccess?.()
+  }
+
   if (!open || !socio) return null
+
+  if (showImprimirTicket && cotizacionParaTicket) {
+    return (
+      <ImprimirTicketModal
+        open={true}
+        onClose={handleImpresionClose}
+        socioData={socio}
+        cotizacion={cotizacionParaTicket}
+        metodoPago={metodoPagoParaTicket}
+      />
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
