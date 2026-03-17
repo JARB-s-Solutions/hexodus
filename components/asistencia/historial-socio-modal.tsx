@@ -112,8 +112,7 @@ export function HistorialSocioModal({
             {new Date(estadisticas.ultima_asistencia).toLocaleDateString('es-MX', {
               day: '2-digit',
               month: 'short',
-              year: 'numeric',
-              timeZone: 'America/Mexico_City'
+              year: 'numeric'
             })}
           </p>
         </div>
@@ -162,8 +161,7 @@ export function HistorialSocioModal({
                         {fecha.toLocaleDateString('es-MX', {
                           day: '2-digit',
                           month: 'short',
-                          year: 'numeric',
-                          timeZone: 'America/Mexico_City'
+                          year: 'numeric'
                         })}
                       </span>
                     </div>
@@ -173,8 +171,7 @@ export function HistorialSocioModal({
                         <Clock className="h-3 w-3" />
                         {fecha.toLocaleTimeString('es-MX', {
                           hour: '2-digit',
-                          minute: '2-digit',
-                          timeZone: 'America/Mexico_City'
+                          minute: '2-digit'
                         })}
                       </span>
                       <span className="flex items-center gap-1">
