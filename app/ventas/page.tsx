@@ -29,6 +29,10 @@ import { useAuthContext } from "@/lib/contexts/auth-context"
 
 type VentasTabKey = "historial" | "analytics" | "caja"
 
+function getTodayDate(): string {
+  return new Date().toISOString().split("T")[0]
+}
+
 export default function VentasPage() {
   const { toast } = useToast()
   const { tienePermiso } = useAuthContext()
@@ -48,7 +52,7 @@ export default function VentasPage() {
 
   // Filters
   const [busqueda, setBusqueda] = useState("")
-  const [periodo, setPeriodo] = useState("mes") // Cambiar de "todo" a "mes" para mostrar tendencia por defecto
+  const [periodo, setPeriodo] = useState("hoy")
   const [metodoPagoFiltro, setMetodoPagoFiltro] = useState("todos")
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
@@ -92,21 +96,20 @@ export default function VentasPage() {
     }
   }, [activeTab, tabsDisponibles])
 
-  // Cargar ventas desde el API
+  // Cargar historial de ventas cuando cambien filtros simples.
+  // El rango personalizado sigue aplicándose manualmente con el botón.
   useEffect(() => {
-    cargarVentas()
-  }, [])
-
-  // Aplicar filtros automáticamente cuando cambien
-  useEffect(() => {
-    // Solo aplicar filtros si hay un cambio significativo (no en la carga inicial)
-    if (pagination.currentPage > 1 || metodoPagoFiltro !== "todos" || busqueda.trim() !== "") {
-      const timer = setTimeout(() => {
-        cargarVentas(1, pagination.limit) // Resetear a página 1 al filtrar
-      }, 500) // Debounce de 500ms para la búsqueda
-      return () => clearTimeout(timer)
+    if (periodo === "personalizado") {
+      return
     }
-  }, [metodoPagoFiltro, busqueda])
+
+    const debounceMs = busqueda.trim() !== "" ? 500 : 0
+    const timer = setTimeout(() => {
+      cargarVentas(1, pagination.limit)
+    }, debounceMs)
+
+    return () => clearTimeout(timer)
+  }, [periodo, metodoPagoFiltro, busqueda, pagination.limit])
 
   // Cargar análisis cuando se cambie al tab de analytics o cambien los filtros
   useEffect(() => {
@@ -115,29 +118,58 @@ export default function VentasPage() {
     }
   }, [activeTab, periodo, fechaInicio, fechaFin, puedeVerAnalisis])
 
-  async function cargarVentas(page?: number, limit?: number) {
+  async function cargarVentas(
+    page?: number,
+    limit?: number,
+    filtrosOverride?: {
+      periodo?: string
+      fechaInicio?: string
+      fechaFin?: string
+      metodoPagoFiltro?: string
+      busqueda?: string
+    }
+  ) {
     try {
       setLoading(true)
+      const periodoActual = filtrosOverride?.periodo ?? periodo
+      const fechaInicioActual = filtrosOverride?.fechaInicio ?? fechaInicio
+      const fechaFinActual = filtrosOverride?.fechaFin ?? fechaFin
+      const metodoPagoActual = filtrosOverride?.metodoPagoFiltro ?? metodoPagoFiltro
+      const busquedaActual = filtrosOverride?.busqueda ?? busqueda
+
       const params: any = {
         page: page || pagination.currentPage,
         limit: limit || pagination.limit,
       }
+
+      const periodoMap: Record<string, string> = {
+        hoy: "Hoy",
+        ayer: "Ayer",
+        semana: "Esta Semana",
+        mes: "Este Mes",
+        trimestre: "Este Trimestre",
+        anio: "Este Año",
+        todo: "Todo",
+        personalizado: "Personalizado",
+      }
       
       // Filtro por período
-      if (periodo === "personalizado") {
+      if (periodoActual === "personalizado") {
         params.periodo = "Personalizado"
-        if (fechaInicio) params.fecha_inicio = fechaInicio
-        if (fechaFin) params.fecha_fin = fechaFin
+        if (fechaInicioActual) params.fecha_inicio = fechaInicioActual
+        if (fechaFinActual) params.fecha_fin = fechaFinActual
+      } else {
+        params.periodo = periodoMap[periodoActual] || periodoActual
       }
       
       // Filtro por método de pago (ahora va al backend)
-      if (metodoPagoFiltro && metodoPagoFiltro !== "todos") {
-        params.metodo_pago = metodoPagoFiltro
+      if (metodoPagoActual && metodoPagoActual !== "todos") {
+        params.metodo_pago = metodoPagoActual
       }
       
       // Filtro por búsqueda (ahora va al backend)
-      if (busqueda.trim()) {
-        params.search = busqueda.trim()
+      if (busquedaActual.trim()) {
+        params.search = busquedaActual.trim()
       }
       
       console.log('📊 Cargando ventas con parámetros:', params)
@@ -307,13 +339,11 @@ export default function VentasPage() {
   const handleLimpiarFiltros = useCallback(() => {
     console.log('🧹 Limpiando filtros...')
     setBusqueda("")
-    setPeriodo("todo")
+    setPeriodo("hoy")
     setMetodoPagoFiltro("todos")
     setFechaInicio("")
     setFechaFin("")
-    // Recargar ventas sin filtros y resetear paginación
-    cargarVentas(1, pagination.limit)
-  }, [pagination.limit])
+  }, [])
 
   const handleExportar = useCallback(() => {
     if (!puedeExportarVentas) {

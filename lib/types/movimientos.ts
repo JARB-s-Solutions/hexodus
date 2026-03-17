@@ -169,6 +169,9 @@ export function mapMovimientoFromAPI(apiMov: MovimientoAPI): Movimiento {
     fecha_hora: fechaHoraRaw,
   })
 
+  const metodoRaw = getMetodoPagoRaw(apiMov)
+  const fechaHoraRaw = getFechaHoraRaw(apiMov)
+
   // Parsear fecha_hora: "2026-03-04T03:43:06.029Z"
   const fechaHora = fechaHoraRaw ? new Date(fechaHoraRaw) : null
   const fechaEsValida = !!fechaHora && !Number.isNaN(fechaHora.getTime())
