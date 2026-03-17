@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, User, ScanFace, Fingerprint, Loader2, Mail, Phone, Calendar, CreditCard, FileCheck, IdCard, ReceiptText, ChevronDown, ChevronUp } from "lucide-react"
-import type { Socio, EntradaHistorial } from "@/lib/types/socios"
+import { X, User, ScanFace, Fingerprint, Loader2, Mail, Phone, Calendar, CreditCard, FileCheck, IdCard, ReceiptText, ChevronDown, ChevronUp, Printer } from "lucide-react"
+import type { Socio, EntradaHistorial, CotizacionResponse } from "@/lib/types/socios"
 import { SociosService } from "@/lib/services/socios"
 import { toast } from "@/hooks/use-toast"
 import { getIniciales } from "@/lib/utils"
 import { SocioAvatar } from "@/components/socios/socio-avatar"
+import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 
 interface DetalleSocioModalProps {
   socioId: number | null
@@ -20,6 +21,9 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
   const [historial, setHistorial] = useState<EntradaHistorial[]>([])
   const [cargandoHistorial, setCargandoHistorial] = useState(false)
   const [historialExpandido, setHistorialExpandido] = useState<number | null>(null)
+  const [showImprimirTicket, setShowImprimirTicket] = useState(false)
+  const [cotizacionParaTicket, setCotizacionParaTicket] = useState<CotizacionResponse['data'] | null>(null)
+  const [metodoPagoParaTicket, setMetodoPagoParaTicket] = useState("")
 
   // Cargar datos completos del socio cuando se abre el modal
   useEffect(() => {
@@ -67,6 +71,37 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
 
   if (!open) return null
 
+  const handleReimprimir = (entrada: EntradaHistorial) => {
+    if (!socio) return
+    const fechaInicio = entrada.fecha_inicio
+    const fechaFin = entrada.fecha_fin
+    const precioNum = Number(entrada.precio_cobrado)
+    const diasDuracion = Math.max(
+      1,
+      Math.round(
+        (new Date(fechaFin.split('T')[0]).getTime() - new Date(fechaInicio.split('T')[0]).getTime()) /
+          (1000 * 60 * 60 * 24)
+      )
+    )
+    const metodoPago = entrada.pagos[0]?.metodo_pago || "N/A"
+    const mockCotizacion: CotizacionResponse['data'] = {
+      plan_id: 0,
+      nombre_plan: entrada.plan,
+      duracion_dias: diasDuracion,
+      fecha_inicio: fechaInicio,
+      fecha_vencimiento: fechaFin,
+      desglose_cobro: {
+        precio_regular: precioNum,
+        tiene_descuento: false,
+        ahorro: 0,
+        total_a_pagar: precioNum,
+      },
+    }
+    setCotizacionParaTicket(mockCotizacion)
+    setMetodoPagoParaTicket(metodoPago)
+    setShowImprimirTicket(true)
+  }
+
   const formatMonto = (monto: string) =>
     new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(monto))
 
@@ -97,6 +132,22 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
     const horas = d.getHours().toString().padStart(2, '0')
     const minutos = d.getMinutes().toString().padStart(2, '0')
     return `${day} de ${meses[month]} de ${year} · ${horas}:${minutos} hrs`
+  }
+
+  if (showImprimirTicket && cotizacionParaTicket && socio) {
+    return (
+      <ImprimirTicketModal
+        open={true}
+        onClose={() => {
+          setShowImprimirTicket(false)
+          setCotizacionParaTicket(null)
+          setMetodoPagoParaTicket("")
+        }}
+        socioData={socio}
+        cotizacion={cotizacionParaTicket}
+        metodoPago={metodoPagoParaTicket}
+      />
+    )
   }
 
   return (
@@ -465,6 +516,15 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                               </div>
                               <div className="flex items-center gap-3 shrink-0">
                                 <span className="text-sm font-bold text-foreground">{formatMonto(entrada.precio_cobrado)}</span>
+                                {estaPagado && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleReimprimir(entrada) }}
+                                    title="Reimprimir ticket"
+                                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/10 transition"
+                                  >
+                                    <Printer className="h-4 w-4" />
+                                  </button>
+                                )}
                                 {estaExpandido
                                   ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
                                   : <ChevronDown className="h-4 w-4 text-muted-foreground" />}

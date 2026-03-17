@@ -1,16 +1,19 @@
 "use client"
 
-import { Search, X, Download, SlidersHorizontal } from "lucide-react"
+import { Search, XCircle, Download, SlidersHorizontal, Calendar, CreditCard, Filter } from "lucide-react"
 
 interface MetodoPago {
-  id: string
+  id: string | number
   nombre: string
+  metodo_pago_id?: number
   activo?: boolean
 }
 
 interface FiltrosMovimientosProps {
   busqueda: string
   onBusquedaChange: (v: string) => void
+  periodo: string
+  onPeriodoChange: (v: string) => void
   tipo: string
   onTipoChange: (v: string) => void
   tipoPago: string
@@ -28,6 +31,8 @@ interface FiltrosMovimientosProps {
 export function FiltrosMovimientos({
   busqueda,
   onBusquedaChange,
+  periodo,
+  onPeriodoChange,
   tipo,
   onTipoChange,
   tipoPago,
@@ -41,21 +46,17 @@ export function FiltrosMovimientos({
   metodosPago = [],
   canExportar = true,
 }: FiltrosMovimientosProps) {
-  console.log("🔍 FiltrosMovimientos - Estado actual:", {
-    busqueda,
-    tipo,
-    tipoPago,
-    fechaInicio,
-    fechaFin,
-    metodosPagoDisponibles: metodosPago.length,
-  })
-
-  const hasFilters = busqueda || tipo !== "todos" || tipoPago !== "" || fechaInicio || fechaFin
+  const hasFilters =
+    busqueda !== "" ||
+    periodo !== "hoy" ||
+    tipo !== "todos" ||
+    tipoPago !== "" ||
+    (periodo === "personalizado" && (fechaInicio !== "" || fechaFin !== ""))
 
   // Métodos de pago por defecto si no se cargan del API
   const metodosDefault = [
     { id: "efectivo", nombre: "Efectivo" },
-    { id: "transferencia", nombre: "Transfer." },
+    { id: "transferencia", nombre: "Transferencia" },
     { id: "tarjeta", nombre: "Tarjeta" },
   ]
 
@@ -63,161 +64,115 @@ export function FiltrosMovimientos({
   const metodosDisponibles = metodosPago.length > 0 ? metodosPago : metodosDefault
 
   return (
-    <div
-      className="bg-card rounded-xl overflow-hidden border border-border"
-      style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.25)" }}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4 text-accent" />
-          <h2 className="text-sm font-semibold text-foreground">Filtros</h2>
-        </div>
-        {hasFilters && (
-          <button
-            onClick={onLimpiar}
-            className="text-[11px] text-accent hover:underline"
-          >
-            Limpiar todo
-          </button>
-        )}
-      </div>
-
-      <div className="p-5 space-y-4">
+    <div className="bg-card rounded-xl p-3 border border-border shadow-sm">
+      <div className="flex flex-wrap items-center gap-2.5">
         {/* Search */}
-        <div>
-          <label htmlFor="buscar-mov" className="block text-[11px] font-medium mb-1.5 text-muted-foreground uppercase tracking-wider">
-            Buscar
-          </label>
+        <div className="flex-1 min-w-[220px] max-w-[380px]">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               id="buscar-mov"
               type="text"
               value={busqueda}
-              onChange={(e) => {
-                console.log("🔍 Busqueda cambió:", e.target.value)
-                onBusquedaChange(e.target.value)
-              }}
-              placeholder="Concepto, folio, usuario..."
-              className="w-full pl-9 pr-4 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground/50 focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
+              onChange={(e) => onBusquedaChange(e.target.value)}
+              placeholder="Buscar por concepto, folio o usuario..."
+              className="w-full pl-9 pr-3 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all"
             />
-            {busqueda && (
-              <button
-                onClick={() => onBusquedaChange("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
           </div>
         </div>
+
+        {/* Periodo */}
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <select
+            value={periodo}
+            onChange={(e) => onPeriodoChange(e.target.value)}
+            className="pl-2 pr-8 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat"
+          >
+            <option value="todo">Todo</option>
+            <option value="hoy">Hoy</option>
+            <option value="semana">Esta Semana</option>
+            <option value="mes">Este Mes</option>
+            <option value="personalizado">Personalizado</option>
+          </select>
+        </div>
+
+        {/* Rango personalizado */}
+        {periodo === "personalizado" && (
+          <>
+            <input
+              type="date"
+              value={fechaInicio}
+              onChange={(e) => onFechaInicioChange(e.target.value)}
+              className="px-3 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all"
+            />
+            <input
+              type="date"
+              value={fechaFin}
+              onChange={(e) => onFechaFinChange(e.target.value)}
+              className="px-3 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all"
+            />
+          </>
+        )}
 
         {/* Tipo */}
-        <div>
-          <label className="block text-[11px] font-medium mb-1.5 text-muted-foreground uppercase tracking-wider">
-            Tipo
-          </label>
-          <div className="grid grid-cols-3 gap-1.5">
-            {[
-              { value: "todos", label: "Todos" },
-              { value: "ingreso", label: "Ingresos" },
-              { value: "egreso", label: "Egresos" },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => {
-                  console.log("📊 Tipo cambió:", opt.value)
-                  onTipoChange(opt.value)
-                }}
-                className={`py-2 rounded-lg text-xs font-medium border transition-all duration-200 ${
-                  tipo === opt.value
-                    ? "bg-accent/15 border-accent/40 text-accent"
-                    : "border-border text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <select
+            value={tipo}
+            onChange={(e) => onTipoChange(e.target.value)}
+            className="pl-2 pr-8 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat"
+          >
+            <option value="todos">Todos</option>
+            <option value="ingreso">Ingresos</option>
+            <option value="egreso">Egresos</option>
+          </select>
         </div>
 
-        {/* Tipo de Pago */}
-        <div>
-          <label className="block text-[11px] font-medium mb-1.5 text-muted-foreground uppercase tracking-wider">
-            Método de Pago
-          </label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {/* Botón "Todos" */}
-            <button
-              onClick={() => {
-                console.log("💳 Tipo de pago cambió: (Todos)")
-                onTipoPagoChange("")
-              }}
-              className={`py-2 rounded-lg text-xs font-medium border transition-all duration-200 ${
-                tipoPago === ""
-                  ? "bg-accent/15 border-accent/40 text-accent"
-                  : "border-border text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Todos
-            </button>
-
-            {/* Métodos de pago dinámicos */}
+        {/* Método de pago */}
+        <div className="flex items-center gap-2">
+          <CreditCard className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <select
+            value={tipoPago}
+            onChange={(e) => onTipoPagoChange(e.target.value)}
+            className="pl-2 pr-8 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat"
+          >
+            <option value="">Todos</option>
             {metodosDisponibles.map((metodo) => (
-              <button
-                key={metodo.id}
-                onClick={() => onTipoPagoChange(metodo.nombre)}
-                className={`py-2 rounded-lg text-xs font-medium border transition-all duration-200 ${
-                  tipoPago === metodo.nombre
-                    ? "bg-accent/15 border-accent/40 text-accent"
-                    : "border-border text-muted-foreground hover:text-foreground"
-                }`}
-              >
+              <option key={metodo.id} value={String(metodo.metodo_pago_id ?? metodo.id)}>
                 {metodo.nombre}
-              </button>
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
-        {/* Date Range */}
-        <div>
-          <label className="block text-[11px] font-medium mb-1.5 text-muted-foreground uppercase tracking-wider">
-            Rango de Fechas
-          </label>
-          <div className="space-y-1.5">
-            <div>
-              <span className="text-[10px] text-muted-foreground/60">Desde</span>
-              <input
-                type="date"
-                value={fechaInicio}
-                onChange={(e) => onFechaInicioChange(e.target.value)}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
-              />
-            </div>
-            <div>
-              <span className="text-[10px] text-muted-foreground/60">Hasta</span>
-              <input
-                type="date"
-                value={fechaFin}
-                onChange={(e) => onFechaFinChange(e.target.value)}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors"
-              />
-            </div>
-          </div>
+        {/* Limpiar */}
+        <button
+          onClick={onLimpiar}
+          className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-all"
+          title="Limpiar filtros"
+          disabled={!hasFilters}
+        >
+          <XCircle className="h-4 w-4" />
+        </button>
+
+        {/* Chips de estado */}
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg ml-auto">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground whitespace-nowrap">
+            Filtros activos
+          </span>
         </div>
 
-        {/* Export */}
+        {/* Exportar */}
         {canExportar && (
-          <div className="pt-1">
-            <button
-              onClick={onExportar}
-              className="w-full py-2.5 font-medium rounded-lg text-xs border border-accent/30 text-accent hover:bg-accent/10 transition-all duration-200 flex items-center justify-center gap-2"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Exportar CSV
-            </button>
-          </div>
+          <button
+            onClick={onExportar}
+            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap"
+          >
+            <Download className="h-4 w-4" />
+            Exportar
+          </button>
         )}
       </div>
     </div>
