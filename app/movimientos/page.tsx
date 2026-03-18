@@ -11,6 +11,7 @@ import { ComparacionesMovimientos } from "@/components/movimientos/comparaciones
 import { ConceptosTable } from "@/components/movimientos/conceptos-table"
 import { ModalConcepto } from "@/components/movimientos/modal-concepto"
 import { MovimientosService } from "@/lib/services/movimientos"
+import { SociosService } from "@/lib/services/socios"
 import { getMetodosPago, type MetodoPago } from "@/lib/services/metodos-pago"
 import { exportMovimientosCSV } from "@/lib/movimientos-data"
 import { getTodayYmdInTimeZone, startOfMonthYmd, startOfWeekYmd } from "@/lib/timezone"
@@ -29,6 +30,30 @@ type MovimientosTabKey = "historial" | "comparaciones" | "conceptos"
 
 function getTodayDate(): string {
   return getTodayYmdInTimeZone()
+}
+
+const SOCIO_CODE_REGEX = /\bSOC-[A-Z0-9-]+\b/g
+
+function extractSocioCodesFromText(text?: string): string[] {
+  if (!text) return []
+  const matches = text.match(SOCIO_CODE_REGEX)
+  return matches ? [...new Set(matches)] : []
+}
+
+function enrichTextWithSocioName(text: string | undefined, socioNamesByCode: Record<string, string>): string | undefined {
+  if (!text) return text
+
+  return text.replace(SOCIO_CODE_REGEX, (code) => {
+    const socioName = socioNamesByCode[code]
+    if (!socioName) return code
+
+    // Evita duplicar el nombre si el texto ya lo contiene.
+    if (text.includes(`${code} (${socioName})`) || text.includes(`${code} - ${socioName}`)) {
+      return code
+    }
+
+    return `${code} - ${socioName}`
+  })
 }
 
 export default function MovimientosPage() {
@@ -56,6 +81,8 @@ export default function MovimientosPage() {
 
   // Métodos de pago disponibles
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
+  const [socioNamesByCode, setSocioNamesByCode] = useState<Record<string, string>>({})
+  const [socioLookupLoaded, setSocioLookupLoaded] = useState(false)
 
   // Conceptos dinámicos desde API
   const [conceptos, setConceptos] = useState<Concepto[]>([])
@@ -289,6 +316,49 @@ export default function MovimientosPage() {
     cargarMovimientos()
   }, [cargarMovimientos])
 
+  useEffect(() => {
+    const codesInMovimientos = new Set<string>()
+
+    for (const movimiento of movimientos) {
+      extractSocioCodesFromText(movimiento.concepto).forEach((code) => codesInMovimientos.add(code))
+      extractSocioCodesFromText(movimiento.observaciones).forEach((code) => codesInMovimientos.add(code))
+    }
+
+    if (codesInMovimientos.size === 0 || socioLookupLoaded) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadSociosLookup = async () => {
+      try {
+        const { socios } = await SociosService.getAll()
+        if (cancelled) return
+
+        const lookup: Record<string, string> = {}
+        socios.forEach((socio) => {
+          if (socio.codigoSocio && socio.nombre) {
+            lookup[socio.codigoSocio] = socio.nombre
+          }
+        })
+
+        setSocioNamesByCode(lookup)
+      } catch (error) {
+        console.warn("⚠️ No se pudo enriquecer nombres de socios en movimientos:", error)
+      } finally {
+        if (!cancelled) {
+          setSocioLookupLoaded(true)
+        }
+      }
+    }
+
+    loadSociosLookup()
+
+    return () => {
+      cancelled = true
+    }
+  }, [movimientos, socioLookupLoaded])
+
   // Filtered list (ya viene filtrado del backend, pero mantenemos para compatibilidad)
   const filtered = useMemo(() => {
     const metodoPagoSeleccionado = metodosPago.find(
@@ -308,6 +378,18 @@ export default function MovimientosPage() {
 
     return movimientos.filter((movimiento) => movimiento.tipoPago === metodoNormalizado)
   }, [movimientos, metodosPago, tipoPago])
+
+  const movimientosEnriquecidos = useMemo(() => {
+    if (Object.keys(socioNamesByCode).length === 0) {
+      return filtered
+    }
+
+    return filtered.map((movimiento) => ({
+      ...movimiento,
+      concepto: enrichTextWithSocioName(movimiento.concepto, socioNamesByCode) || movimiento.concepto,
+      observaciones: enrichTextWithSocioName(movimiento.observaciones, socioNamesByCode),
+    }))
+  }, [filtered, socioNamesByCode])
 
   // Actions
   // Handlers de paginación
@@ -673,7 +755,7 @@ export default function MovimientosPage() {
                   </div>
                 ) : (
                   <TablaMovimientos
-                    movimientos={filtered}
+                    movimientos={movimientosEnriquecidos}
                     onNuevo={handleNuevo}
                     onVer={handleVer}
                     onEditar={handleEditar}
