@@ -13,6 +13,8 @@ import { Badge } from "@/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
 import { AsistenciaService } from "@/lib/services/asistencia"
 import { SociosService } from "@/lib/services/socios"
+import { getVigenciaMembresia } from "@/lib/socios-data"
+import { extractYmd, formatYmdForDisplay } from "@/lib/timezone"
 import { Loader2, UserCheck, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle, Calendar, Clock, Search, X } from "lucide-react"
 
 interface RegistroManualModalProps {
@@ -183,11 +185,13 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
 
     try {
       const socio = await SociosService.getById(socioSeleccionadoId)
-      const fechaVencimiento = socio.fechaVencimientoMembresia ? new Date(socio.fechaVencimientoMembresia) : null
-      const fechaVencida = !!fechaVencimiento && !Number.isNaN(fechaVencimiento.getTime()) && fechaVencimiento.getTime() < Date.now()
-      const estadoVencido = String(socio.estadoSocio || '').toLowerCase() === 'inactivo'
+      const vigenciaBackend = String(socio.vigenciaMembresia || '').toLowerCase()
+      const vigenciaCalculada = getVigenciaMembresia(socio.fechaVencimientoMembresia || '')
+      const estadoVencido =
+        vigenciaBackend.includes('vencid') ||
+        vigenciaCalculada === 'vencida'
 
-      if (fechaVencida || estadoVencido) {
+      if (estadoVencido) {
         return {
           mensaje: "No se pudo registrar la asistencia porque la membresía del socio está vencida.",
           esMembresiaVencida: true,
@@ -269,8 +273,9 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
             console.log('[RegistroManual] Socio completo:', socioCompleto)
             
             membresia = socioCompleto.nombrePlan || "Sin membresía"
-            vencimiento = socioCompleto.fechaVencimientoMembresia 
-              ? new Date(socioCompleto.fechaVencimientoMembresia).toLocaleDateString('es-MX')
+            const vencimientoYmd = extractYmd(socioCompleto.fechaVencimientoMembresia || "")
+            vencimiento = vencimientoYmd
+              ? formatYmdForDisplay(vencimientoYmd)
               : "N/A"
           } catch (error) {
             console.error('[RegistroManual] Error al obtener datos del socio:', error)
