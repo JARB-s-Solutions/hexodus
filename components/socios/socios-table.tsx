@@ -281,6 +281,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                 const vigencia = getVigenciaMembresia(fechaFinYmd || fechaFin)
                 const diffDias = getDiasParaVencimiento(fechaFinYmd || fechaFin)
                 const fechaVencimientoLabel = fechaFinYmd ? formatYmdForDisplay(fechaFinYmd) : "N/A"
+                const puedeMostrarRenovar = Boolean(fechaFinYmd) && diffDias <= 0
                 
                 // Para el estado del contrato, usar valor directo de firmoContrato
                 // true = "activo" (Firmado), false = "sin_contrato" (Pendiente)
@@ -382,7 +383,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                             <DollarSign className="h-4 w-4" />
                           </button>
                         )}
-                        {diffDias === 0 && onRenovar && tienePermiso('socios', 'renovar') && (
+                        {puedeMostrarRenovar && onRenovar && tienePermiso('socios', 'renovar') && (
                           <button
                             onClick={() => onRenovar(s)}
                             className="p-1.5 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-all"
