@@ -1,3 +1,5 @@
+import { formatHmInTimeZone, formatYmdInTimeZone } from "@/lib/timezone"
+
 // ============================================================
 // TIPOS FRONTEND (camelCase) - Mantener compatibilidad
 // ============================================================
@@ -105,11 +107,11 @@ export function mapMovimientoFromAPI(apiMov: MovimientoAPI): Movimiento {
     fecha_hora: apiMov.fecha_hora,
   })
 
-  // Parsear fecha_hora: "2026-03-04T03:43:06.029Z"
+  // Parsear fecha_hora y normalizar siempre a la TZ de negocio.
   const fechaHora = apiMov.fecha_hora ? new Date(apiMov.fecha_hora) : null
   const fechaEsValida = !!fechaHora && !Number.isNaN(fechaHora.getTime())
-  const fecha = fechaEsValida ? fechaHora.toISOString().split("T")[0] : ""
-  const hora = fechaEsValida ? fechaHora.toTimeString().slice(0, 5) : ""
+  const fecha = fechaEsValida ? formatYmdInTimeZone(fechaHora) : ""
+  const hora = fechaEsValida ? formatHmInTimeZone(fechaHora) : ""
 
   const movimientoMapeado = {
     id: apiMov.folio, // Usar folio como ID único

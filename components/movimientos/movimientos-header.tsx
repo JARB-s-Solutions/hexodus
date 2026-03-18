@@ -7,6 +7,7 @@ import { AuthService } from "@/lib/auth"
 import { useToast } from "@/hooks/use-toast"
 import { IndicadorCaja } from "@/components/caja/indicador-caja"
 import { NotificacionesBell } from "@/components/notificaciones-bell"
+import { getAppTimeZone } from "@/lib/timezone"
 
 interface MovimientosHeaderProps {
   onToggleFilters?: () => void
@@ -21,11 +22,13 @@ export function MovimientosHeader({ onToggleFilters }: MovimientosHeaderProps) {
     function update() {
       const now = new Date()
       const formatted = now.toLocaleDateString("es-MX", {
+        timeZone: getAppTimeZone(),
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
       })
       const time = now.toLocaleTimeString("es-MX", {
+        timeZone: getAppTimeZone(),
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
