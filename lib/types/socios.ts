@@ -266,6 +266,8 @@ function parseNumericArray(value: unknown): number[] | undefined {
  */
 export function mapSocioFromAPI(api: SocioAPI): Socio {
   const faceEncoding = parseNumericArray(api.face_encoding ?? api.face_descriptor)
+  const vigenciaMembresia = String(api.vigencia_membresia || '').toLowerCase()
+  const estadoSocio: EstadoSocio = vigenciaMembresia.includes('vencid') ? 'inactivo' : 'activo'
 
   return {
     id: api.id || (api as any).socio_id || 0,
@@ -289,7 +291,7 @@ export function mapSocioFromAPI(api: SocioAPI): Socio {
     // Mapear estado de pago si viene en la respuesta (por ejemplo: estado_pago)
     // Si no viene (o viene null/undefined), asumimos que el pago está pendiente para evitar marcar al socio como pagado accidentalmente.
     estadoPago: ((api as any).estado_pago ?? (api as any).estadoPago) as EstadoPago || 'sin_pagar',
-    estadoSocio: 'activo' as EstadoSocio, // Calculado según vigencia
+    estadoSocio,
     // Campos adicionales del detalle 
     vigenciaMembresia: api.vigencia_membresia,
     estadoContrato: api.estado_contrato,

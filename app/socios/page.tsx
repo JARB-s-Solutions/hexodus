@@ -14,12 +14,14 @@ import { RenovarMembresiaModal } from "@/components/socios/renovar-membresia-mod
 import { SociosService } from "@/lib/services/socios"
 import { toast } from "@/hooks/use-toast"
 import type { Socio } from "@/lib/types/socios"
+import { extractYmd } from "@/lib/timezone"
 import {
   generateSocios,
   type TipoMembresia,
   type Genero,
   getVigenciaMembresia,
   getEstadoContrato,
+  membresiaLabels,
   type Socio as SocioMock,
 } from "@/lib/socios-data"
 
@@ -33,7 +35,7 @@ export default function SociosPage() {
   // Filters
   const [busqueda, setBusqueda] = useState("")
   const [vigenciaFiltro, setVigenciaFiltro] = useState("todos")
-  const [membresiaFiltro, setMembresiaFiltro] = useState<TipoMembresia | "todos">("todos")
+  const [membresiaFiltro, setMembresiaFiltro] = useState<string>("todos")
   const [generoFiltro, setGeneroFiltro] = useState<Genero | "todos">("todos")
   const [contratoFirmaFiltro, setContratoFirmaFiltro] = useState("todos")
   const [contratoVigenciaFiltro, setContratoVigenciaFiltro] = useState("todos")
@@ -79,21 +81,52 @@ export default function SociosPage() {
     cargarSocios()
   }, [])
 
-  // ===== Helper para extraer tipo de membresía desde el nombre del plan =====
-  const extraerTipoMembresia = (nombrePlan: string | undefined): TipoMembresia | null => {
-    if (!nombrePlan) return null
-    
-    const nombreLower = nombrePlan.toLowerCase()
-    
-    // Buscar en orden de especificidad (más específico primero)
-    if (nombreLower.includes('trimestral') || nombreLower.includes('trimestre') || nombreLower.includes('3 mes')) return 'trimestral'
-    if (nombreLower.includes('anual') || nombreLower.includes('año') || nombreLower.includes('12 mes')) return 'anual'
-    if (nombreLower.includes('mensual') || nombreLower.includes('1 mes')) return 'mensual'
-    if (nombreLower.includes('semanal') || nombreLower.includes('semana') || nombreLower.includes('7 día')) return 'semanal'
-    if (nombreLower.includes('diaria') || nombreLower.includes('dia') || nombreLower.includes('1 día')) return 'diaria'
-    
-    return null
+  const normalizarTexto = (valor: string | undefined | null): string => {
+    if (!valor) return ""
+    return valor
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
   }
+
+  const getMembresiaKey = (s: Socio | SocioMock): string => {
+    const esApi = 'fechaVencimientoMembresia' in s
+    if (esApi) {
+      const socioApi = s as Socio
+      return normalizarTexto(socioApi.nombrePlan || (socioApi as any).membresia)
+    }
+    const socioMock = s as SocioMock
+    return normalizarTexto(socioMock.membresia)
+  }
+
+  const getMembresiaLabel = (s: Socio | SocioMock): string => {
+    const esApi = 'fechaVencimientoMembresia' in s
+    if (esApi) {
+      const socioApi = s as Socio
+      return socioApi.nombrePlan || (socioApi as any).membresia || "Sin plan"
+    }
+    const socioMock = s as SocioMock
+    const key = socioMock.membresia as TipoMembresia
+    return membresiaLabels[key] || String(socioMock.membresia)
+  }
+
+  const membresiaOpciones = useMemo(() => {
+    const opcionesMap = new Map<string, string>()
+
+    socios.forEach((s) => {
+      const key = getMembresiaKey(s)
+      const label = getMembresiaLabel(s)
+      if (!key || !label) return
+      if (!opcionesMap.has(key)) {
+        opcionesMap.set(key, label)
+      }
+    })
+
+    return Array.from(opcionesMap.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"))
+  }, [socios])
 
   // ===== Helper para acceder a campos de forma uniforme =====
   const isSocioAPI = (s: Socio | SocioMock): s is Socio => {
@@ -108,7 +141,7 @@ export default function SociosPage() {
         case 'nombre': return s.nombre
         case 'correo': return s.correo
         case 'telefono': return s.telefono
-        case 'membresia': return extraerTipoMembresia(s.nombrePlan) // Extraer tipo desde nombre
+        case 'membresia': return s.nombrePlan || (s as any).membresia
         case 'fechaFin': return s.fechaVencimientoMembresia
         case 'genero': {
           // Mapear Genero API a Genero Mock
@@ -172,7 +205,7 @@ export default function SociosPage() {
 
     // Tipo membresia
     if (membresiaFiltro !== "todos") {
-      filtered = filtered.filter((s) => getSocioField(s, 'membresia') === membresiaFiltro)
+      filtered = filtered.filter((s) => getMembresiaKey(s) === membresiaFiltro)
     }
 
     // Genero
@@ -221,13 +254,13 @@ export default function SociosPage() {
     if (fechaDesde || fechaHasta) {
       filtered = filtered.filter((s) => {
         const fechaFin = getSocioField(s, 'fechaFin')
-        if (!fechaFin) return false
-        const venc = new Date(fechaFin)
+        const vencYmd = extractYmd(String(fechaFin || ''))
+        if (!vencYmd) return false
         if (fechaDesde && fechaHasta) {
-          return venc >= new Date(fechaDesde) && venc <= new Date(fechaHasta)
+          return vencYmd >= fechaDesde && vencYmd <= fechaHasta
         }
-        if (fechaDesde) return venc >= new Date(fechaDesde)
-        if (fechaHasta) return venc <= new Date(fechaHasta)
+        if (fechaDesde) return vencYmd >= fechaDesde
+        if (fechaHasta) return vencYmd <= fechaHasta
         return true
       })
     }
@@ -243,6 +276,7 @@ export default function SociosPage() {
     contratoVigenciaFiltro,
     fechaDesde,
     fechaHasta,
+    getMembresiaKey,
   ])
 
   // Handlers
@@ -357,6 +391,7 @@ export default function SociosPage() {
             onVigenciaChange={setVigenciaFiltro}
             membresiaFiltro={membresiaFiltro}
             onMembresiaChange={setMembresiaFiltro}
+            membresiaOpciones={membresiaOpciones}
             generoFiltro={generoFiltro}
             onGeneroChange={setGeneroFiltro}
             contratoFirmaFiltro={contratoFirmaFiltro}

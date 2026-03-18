@@ -1,5 +1,7 @@
 // Socios data types and mock generator
 
+import { extractYmd, getDaysUntilYmd } from "@/lib/timezone"
+
 export type Genero = "M" | "F" | "O"
 export type TipoMembresia = "diaria" | "semanal" | "mensual" | "trimestral" | "anual"
 export type EstadoContrato = "activo" | "por_vencer" | "vencido" | "sin_contrato"
@@ -79,22 +81,30 @@ export function generateSocios(count: number): Socio[] {
 }
 
 export function getVigenciaMembresia(fechaFin: string): VigenciaMembresia {
-  const venc = new Date(fechaFin)
-  const ahora = new Date()
-  const diffDias = Math.ceil((venc.getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24))
+  const fechaFinYmd = extractYmd(fechaFin)
+  if (!fechaFinYmd) return "vencida"
+
+  const diffDias = getDaysUntilYmd(fechaFinYmd)
 
   if (diffDias < 0) return "vencida"
   if (diffDias <= 7) return "por_vencer"
   return "vigente"
 }
 
+export function getDiasParaVencimiento(fechaFin: string): number {
+  const fechaFinYmd = extractYmd(fechaFin)
+  if (!fechaFinYmd) return -1
+  return getDaysUntilYmd(fechaFinYmd)
+}
+
 export function getEstadoContrato(socio: Socio): EstadoContrato {
   if (!socio.firmoContrato) return "sin_contrato"
   if (!socio.contratoFin) return "sin_contrato"
 
-  const venc = new Date(socio.contratoFin)
-  const ahora = new Date()
-  const diffDias = Math.ceil((venc.getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24))
+  const contratoFinYmd = extractYmd(socio.contratoFin)
+  if (!contratoFinYmd) return "sin_contrato"
+
+  const diffDias = getDaysUntilYmd(contratoFinYmd)
 
   if (diffDias < 0) return "vencido"
   if (diffDias <= 30) return "por_vencer"

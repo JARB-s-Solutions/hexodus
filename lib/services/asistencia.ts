@@ -4,6 +4,7 @@
  */
 
 import { AuthService } from '../auth'
+import { getAppTimeZone } from '../timezone'
 
 export interface RegistroFacialRequest {
   tipo: 'IN' | 'OUT'
@@ -214,7 +215,7 @@ class AsistenciaServiceClass {
    */
   private getAuthHeaders(): HeadersInit {
     const token = AuthService.getToken()
-    const zonaHorariaCliente = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Mexico_City'
+    const zonaHorariaCliente = getAppTimeZone()
 
     return {
       'Content-Type': 'application/json',
