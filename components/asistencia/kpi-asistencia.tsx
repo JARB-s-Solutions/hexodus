@@ -1,6 +1,6 @@
 "use client"
 
-import { Users, Activity, AlertCircle, Timer, Loader2, RefreshCw } from "lucide-react"
+import { Users, Activity, AlertCircle, Gauge, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/ui/button"
 import type { KpiAsistencia } from "@/lib/asistencia-data"
 
@@ -36,8 +36,8 @@ const kpis = [
   },
   {
     key: "permanenciaPromedio" as const,
-    label: "Prom. Permanencia",
-    icon: Timer,
+    label: "Prom. Confianza",
+    icon: Gauge,
     colorClass: "text-warning",
     bgClass: "bg-warning/10",
   },

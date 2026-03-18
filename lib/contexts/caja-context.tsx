@@ -143,18 +143,19 @@ export function CajaProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      // Para cualquier otro error, asumir caja cerrada
-      const estadoError = {
-        abierta: false,
-        corte_id: null,
-        monto_inicial: 0,
-        monto_actual: 0,
-        fecha_apertura: null,
-        usuario: user?.nombre_completo || user?.username || "Usuario",
-      }
-      
-      console.warn("   ⚠️ Por error, estableciendo caja como CERRADA")
-      setEstadoCaja(estadoError)
+        // Para errores transitorios (timeout/red), conservar el último estado
+        // evita mostrar el modal de apertura por un falso negativo temporal.
+        const estadoError = {
+          abierta: false,
+          corte_id: null,
+          monto_inicial: 0,
+          monto_actual: 0,
+          fecha_apertura: null,
+          usuario: user?.nombre_completo || user?.username || "Usuario",
+        }
+
+        console.warn("   ⚠️ Error transitorio al consultar caja; conservando estado previo si existe")
+        setEstadoCaja((prev) => prev ?? estadoError)
     } finally {
       console.log("🏁 refrescarEstado() finalizado, estableciendo loading = false")
       setLoading(false)

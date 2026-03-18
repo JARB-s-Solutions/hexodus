@@ -44,7 +44,7 @@ export default function DashboardPage() {
   const { tienePermiso } = usePermisos()
   const puedeVerGraficas = tienePermiso("dashboard", "verGraficas")
 
-  const [periodo, setPeriodo] = useState<DashboardPeriodo>("semana")
+  const [periodo, setPeriodo] = useState<DashboardPeriodo>("hoy")
   const [datos, setDatos] = useState<DatosFinancieros>(EMPTY_DATOS)
   const [metricas, setMetricas] = useState<DashboardMetricasMapped>(EMPTY_METRICAS)
   const [loadingKpis, setLoadingKpis] = useState(false)

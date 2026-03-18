@@ -25,13 +25,11 @@ export function AsistenciaHeader({ onRegistroManual, onRegistroHuella }: Asisten
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
-        timeZone: "America/Mexico_City",
       })
       const hora = now.toLocaleTimeString("es-MX", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
-        timeZone: "America/Mexico_City",
       })
       setFechaHora(`${fecha} | ${hora}`)
     }

@@ -201,7 +201,10 @@ export default function AsistenciaPage() {
             typeof (response.data.resumen as any)?.denegados === 'number'
               ? (response.data.resumen as any).denegados
               : registrosTransformados.filter((r) => r.tipo === 'denegado').length,
-          permanenciaPromedio: prev.permanenciaPromedio,
+          permanenciaPromedio:
+            typeof response.data.resumen?.promedio_confidence === 'number'
+              ? `${response.data.resumen.promedio_confidence.toFixed(1)}%`
+              : prev.permanenciaPromedio,
         }))
       }
     } catch (error: any) {
@@ -364,7 +367,10 @@ export default function AsistenciaPage() {
           asistentesHoy: response.data.entradas,
           activosAhora: response.data.socios_activos_ahora,
           denegados: (response.data as any).denegados ?? 0,
-          permanenciaPromedio: "N/A",
+          permanenciaPromedio:
+            typeof response.data.promedio_confidence === 'number'
+              ? `${response.data.promedio_confidence.toFixed(1)}%`
+              : "N/A",
         })
       }
     } catch (error: any) {

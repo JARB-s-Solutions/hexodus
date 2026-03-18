@@ -204,31 +204,19 @@ export function formatHora(timestamp: string): string {
     console.warn('[formatHora] Timestamp is null or undefined:', timestamp)
     return "--:--"
   }
-
-  // Caso especial: timestamp sin zona horaria (ej: "2026-03-09T03:03:36").
-  // En ese caso mostramos la hora literal para evitar conversiones por zona horaria del navegador.
-  const matchSinZona = timestamp.match(/^\d{4}-\d{2}-\d{2}T(\d{2}):(\d{2})(?::\d{2})?$/)
-  if (matchSinZona) {
-    const hora24 = Number(matchSinZona[1])
-    const minutos = matchSinZona[2]
-    const periodo = hora24 >= 12 ? 'p. m.' : 'a. m.'
-    const hora12 = hora24 % 12 === 0 ? 12 : hora24 % 12
-    return `${String(hora12).padStart(2, '0')}:${minutos} ${periodo}`
-  }
-
+  
   const date = new Date(timestamp)
-
+  
   // Validar si la fecha es válida
   if (isNaN(date.getTime())) {
     console.error('[formatHora] Invalid date from timestamp:', timestamp)
     return "Invalid Date"
   }
-
-  return date.toLocaleTimeString("es-MX", {
+  
+  return date.toLocaleTimeString("es-ES", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
-    timeZone: "America/Mexico_City",
   })
 }
 
@@ -246,11 +234,10 @@ export function formatFecha(timestamp: string): string {
     return "Invalid Date"
   }
   
-  return date.toLocaleDateString("es-MX", {
+  return date.toLocaleDateString("es-ES", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    timeZone: "America/Mexico_City",
   })
 }
 

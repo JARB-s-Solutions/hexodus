@@ -7,8 +7,9 @@ import { Label } from "@/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { SociosService, MetodosPagoService } from "@/lib/services/socios"
 import { MembresiasService } from "@/lib/services/membresias"
-import type { Socio, MetodoPago } from "@/lib/types/socios"
+import type { Socio, MetodoPago, CotizacionResponse } from "@/lib/types/socios"
 import type { Membresia } from "@/lib/types/membresias"
+import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 
 interface RenovarMembresiaModalProps {
   open: boolean
@@ -24,6 +25,9 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
   const [planSeleccionado, setPlanSeleccionado] = useState<number | null>(null)
   const [cargandoDatos, setCargandoDatos] = useState(false)
   const [procesando, setProcesando] = useState(false)
+  const [showImprimirTicket, setShowImprimirTicket] = useState(false)
+  const [cotizacionParaTicket, setCotizacionParaTicket] = useState<CotizacionResponse['data'] | null>(null)
+  const [metodoPagoParaTicket, setMetodoPagoParaTicket] = useState("")
 
   useEffect(() => {
     if (!open || !socio) return
@@ -96,6 +100,25 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
         description: mensaje || `Se renovó la membresía de ${socio.nombre}`,
       })
 
+      // Intentar obtener cotización para el ticket
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const cotizacion = await SociosService.cotizar({
+          plan_id: planSeleccionado,
+          fecha_inicio: today,
+        })
+        const metodoPagoNombre = metodosPago.find(m => m.metodo_pago_id === metodoPagoSeleccionado)?.nombre || "N/A"
+        setCotizacionParaTicket(cotizacion)
+        setMetodoPagoParaTicket(metodoPagoNombre)
+        setPlanSeleccionado(null)
+        setMetodoPagoSeleccionado(null)
+        setShowImprimirTicket(true)
+        return // El cierre real ocurre cuando se cierra el modal de impresión
+      } catch (cotizError) {
+        console.warn('No se pudo obtener cotización para el ticket:', cotizError)
+      }
+
+      // Fallback: cerrar normalmente si cotizar falla
       setPlanSeleccionado(null)
       setMetodoPagoSeleccionado(null)
       onClose()
@@ -113,13 +136,33 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
   }
 
   const handleClose = () => {
-    if (procesando) return
+    if (procesando || showImprimirTicket) return
     setPlanSeleccionado(null)
     setMetodoPagoSeleccionado(null)
     onClose()
   }
 
+  const handleImpresionClose = () => {
+    setShowImprimirTicket(false)
+    setCotizacionParaTicket(null)
+    setMetodoPagoParaTicket("")
+    onClose()
+    onSuccess?.()
+  }
+
   if (!open || !socio) return null
+
+  if (showImprimirTicket && cotizacionParaTicket) {
+    return (
+      <ImprimirTicketModal
+        open={true}
+        onClose={handleImpresionClose}
+        socioData={socio}
+        cotizacion={cotizacionParaTicket}
+        metodoPago={metodoPagoParaTicket}
+      />
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">

@@ -46,6 +46,9 @@ export class MovimientosService {
     if (params?.metodo_pago) {
       queryParams.append("metodo_pago", params.metodo_pago)
     }
+    if (params?.metodo_pago_id) {
+      queryParams.append("metodo_pago_id", params.metodo_pago_id.toString())
+    }
     if (params?.search) queryParams.append("search", params.search)
     if (params?.fecha_inicio) {
       queryParams.append("fecha_inicio", params.fecha_inicio)

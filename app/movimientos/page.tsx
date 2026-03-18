@@ -26,6 +26,10 @@ import { useAuthContext } from "@/lib/contexts/auth-context"
 
 type MovimientosTabKey = "historial" | "comparaciones" | "conceptos"
 
+function getTodayDate(): string {
+  return new Date().toISOString().split("T")[0]
+}
+
 export default function MovimientosPage() {
   const { toast } = useToast()
   const { tienePermiso } = useAuthContext()
@@ -58,21 +62,23 @@ export default function MovimientosPage() {
 
   // Filter state
   const [busqueda, setBusqueda] = useState("")
+  const [periodo, setPeriodo] = useState("hoy")
   const [tipo, setTipo] = useState("todos")
   const [tipoPago, setTipoPago] = useState("")
-  const [fechaInicio, setFechaInicio] = useState("")
-  const [fechaFin, setFechaFin] = useState("")
+  const [fechaInicio, setFechaInicio] = useState(() => getTodayDate())
+  const [fechaFin, setFechaFin] = useState(() => getTodayDate())
 
   // Log cambios de filtros
   useEffect(() => {
     console.log("🛠️ Filtros actualizados:", {
       busqueda,
+      periodo,
       tipo,
       tipoPago,
       fechaInicio,
       fechaFin,
     })
-  }, [busqueda, tipo, tipoPago, fechaInicio, fechaFin])
+  }, [busqueda, periodo, tipo, tipoPago, fechaInicio, fechaFin])
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -121,9 +127,6 @@ export default function MovimientosPage() {
   const [modalConceptoOpen, setModalConceptoOpen] = useState(false)
   const [modalConceptoMode, setModalConceptoMode] = useState<"crear" | "editar">("crear")
   const [conceptoSeleccionado, setConceptoSeleccionado] = useState<Concepto | null>(null)
-
-  // Sidebar filters panel (mobile)
-  const [showFilters, setShowFilters] = useState(false)
 
   // ==============================
   // Cargar métodos de pago y conceptos al montar
@@ -184,14 +187,57 @@ export default function MovimientosPage() {
       if (tipo === "ingreso") tipoAPI = "Ingresos"
       else if (tipo === "egreso") tipoAPI = "Egresos"
 
+      const metodoPagoSeleccionado = metodosPago.find(
+        (metodo) => String(metodo.metodo_pago_id ?? metodo.id) === tipoPago
+      )
+
+      const metodoPagoNombre = metodoPagoSeleccionado?.nombre
+      const metodoPagoId = metodoPagoSeleccionado?.metodo_pago_id
+
+      const calcularRangoPorPeriodo = () => {
+        if (periodo === "todo") {
+          return {
+            inicio: undefined,
+            fin: undefined,
+          }
+        }
+
+        if (periodo === "personalizado") {
+          return {
+            inicio: fechaInicio || undefined,
+            fin: fechaFin || undefined,
+          }
+        }
+
+        const today = new Date()
+        const startDate = new Date(today)
+        const endDate = new Date(today)
+
+        if (periodo === "semana") {
+          const day = today.getDay()
+          const diffToMonday = day === 0 ? 6 : day - 1
+          startDate.setDate(today.getDate() - diffToMonday)
+        } else if (periodo === "mes") {
+          startDate.setDate(1)
+        }
+
+        const inicio = startDate.toISOString().split("T")[0]
+        const fin = endDate.toISOString().split("T")[0]
+
+        return { inicio, fin }
+      }
+
+      const rango = calcularRangoPorPeriodo()
+
       const params = {
         page: pagination.current_page,
         limit: pagination.limit,
         tipo: tipoAPI,
-        metodo_pago: tipoPago || undefined,
+        metodo_pago: metodoPagoNombre || undefined,
+        metodo_pago_id: metodoPagoId,
         search: busqueda || undefined,
-        fecha_inicio: fechaInicio || undefined,
-        fecha_fin: fechaFin || undefined,
+        fecha_inicio: rango.inicio,
+        fecha_fin: rango.fin,
       }
 
       console.log("🔄 Cargando movimientos con params:", params)
@@ -223,6 +269,8 @@ export default function MovimientosPage() {
     tipo,
     tipoPago,
     busqueda,
+    periodo,
+    metodosPago,
     fechaInicio,
     fechaFin,
     toast,
@@ -237,6 +285,7 @@ export default function MovimientosPage() {
       tipo,
       tipoPago,
       busqueda,
+      periodo,
       fechaInicio,
       fechaFin,
     })
@@ -245,10 +294,23 @@ export default function MovimientosPage() {
 
   // Filtered list (ya viene filtrado del backend, pero mantenemos para compatibilidad)
   const filtered = useMemo(() => {
-    console.log("🔍 Recalculando filtered list...")
-    console.log("  Movimientos actuales:", movimientos.length)
-    return movimientos
-  }, [movimientos])
+    const metodoPagoSeleccionado = metodosPago.find(
+      (metodo) => String(metodo.metodo_pago_id ?? metodo.id) === tipoPago
+    )
+
+    const nombreMetodo = (metodoPagoSeleccionado?.nombre || "").toLowerCase()
+
+    let metodoNormalizado: "efectivo" | "tarjeta" | "transferencia" | null = null
+    if (nombreMetodo.includes("efectivo")) metodoNormalizado = "efectivo"
+    else if (nombreMetodo.includes("tarjeta")) metodoNormalizado = "tarjeta"
+    else if (nombreMetodo.includes("transfer") || nombreMetodo.includes("spei")) metodoNormalizado = "transferencia"
+
+    if (!tipoPago || !metodoNormalizado) {
+      return movimientos
+    }
+
+    return movimientos.filter((movimiento) => movimiento.tipoPago === metodoNormalizado)
+  }, [movimientos, metodosPago, tipoPago])
 
   // Actions
   // Handlers de paginación
@@ -273,6 +335,21 @@ export default function MovimientosPage() {
     setPagination((prev) => ({ ...prev, current_page: 1 }))
   }, [])
 
+  const handlePeriodoChange = useCallback((value: string) => {
+    setPeriodo(value)
+
+    if (value === "hoy") {
+      const today = getTodayDate()
+      setFechaInicio(today)
+      setFechaFin(today)
+    } else if (value === "todo" || value === "semana" || value === "mes") {
+      setFechaInicio("")
+      setFechaFin("")
+    }
+
+    setPagination((prev) => ({ ...prev, current_page: 1 }))
+  }, [])
+
   const handleTipoPagoChange = useCallback((value: string) => {
     setTipoPago(value)
     setPagination((prev) => ({ ...prev, current_page: 1 }))
@@ -290,11 +367,13 @@ export default function MovimientosPage() {
 
   const handleLimpiar = useCallback(() => {
     console.log("🧹 Limpiando filtros...")
+    const today = getTodayDate()
     setBusqueda("")
+    setPeriodo("hoy")
     setTipo("todos")
     setTipoPago("")
-    setFechaInicio("")
-    setFechaFin("")
+    setFechaInicio(today)
+    setFechaFin(today)
     setPagination((prev) => ({ ...prev, current_page: 1 }))
     console.log("✅ Filtros limpiados")
   }, [])
@@ -524,7 +603,7 @@ export default function MovimientosPage() {
       <Sidebar activePage="movimientos" />
 
       <main className="flex-1 flex flex-col overflow-hidden md:ml-0">
-        <MovimientosHeader onToggleFilters={() => setShowFilters((v) => !v)} />
+        <MovimientosHeader />
 
         <div className="flex-1 overflow-y-auto">
           <div className="p-4 md:p-6 space-y-4">
@@ -553,32 +632,28 @@ export default function MovimientosPage() {
                 {/* KPIs */}
                 <KpiMovimientos kpis={kpis} />
 
-            {/* Main content: Filters sidebar + Table */}
-            <div className="flex gap-4">
-              {/* Desktop filters */}
-              <div className="hidden lg:block w-64 flex-shrink-0">
-                <div className="sticky top-0">
-                  <FiltrosMovimientos
-                    busqueda={busqueda}
-                    onBusquedaChange={handleBusquedaChange}
-                    tipo={tipo}
-                    onTipoChange={handleTipoChange}
-                    tipoPago={tipoPago}
-                    onTipoPagoChange={handleTipoPagoChange}
-                    fechaInicio={fechaInicio}
-                    onFechaInicioChange={handleFechaInicioChange}
-                    fechaFin={fechaFin}
-                    onFechaFinChange={handleFechaFinChange}
-                    onLimpiar={handleLimpiar}
-                    onExportar={handleExportar}
-                    metodosPago={metodosPago}
-                    canExportar={puedeExportar}
-                  />
-                </div>
-              </div>
+                {/* Filtros */}
+                <FiltrosMovimientos
+                  busqueda={busqueda}
+                  onBusquedaChange={handleBusquedaChange}
+                  periodo={periodo}
+                  onPeriodoChange={handlePeriodoChange}
+                  tipo={tipo}
+                  onTipoChange={handleTipoChange}
+                  tipoPago={tipoPago}
+                  onTipoPagoChange={handleTipoPagoChange}
+                  fechaInicio={fechaInicio}
+                  onFechaInicioChange={handleFechaInicioChange}
+                  fechaFin={fechaFin}
+                  onFechaFinChange={handleFechaFinChange}
+                  onLimpiar={handleLimpiar}
+                  onExportar={handleExportar}
+                  metodosPago={metodosPago}
+                  canExportar={puedeExportar}
+                />
 
-              {/* Table */}
-              <div className="flex-1 min-w-0">
+                {/* Tabla */}
+                <div className="min-w-0">
                 {loading && movimientos.length === 0 ? (
                   <div className="flex items-center justify-center h-96 bg-card rounded-lg border border-border">
                     <div className="text-center space-y-3">
@@ -612,7 +687,6 @@ export default function MovimientosPage() {
                   />
                 )}
               </div>
-            </div>
 
               </>
             )}
@@ -649,36 +723,6 @@ export default function MovimientosPage() {
           </div>
         </div>
       </main>
-
-      {/* Mobile filters drawer */}
-      {showFilters && (
-        <>
-          <div
-            className="fixed inset-0 bg-background/70 backdrop-blur-sm z-40 lg:hidden"
-            onClick={() => setShowFilters(false)}
-          />
-          <div className="fixed right-0 top-0 bottom-0 w-72 z-50 overflow-y-auto bg-card border-l border-border lg:hidden animate-slide-in-right">
-            <div className="p-4">
-              <FiltrosMovimientos
-                busqueda={busqueda}
-                onBusquedaChange={handleBusquedaChange}
-                tipo={tipo}
-                onTipoChange={handleTipoChange}
-                tipoPago={tipoPago}
-                onTipoPagoChange={handleTipoPagoChange}
-                fechaInicio={fechaInicio}
-                onFechaInicioChange={handleFechaInicioChange}
-                fechaFin={fechaFin}
-                onFechaFinChange={handleFechaFinChange}
-                onLimpiar={handleLimpiar}
-                onExportar={handleExportar}
-                metodosPago={metodosPago}
-                canExportar={puedeExportar}
-              />
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Modal */}
       <ModalMovimiento

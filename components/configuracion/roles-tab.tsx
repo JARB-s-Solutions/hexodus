@@ -62,7 +62,7 @@ const MODULOS_SISTEMA = [
   { id: 'dashboard', nombre: 'Dashboard', icono: '📊', acciones: ['ver', 'verGraficas'] },
   { id: 'membresias', nombre: 'Membresías', icono: '🎫', acciones: ['ver', 'crear', 'editar', 'eliminar', 'activar', 'desactivar'] },
   { id: 'socios', nombre: 'Socios', icono: '👥', acciones: ['ver', 'crear', 'editar', 'eliminar', 'pagar', 'renovar'] },
-  { id: 'asistencia', nombre: 'Asistencia', icono: '📝', acciones: ['ver', 'registrarManual', 'verHistorial', 'exportar'] },
+  { id: 'asistencia', nombre: 'Asistencia', icono: '📝', acciones: ['ver', 'crear', 'editar', 'eliminar', 'registrarManual', 'verHistorial', 'exportar'] },
   { id: 'ventas', nombre: 'Ventas', icono: '💰', acciones: ['ver', 'crear', 'verAnalisis', 'crearCorte', 'verCortesAnteriores', 'imprimirTicket', 'exportar'] },
   { id: 'inventario', nombre: 'Inventario', icono: '📦', acciones: ['ver', 'crear', 'editar', 'eliminar', 'gestionarCompras', 'ajustarStock', 'gestionarCategorias'] },
   { id: 'movimientos', nombre: 'Movimientos', icono: '💸', acciones: ['ver', 'crear', 'editar', 'eliminar', 'verComparaciones', 'verConceptos', 'crearConcepto', 'editarConcepto', 'eliminarConcepto', 'exportar'] },

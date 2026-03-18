@@ -48,7 +48,8 @@ export const AuthService = {
       } else {
         response = await apiPost<LoginResponse>(
           API_ENDPOINTS.LOGIN,
-          { username, password } as LoginCredentials
+          { username, password } as LoginCredentials,
+          { skipAuth: true }
         )
       }
 
@@ -93,7 +94,8 @@ export const AuthService = {
       } else {
         response = await apiPost<ForgotPasswordResponse>(
           API_ENDPOINTS.FORGOT_PASSWORD,
-          { email } as ForgotPasswordRequest
+          { email } as ForgotPasswordRequest,
+          { skipAuth: true }
         )
       }
       
