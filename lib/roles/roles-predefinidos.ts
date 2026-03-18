@@ -31,8 +31,10 @@ const PERMISOS_ADMINISTRADOR: ConjuntoPermisos = {
     crear: true,
     editar: true,
     eliminar: true,
+    verHistorial: true,
     pagar: true,
-    renovar: true
+    renovar: true,
+    imprimirTicket: true,
   },
   asistencia: {
     ver: true,
@@ -137,8 +139,10 @@ const PERMISOS_RECEPCIONISTA: ConjuntoPermisos = {
     crear: true,
     editar: true,
     eliminar: false,
+    verHistorial: true,
     pagar: true,
-    renovar: true
+    renovar: true,
+    imprimirTicket: true,
   },
   asistencia: {
     ver: true,

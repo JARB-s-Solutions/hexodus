@@ -24,6 +24,7 @@ export interface PermisosModulo {
   crearCorte?: boolean
   verCortesAnteriores?: boolean
   verAnalisis?: boolean
+  // Se usa en ventas y en socios (reimpresión desde historial de pagos)
   imprimirTicket?: boolean
   // movimientos
   verComparaciones?: boolean

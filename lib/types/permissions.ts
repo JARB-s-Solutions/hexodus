@@ -45,8 +45,10 @@ export interface PermisosMembresias extends AccionesBasicas {
 }
 
 export interface PermisosSocios extends AccionesBasicas {
+  verHistorial: boolean
   pagar: boolean
   renovar: boolean
+  imprimirTicket: boolean
 }
 
 export interface PermisosAsistencia extends AccionesBasicas {

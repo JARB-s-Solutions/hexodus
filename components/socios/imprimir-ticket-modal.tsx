@@ -215,7 +215,7 @@ export function ImprimirTicketModal({
 
   return (
     <Dialog open={open} onOpenChange={handleCerrar}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] [&>button]:hidden">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b">
           <div className="flex items-center gap-2">

@@ -5,6 +5,7 @@ import { X, User, ScanFace, Fingerprint, Loader2, Mail, Phone, Calendar, CreditC
 import type { Socio, EntradaHistorial, CotizacionResponse } from "@/lib/types/socios"
 import { SociosService } from "@/lib/services/socios"
 import { toast } from "@/hooks/use-toast"
+import { usePermisos } from "@/hooks/use-permisos"
 import { getIniciales } from "@/lib/utils"
 import { SocioAvatar } from "@/components/socios/socio-avatar"
 import { ImprimirTicketModal } from "./imprimir-ticket-modal"
@@ -16,6 +17,12 @@ interface DetalleSocioModalProps {
 }
 
 export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalProps) {
+  const { tienePermiso } = usePermisos()
+  const puedeVerHistorialPagos = tienePermiso('socios', 'verHistorial')
+  const puedeReimprimirTicketSocio =
+    tienePermiso('socios', 'imprimirTicket') ||
+    tienePermiso('ventas', 'imprimirTicket')
+
   const [socio, setSocio] = useState<Socio | null>(null)
   const [cargando, setCargando] = useState(false)
   const [historial, setHistorial] = useState<EntradaHistorial[]>([])
@@ -66,12 +73,27 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
     }
 
     cargarSocio()
-    cargarHistorial()
-  }, [open, socioId, onClose])
+
+    if (puedeVerHistorialPagos) {
+      cargarHistorial()
+    } else {
+      setHistorial([])
+      setCargandoHistorial(false)
+    }
+  }, [open, socioId, onClose, puedeVerHistorialPagos])
 
   if (!open) return null
 
   const handleReimprimir = (entrada: EntradaHistorial) => {
+    if (!puedeReimprimirTicketSocio) {
+      toast({
+        title: 'Acceso denegado',
+        description: 'No tienes permiso para reimprimir tickets.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     if (!socio) return
     const fechaInicio = entrada.fecha_inicio
     const fechaFin = entrada.fecha_fin
@@ -465,18 +487,24 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                     <h5 className="text-sm font-bold uppercase tracking-wider text-foreground">Historial de Pagos</h5>
                   </div>
 
-                  {cargandoHistorial && (
+                  {!puedeVerHistorialPagos && (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      No tienes permiso para ver el historial de pagos de este socio.
+                    </p>
+                  )}
+
+                  {puedeVerHistorialPagos && cargandoHistorial && (
                     <div className="flex items-center justify-center py-6 gap-2">
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       <p className="text-xs text-muted-foreground">Cargando historial...</p>
                     </div>
                   )}
 
-                  {!cargandoHistorial && historial.length === 0 && (
+                  {puedeVerHistorialPagos && !cargandoHistorial && historial.length === 0 && (
                     <p className="text-xs text-muted-foreground text-center py-4">Sin historial de pagos registrado.</p>
                   )}
 
-                  {!cargandoHistorial && historial.length > 0 && (
+                  {puedeVerHistorialPagos && !cargandoHistorial && historial.length > 0 && (
                     <div className="space-y-2">
                       {historial.map((entrada) => {
                         const estaExpandido = historialExpandido === entrada.id_membresia_socio
@@ -490,46 +518,51 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                             style={{ background: "rgba(255,255,255,0.025)" }}
                           >
                             {/* Cabecera de la entrada */}
-                            <button
-                              onClick={() => setHistorialExpandido(estaExpandido ? null : entrada.id_membresia_socio)}
-                              className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition text-left"
-                            >
-                              <div className="flex items-center gap-3 flex-wrap">
-                                <span className="text-sm font-semibold text-foreground">{entrada.plan}</span>
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                  vigenciaActiva
-                                    ? "bg-green-500/15 text-green-400"
-                                    : "bg-gray-500/15 text-gray-400"
-                                }`}>
-                                  {entrada.status_vigencia}
-                                </span>
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                  estaPagado
-                                    ? "bg-emerald-500/15 text-emerald-400"
-                                    : "bg-amber-500/15 text-amber-400"
-                                }`}>
-                                  {entrada.estado_pago === 'sin_pagar' ? 'no pagado' : entrada.estado_pago}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatFecha(entrada.fecha_inicio)} — {formatFecha(entrada.fecha_fin)}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-3 shrink-0">
-                                <span className="text-sm font-bold text-foreground">{formatMonto(entrada.precio_cobrado)}</span>
-                                {estaPagado && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleReimprimir(entrada) }}
-                                    title="Reimprimir ticket"
-                                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/10 transition"
-                                  >
-                                    <Printer className="h-4 w-4" />
-                                  </button>
-                                )}
-                                {estaExpandido
-                                  ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                                  : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                              </div>
-                            </button>
+                            <div className="w-full flex items-center gap-2 px-4 py-3 hover:bg-white/5 transition">
+                              <button
+                                type="button"
+                                onClick={() => setHistorialExpandido(estaExpandido ? null : entrada.id_membresia_socio)}
+                                className="flex-1 min-w-0 flex items-center justify-between text-left"
+                              >
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  <span className="text-sm font-semibold text-foreground">{entrada.plan}</span>
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                    vigenciaActiva
+                                      ? "bg-green-500/15 text-green-400"
+                                      : "bg-gray-500/15 text-gray-400"
+                                  }`}>
+                                    {entrada.status_vigencia}
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                    estaPagado
+                                      ? "bg-emerald-500/15 text-emerald-400"
+                                      : "bg-amber-500/15 text-amber-400"
+                                  }`}>
+                                    {entrada.estado_pago === 'sin_pagar' ? 'no pagado' : entrada.estado_pago}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatFecha(entrada.fecha_inicio)} — {formatFecha(entrada.fecha_fin)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <span className="text-sm font-bold text-foreground">{formatMonto(entrada.precio_cobrado)}</span>
+                                  {estaExpandido
+                                    ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                    : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                                </div>
+                              </button>
+
+                              {estaPagado && puedeReimprimirTicketSocio && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleReimprimir(entrada)}
+                                  title="Reimprimir ticket"
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/10 transition shrink-0"
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
 
                             {/* Detalle de pagos */}
                             {estaExpandido && (
