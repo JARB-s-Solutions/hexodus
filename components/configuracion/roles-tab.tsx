@@ -40,7 +40,7 @@ const ACTION_LABELS: Record<string, string> = {
   verAnalisis: 'Ver análisis',
   crearCorte: 'Crear corte',
   verCortesAnteriores: 'Ver cortes anteriores',
-  imprimirTicket: 'Imprimir ticket',
+  imprimirTicket: 'Imprimir / reimprimir ticket',
   gestionarCompras: 'Gestionar compras',
   ajustarStock: 'Ajustar stock',
   gestionarCategorias: 'Gestionar categorías',
@@ -61,7 +61,7 @@ const ACTION_LABELS: Record<string, string> = {
 const MODULOS_SISTEMA = [
   { id: 'dashboard', nombre: 'Dashboard', icono: '📊', acciones: ['ver', 'verGraficas'] },
   { id: 'membresias', nombre: 'Membresías', icono: '🎫', acciones: ['ver', 'crear', 'editar', 'eliminar', 'activar', 'desactivar'] },
-  { id: 'socios', nombre: 'Socios', icono: '👥', acciones: ['ver', 'crear', 'editar', 'eliminar', 'pagar', 'renovar'] },
+  { id: 'socios', nombre: 'Socios', icono: '👥', acciones: ['ver', 'crear', 'editar', 'eliminar', 'verHistorial', 'pagar', 'renovar', 'imprimirTicket'] },
   { id: 'asistencia', nombre: 'Asistencia', icono: '📝', acciones: ['ver', 'crear', 'editar', 'eliminar', 'registrarManual', 'verHistorial', 'exportar'] },
   { id: 'ventas', nombre: 'Ventas', icono: '💰', acciones: ['ver', 'crear', 'verAnalisis', 'crearCorte', 'verCortesAnteriores', 'imprimirTicket', 'exportar'] },
   { id: 'inventario', nombre: 'Inventario', icono: '📦', acciones: ['ver', 'crear', 'editar', 'eliminar', 'gestionarCompras', 'ajustarStock', 'gestionarCategorias'] },
@@ -1042,7 +1042,9 @@ function PermisoModulo({ modulo, permisos, icono }: PermisoModuloProps) {
                   "w-2 h-2 rounded-full",
                   value ? "bg-green-500" : "bg-muted-foreground"
                 )} />
-                <span className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                <span>
+                  {ACTION_LABELS[key] || key.replace(/([A-Z])/g, ' $1').trim()}
+                </span>
               </div>
             ))}
           </div>
