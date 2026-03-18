@@ -1,15 +1,16 @@
 "use client"
 
 import { Search, UserPlus, Filter, X, Calendar } from "lucide-react"
-import type { TipoMembresia, Genero } from "@/lib/socios-data"
+import type { Genero } from "@/lib/socios-data"
 
 interface SociosToolbarProps {
   busqueda: string
   onBusquedaChange: (v: string) => void
   vigenciaFiltro: string
   onVigenciaChange: (v: string) => void
-  membresiaFiltro: TipoMembresia | "todos"
-  onMembresiaChange: (v: TipoMembresia | "todos") => void
+  membresiaFiltro: string
+  onMembresiaChange: (v: string) => void
+  membresiaOpciones: Array<{ value: string; label: string }>
   generoFiltro: Genero | "todos"
   onGeneroChange: (v: Genero | "todos") => void
   contratoFirmaFiltro: string
@@ -33,6 +34,7 @@ export function SociosToolbar({
   onVigenciaChange,
   membresiaFiltro,
   onMembresiaChange,
+  membresiaOpciones,
   generoFiltro,
   onGeneroChange,
   contratoFirmaFiltro,
@@ -59,7 +61,7 @@ export function SociosToolbar({
     fechaHasta !== ""
 
   const selectBase =
-    "h-10 px-3 text-sm bg-[#070B1E]/70 border border-accent/20 rounded-lg text-foreground focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none transition-all"
+    "w-full min-w-0 h-10 px-3 text-sm bg-[#070B1E]/70 border border-accent/20 rounded-lg text-foreground focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none transition-all"
 
   return (
     <section
@@ -71,9 +73,9 @@ export function SociosToolbar({
       }}
     >
       {/* Top row: search + add button */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+      <div className="flex flex-col lg:flex-row lg:flex-wrap gap-3 items-start lg:items-center">
         {/* Search */}
-        <div className="relative flex-1 min-w-0">
+        <div className="relative flex-1 min-w-0 w-full lg:min-w-[340px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
@@ -85,7 +87,7 @@ export function SociosToolbar({
         </div>
 
         {/* Result count */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap shrink-0">
           <Filter className="h-3.5 w-3.5" />
           <span>
             {totalFiltrados} de {totalSocios} socios
@@ -93,7 +95,7 @@ export function SociosToolbar({
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap shrink-0">
           {hasFilters && (
             <button
               onClick={onLimpiar}
@@ -105,7 +107,7 @@ export function SociosToolbar({
           )}
           <button
             onClick={onNuevoSocio}
-            className="flex items-center gap-2 h-10 px-4 text-sm font-bold rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 transition-all uppercase tracking-wide glow-primary glow-primary-hover"
+            className="flex items-center gap-2 h-10 px-4 text-sm font-bold rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 transition-all uppercase tracking-wide glow-primary glow-primary-hover whitespace-nowrap"
           >
             <UserPlus className="h-4 w-4" />
             Agregar Nuevo Socio
@@ -114,9 +116,9 @@ export function SociosToolbar({
       </div>
 
       {/* Filter row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 items-end">
         {/* Vigencia membresia */}
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
             Vigencia membresia
           </label>
@@ -133,26 +135,26 @@ export function SociosToolbar({
         </div>
 
         {/* Tipo membresia */}
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
             Tipo de membresia
           </label>
           <select
             value={membresiaFiltro}
-            onChange={(e) => onMembresiaChange(e.target.value as TipoMembresia | "todos")}
+            onChange={(e) => onMembresiaChange(e.target.value)}
             className={selectBase}
           >
             <option value="todos">Todos</option>
-            <option value="diaria">Diaria</option>
-            <option value="semanal">Semanal</option>
-            <option value="mensual">Mensual</option>
-            <option value="trimestral">Trimestral</option>
-            <option value="anual">Anual</option>
+            {membresiaOpciones.map((opcion) => (
+              <option key={opcion.value} value={opcion.value}>
+                {opcion.label}
+              </option>
+            ))}
           </select>
         </div>
 
         {/* Genero */}
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
             Genero
           </label>
@@ -169,7 +171,7 @@ export function SociosToolbar({
         </div>
 
         {/* Contrato firma */}
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
             Contrato (firma)
           </label>
@@ -185,7 +187,7 @@ export function SociosToolbar({
         </div>
 
         {/* Vigencia contrato */}
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
             Vigencia contrato
           </label>
@@ -203,7 +205,7 @@ export function SociosToolbar({
         </div>
 
         {/* Fecha desde */}
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1">
             <Calendar className="h-3 w-3" /> Venc. desde
           </label>
@@ -216,7 +218,7 @@ export function SociosToolbar({
         </div>
 
         {/* Fecha hasta */}
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1">
             <Calendar className="h-3 w-3" /> Venc. hasta
           </label>
