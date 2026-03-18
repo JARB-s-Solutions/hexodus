@@ -7,6 +7,7 @@ import { SociosService } from "@/lib/services/socios"
 import { toast } from "@/hooks/use-toast"
 import { usePermisos } from "@/hooks/use-permisos"
 import { getIniciales } from "@/lib/utils"
+import { formatDateTimeLongInTimeZone } from "@/lib/timezone"
 import { SocioAvatar } from "@/components/socios/socio-avatar"
 import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 
@@ -145,15 +146,7 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
   // Formatear fecha + hora para registros de pago
   const formatFechaHora = (fecha: string | undefined) => {
     if (!fecha) return "-"
-    const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
-                   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
-    const d = new Date(fecha)
-    const day = d.getDate()
-    const month = d.getMonth()
-    const year = d.getFullYear()
-    const horas = d.getHours().toString().padStart(2, '0')
-    const minutos = d.getMinutes().toString().padStart(2, '0')
-    return `${day} de ${meses[month]} de ${year} · ${horas}:${minutos} hrs`
+    return formatDateTimeLongInTimeZone(fecha)
   }
 
   if (showImprimirTicket && cotizacionParaTicket && socio) {
