@@ -13,6 +13,7 @@ import { ModalConcepto } from "@/components/movimientos/modal-concepto"
 import { MovimientosService } from "@/lib/services/movimientos"
 import { getMetodosPago, type MetodoPago } from "@/lib/services/metodos-pago"
 import { exportMovimientosCSV } from "@/lib/movimientos-data"
+import { getTodayYmdInTimeZone, startOfMonthYmd, startOfWeekYmd } from "@/lib/timezone"
 import type { 
   Movimiento, 
   MovimientoKpis, 
@@ -27,7 +28,7 @@ import { useAuthContext } from "@/lib/contexts/auth-context"
 type MovimientosTabKey = "historial" | "comparaciones" | "conceptos"
 
 function getTodayDate(): string {
-  return new Date().toISOString().split("T")[0]
+  return getTodayYmdInTimeZone()
 }
 
 export default function MovimientosPage() {
@@ -209,20 +210,16 @@ export default function MovimientosPage() {
           }
         }
 
-        const today = new Date()
-        const startDate = new Date(today)
-        const endDate = new Date(today)
+        const todayYmd = getTodayYmdInTimeZone()
+        let inicio = todayYmd
 
         if (periodo === "semana") {
-          const day = today.getDay()
-          const diffToMonday = day === 0 ? 6 : day - 1
-          startDate.setDate(today.getDate() - diffToMonday)
+          inicio = startOfWeekYmd(todayYmd)
         } else if (periodo === "mes") {
-          startDate.setDate(1)
+          inicio = startOfMonthYmd(todayYmd)
         }
 
-        const inicio = startDate.toISOString().split("T")[0]
-        const fin = endDate.toISOString().split("T")[0]
+        const fin = todayYmd
 
         return { inicio, fin }
       }
