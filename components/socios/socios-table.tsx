@@ -8,11 +8,12 @@ import {
 import type { Socio } from "@/lib/socios-data"
 import { useAuthContext } from "@/lib/contexts/auth-context"
 import {
-  getVigenciaMembresia, getEstadoContrato,
+  getVigenciaMembresia, getEstadoContrato, getDiasParaVencimiento,
   membresiaLabels,
   type EstadoContrato,
 } from "@/lib/socios-data"
 import { getIniciales } from "@/lib/utils"
+import { extractYmd, formatYmdForDisplay } from "@/lib/timezone"
 
 interface SociosTableProps {
   socios: Socio[]
@@ -100,9 +101,9 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
         cmp = nombreA.localeCompare(nombreB)
       }
       else if (sortKey === "vencimiento") {
-        const fechaA = getSocioField(a, 'fechaFin')
-        const fechaB = getSocioField(b, 'fechaFin')
-        cmp = new Date(fechaA || 0).getTime() - new Date(fechaB || 0).getTime()
+        const fechaA = extractYmd(getSocioField(a, 'fechaFin') || '')
+        const fechaB = extractYmd(getSocioField(b, 'fechaFin') || '')
+        cmp = fechaA.localeCompare(fechaB)
       }
       return sortDir === "asc" ? cmp : -cmp
     })
@@ -276,7 +277,10 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                 const estadoPago = getSocioField(s, 'estadoPago') || 'sin_pagar'
                 
                 const iniciales = getIniciales(nombre)
-                const vigencia = getVigenciaMembresia(fechaFin)
+                const fechaFinYmd = extractYmd(fechaFin)
+                const vigencia = getVigenciaMembresia(fechaFinYmd || fechaFin)
+                const diffDias = getDiasParaVencimiento(fechaFinYmd || fechaFin)
+                const fechaVencimientoLabel = fechaFinYmd ? formatYmdForDisplay(fechaFinYmd) : "N/A"
                 
                 // Para el estado del contrato, usar valor directo de firmoContrato
                 // true = "activo" (Firmado), false = "sin_contrato" (Pendiente)
@@ -296,9 +300,6 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                   contrato = getEstadoContrato(socioForCheck)
                 }
                 
-                const fechaVenc = new Date(fechaFin)
-                const diffDias = Math.ceil((fechaVenc.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-
                 return (
                   <tr
                     key={s.id}
@@ -347,7 +348,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                     {/* Vencimiento */}
                     <td className="px-4 py-3">
                       <div className={`text-sm font-semibold ${vigencia === "vigente" ? "text-[#22C55E]" : vigencia === "por_vencer" ? "text-[#FFD700]" : "text-primary"}`}>
-                        {fechaVenc.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                        {fechaVencimientoLabel}
                       </div>
                       <div className={`text-xs ${diffDias < 0 ? "text-primary" : diffDias <= 7 ? "text-[#FFD700]" : "text-muted-foreground"}`}>
                         {diffDias < 0
@@ -381,11 +382,11 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                             <DollarSign className="h-4 w-4" />
                           </button>
                         )}
-                        {vigencia === 'vencida' && onRenovar && tienePermiso('socios', 'renovar') && (
+                        {diffDias === 0 && onRenovar && tienePermiso('socios', 'renovar') && (
                           <button
                             onClick={() => onRenovar(s)}
                             className="p-1.5 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-all"
-                            title="Renovar membresía"
+                            title="Renovar membresía (vence hoy)"
                           >
                             <RefreshCw className="h-4 w-4" />
                           </button>
