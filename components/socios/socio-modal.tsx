@@ -14,6 +14,7 @@ import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 import { CapturaFacialModal } from "./captura-facial-modal"
 import { CapturaHuellaModal } from "./captura-huella-modal"
 import { toast } from "@/hooks/use-toast"
+import { addYearsToYmd, getTodayYmdInTimeZone } from "@/lib/timezone"
 import type { Socio, CreateSocioRequest, CotizacionResponse } from "@/lib/types/socios"
 import type { Membresia } from "@/lib/types/membresias"
 
@@ -102,22 +103,13 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   // ===== Funciones auxiliares para manejo de fechas =====
   // Obtener fecha actual en formato YYYY-MM-DD
   const obtenerFechaActual = () => {
-    const hoy = new Date()
-    const year = hoy.getFullYear()
-    const month = String(hoy.getMonth() + 1).padStart(2, '0')
-    const day = String(hoy.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+    return getTodayYmdInTimeZone()
   }
 
   // Calcular fecha + 1 año en formato YYYY-MM-DD
   const calcularFechaUnAnoDespues = (fechaInicio: string) => {
     if (!fechaInicio) return ""
-    const fecha = new Date(fechaInicio + 'T00:00:00') // Evitar problemas de zona horaria
-    fecha.setFullYear(fecha.getFullYear() + 1)
-    const year = fecha.getFullYear()
-    const month = String(fecha.getMonth() + 1).padStart(2, '0')
-    const day = String(fecha.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+    return addYearsToYmd(fechaInicio, 1)
   }
 
   // Formatear fechas sin problemas de zona horaria
