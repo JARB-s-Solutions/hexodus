@@ -76,7 +76,13 @@ export function getTodayYmdInTimeZone(timeZone = getAppTimeZone()): string {
   return formatYmdInTimeZone(new Date(), timeZone)
 }
 
-function parseYmdAsUtcDate(ymd: string): Date | null {
+export function extractYmd(value?: string | null): string {
+  if (!value) return ""
+  const match = /^\d{4}-\d{2}-\d{2}/.exec(value.trim())
+  return match ? match[0] : ""
+}
+
+export function parseYmdAsUtcDate(ymd: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd)
   if (!match) return null
 
@@ -128,4 +134,31 @@ export function addYearsToYmd(ymd: string, years: number): string {
 
   date.setUTCFullYear(date.getUTCFullYear() + years)
   return formatUtcDateAsYmd(date)
+}
+
+export function diffDaysBetweenYmd(fromYmd: string, toYmd: string): number {
+  const fromDate = parseYmdAsUtcDate(fromYmd)
+  const toDate = parseYmdAsUtcDate(toYmd)
+  if (!fromDate || !toDate) return 0
+
+  const dayMs = 1000 * 60 * 60 * 24
+  return Math.round((toDate.getTime() - fromDate.getTime()) / dayMs)
+}
+
+export function getDaysUntilYmd(targetYmd: string, timeZone = getAppTimeZone()): number {
+  const ymd = extractYmd(targetYmd)
+  if (!ymd) return -1
+  return diffDaysBetweenYmd(getTodayYmdInTimeZone(timeZone), ymd)
+}
+
+export function formatYmdForDisplay(ymd: string, locale = "es-MX"): string {
+  const parsed = parseYmdAsUtcDate(ymd)
+  if (!parsed) return ymd
+
+  return parsed.toLocaleDateString(locale, {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })
 }
