@@ -9,6 +9,7 @@ import { SociosService, MetodosPagoService } from "@/lib/services/socios"
 import { MembresiasService } from "@/lib/services/membresias"
 import type { Socio, MetodoPago, CotizacionResponse } from "@/lib/types/socios"
 import type { Membresia } from "@/lib/types/membresias"
+import { extractYmd, getDaysUntilYmd, getTodayYmdInTimeZone } from "@/lib/timezone"
 import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 
 interface RenovarMembresiaModalProps {
@@ -16,6 +17,15 @@ interface RenovarMembresiaModalProps {
   onClose: () => void
   socio: Socio | null
   onSuccess?: () => void
+}
+
+function normalizarNombrePlan(valor?: string | null): string {
+  if (!valor) return ""
+  return valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
 }
 
 export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: RenovarMembresiaModalProps) {
@@ -28,6 +38,10 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
   const [showImprimirTicket, setShowImprimirTicket] = useState(false)
   const [cotizacionParaTicket, setCotizacionParaTicket] = useState<CotizacionResponse['data'] | null>(null)
   const [metodoPagoParaTicket, setMetodoPagoParaTicket] = useState("")
+
+  const fechaVencimientoYmd = extractYmd(socio?.fechaVencimientoMembresia || "")
+  const diasHastaVencimiento = fechaVencimientoYmd ? getDaysUntilYmd(fechaVencimientoYmd) : Number.NaN
+  const soloRenovacionVenceHoy = diasHastaVencimiento === 0
 
   useEffect(() => {
     if (!open || !socio) return
@@ -51,15 +65,32 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
         }
 
         let planId = socio.planId
-        if (!planId || planId <= 0) {
+        let nombrePlanActual = socio.nombrePlan || (socio as any).membresia
+
+        if (!planId || planId <= 0 || !nombrePlanActual) {
           const socioDetalle = await SociosService.getById(socio.id)
-          planId = socioDetalle.planId
+          if (!planId || planId <= 0) {
+            planId = socioDetalle.planId
+          }
+          if (!nombrePlanActual) {
+            nombrePlanActual = socioDetalle.nombrePlan
+          }
         }
 
         if (planId && planId > 0) {
           setPlanSeleccionado(planId)
-        } else if (membresiasActivas.length > 0) {
-          setPlanSeleccionado(membresiasActivas[0].id)
+        } else {
+          const nombreNormalizado = normalizarNombrePlan(nombrePlanActual)
+          const planCoincidente = membresiasActivas.find(
+            (plan) => normalizarNombrePlan(plan.nombre) === nombreNormalizado
+          )
+
+          if (planCoincidente) {
+            setPlanSeleccionado(planCoincidente.id)
+          } else {
+            // Seguridad: no preseleccionar el primer plan para evitar renovaciones erróneas.
+            setPlanSeleccionado(null)
+          }
         }
       } catch (error: any) {
         console.error("Error cargando datos para renovación:", error)
@@ -86,6 +117,21 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
       return
     }
 
+    if (!soloRenovacionVenceHoy) {
+      const detalleDias = Number.isNaN(diasHastaVencimiento)
+        ? "No se pudo determinar la fecha de vencimiento."
+        : diasHastaVencimiento > 0
+        ? `Faltan ${diasHastaVencimiento} día(s) para vencer.`
+        : `La membresía venció hace ${Math.abs(diasHastaVencimiento)} día(s).`
+
+      toast({
+        title: "Renovación temporalmente restringida",
+        description: `${detalleDias} Por ahora solo se permite renovar cuando la membresía vence hoy.`,
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setProcesando(true)
 
@@ -102,7 +148,7 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
 
       // Intentar obtener cotización para el ticket
       try {
-        const today = new Date().toISOString().split('T')[0]
+        const today = getTodayYmdInTimeZone()
         const cotizacion = await SociosService.cotizar({
           plan_id: planSeleccionado,
           fecha_inicio: today,
@@ -217,6 +263,9 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
                   disabled={procesando || membresias.length === 0}
                   className="w-full px-3 py-2 bg-background border border-border rounded text-foreground text-sm disabled:opacity-50"
                 >
+                  <option value="" disabled>
+                    Selecciona un plan
+                  </option>
                   {membresias.map((membresia) => (
                     <option key={membresia.id} value={membresia.id}>
                       {membresia.nombre}
@@ -249,9 +298,21 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
 
           <div className="bg-accent/10 border border-accent/20 rounded-lg p-3">
             <p className="text-xs text-accent">
-              <strong>Nota:</strong> Esta acción registrará un nuevo periodo de membresía para el socio.
+              <strong>Nota temporal:</strong> Por ajuste de backend, solo se permite renovar cuando la membresía vence hoy.
             </p>
           </div>
+
+          {!soloRenovacionVenceHoy && (
+            <div className="bg-primary/10 border border-primary/25 rounded-lg p-3">
+              <p className="text-xs text-primary">
+                Renovación bloqueada: {Number.isNaN(diasHastaVencimiento)
+                  ? "fecha de vencimiento no disponible."
+                  : diasHastaVencimiento > 0
+                  ? `faltan ${diasHastaVencimiento} día(s) para el vencimiento.`
+                  : `la membresía venció hace ${Math.abs(diasHastaVencimiento)} día(s).`}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-muted/30">
@@ -269,6 +330,7 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
             disabled={
               procesando ||
               cargandoDatos ||
+              !soloRenovacionVenceHoy ||
               !metodoPagoSeleccionado ||
               !planSeleccionado ||
               metodosPago.length === 0 ||
