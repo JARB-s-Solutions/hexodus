@@ -22,31 +22,82 @@ export class ProductosService {
    */
   static async getAll(): Promise<{ productos: Producto[], stats: DashboardStatsProductos, pagination: GetProductosResponse['pagination'] }> {
     console.log('🔄 GET /api/productos - Obteniendo todos los productos')
-    
-    const response = await apiGet<GetProductosResponse>('/productos')
-    console.log('✅ Response de productos:', {
-      message: response.message,
-      total: response.data?.length,
-      stats: response.dashboard_stats,
-      pagination: response.pagination
-    })
-    
-    if (!response.data || !Array.isArray(response.data)) {
-      console.warn('⚠️ Response no contiene array de productos:', response)
-      return { 
-        productos: [], 
+
+    const limitePorPagina = 100
+    let paginaActual = 1
+    let totalPaginas = 1
+    const productosAcumulados: GetProductosResponse['data'] = []
+    let dashboardStats: DashboardStatsProductos | undefined
+    let ultimaPaginacion: GetProductosResponse['pagination'] = {
+      current_page: 1,
+      limit: limitePorPagina,
+      total_records: 0,
+      total_pages: 1,
+    }
+
+    while (paginaActual <= totalPaginas) {
+      const response = await apiGet<GetProductosResponse>(`/productos?page=${paginaActual}&limit=${limitePorPagina}`)
+
+      console.log('✅ Response de productos:', {
+        message: response.message,
+        total: response.data?.length,
         stats: response.dashboard_stats,
         pagination: response.pagination
+      })
+
+      if (!dashboardStats) {
+        dashboardStats = response.dashboard_stats
+      }
+
+      if (Array.isArray(response.data)) {
+        productosAcumulados.push(...response.data)
+      } else {
+        console.warn(`⚠️ La página ${paginaActual} no devolvió un arreglo de productos`)
+      }
+
+      const paginacion = response.pagination
+      if (paginacion) {
+        ultimaPaginacion = paginacion
+      }
+
+      const totalPaginasBackend = paginacion?.total_pages
+      totalPaginas = typeof totalPaginasBackend === 'number' && totalPaginasBackend > 0
+        ? totalPaginasBackend
+        : 1
+
+      console.log(`📄 Página ${paginaActual}/${totalPaginas} cargada. Productos acumulados: ${productosAcumulados.length}`)
+      paginaActual += 1
+    }
+
+    const stats = dashboardStats ?? {
+      total_productos: { valor: 0, etiqueta: 'Total productos' },
+      stock_bajo: { valor: 0, etiqueta: 'Stock bajo' },
+      valor_total: { valor: 0, etiqueta: 'Valor total' },
+      categorias: { valor: 0, etiqueta: 'Categorías' },
+    }
+
+    if (productosAcumulados.length === 0) {
+      console.warn('⚠️ No se recibieron productos al paginar la API')
+      return {
+        productos: [],
+        stats,
+        pagination: ultimaPaginacion,
       }
     }
-    
-    const productos = response.data.map(mapProductoFromAPI)
+
+    const productos = productosAcumulados.map(mapProductoFromAPI)
     console.log(`✅ ${productos.length} productos mapeados correctamente`)
-    
+
     return {
       productos,
-      stats: response.dashboard_stats,
-      pagination: response.pagination
+      stats,
+      pagination: {
+        ...ultimaPaginacion,
+        current_page: 1,
+        limit: productos.length || ultimaPaginacion.limit,
+        total_records: Math.max(ultimaPaginacion.total_records, productos.length),
+        total_pages: 1,
+      }
     }
   }
 
