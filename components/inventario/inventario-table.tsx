@@ -17,6 +17,7 @@ interface InventarioTableProps {
   onEditar: (p: ProductoExtendido) => void
   onAjustarStock: (p: ProductoExtendido) => void
   onEliminar: (p: ProductoExtendido) => void
+  deletingProductId?: number | null
 }
 
 export function InventarioTable({
@@ -25,6 +26,7 @@ export function InventarioTable({
   onEditar,
   onAjustarStock,
   onEliminar,
+  deletingProductId,
 }: InventarioTableProps) {
   const { tienePermiso } = useAuthContext()
   const [pagina, setPagina] = useState(1)
@@ -147,9 +149,10 @@ export function InventarioTable({
                   bg: "bg-gray-500/15" 
                 }
                 const est = estadoStockInfo[p.estadoStock]
+                const isDeleting = deletingProductId === p.id
 
                 return (
-                  <tr key={p.id} className="hover:bg-muted/30 transition-colors duration-200">
+                  <tr key={p.id} className={`transition-colors duration-200 ${isDeleting ? "bg-destructive/5 opacity-60" : "hover:bg-muted/30"}`}>
                     {/* Product */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-3">
@@ -208,7 +211,12 @@ export function InventarioTable({
                           </button>
                         )}
                         {tienePermiso('inventario', 'eliminar') && (
-                          <button onClick={() => onEliminar(p)} className="p-1.5 rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors" title="Eliminar">
+                          <button
+                            onClick={() => onEliminar(p)}
+                            disabled={isDeleting}
+                            className="p-1.5 rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                            title={isDeleting ? "Eliminando..." : "Eliminar"}
+                          >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         )}

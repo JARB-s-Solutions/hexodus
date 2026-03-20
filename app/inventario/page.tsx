@@ -11,14 +11,24 @@ import { ProductoModal } from "@/components/inventario/producto-modal"
 import { CompraModal } from "@/components/inventario/compra-modal"
 import { AjustarStockModal } from "@/components/inventario/ajustar-stock-modal"
 import { DetalleProductoModal } from "@/components/inventario/detalle-producto-modal"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/ui/alert-dialog"
 import { ProductosService } from "@/lib/services/productos"
 import { CategoriasService } from "@/lib/services/categorias"
 import type { ProductoExtendido, CreateProductoRequest } from "@/lib/types/productos"
-import { extenderProducto, reducirProducto, mapProductoToAPI, mapProductoToUpdateAPI, calcularEstadoStock } from "@/lib/types/productos"
+import { extenderProducto, mapProductoToAPI, mapProductoToUpdateAPI, calcularEstadoStock, formatPrecio } from "@/lib/types/productos"
 import type { Categoria as CategoriaAPI } from "@/lib/types/categorias"
 import type { Categoria, EstadoStock, CompraItem } from "@/lib/inventario-data"
 import { useAuthContext } from "@/lib/contexts/auth-context"
-import { Package, Tag } from "lucide-react"
+import { AlertTriangle, Package, Tag, Trash2 } from "lucide-react"
 
 export default function InventarioPage() {
   const { tienePermiso } = useAuthContext()
@@ -56,6 +66,9 @@ export default function InventarioPage() {
   const [detalleModalOpen, setDetalleModalOpen] = useState(false)
   const [detalleProducto, setDetalleProducto] = useState<ProductoExtendido | null>(null)
   const [loadingDetalle, setLoadingDetalle] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [productoToDelete, setProductoToDelete] = useState<ProductoExtendido | null>(null)
+  const [eliminandoProductoId, setEliminandoProductoId] = useState<number | null>(null)
 
   // Notifications
   const [notificacion, setNotificacion] = useState<{ msg: string; tipo: string } | null>(null)
@@ -199,11 +212,18 @@ export default function InventarioPage() {
     }
   }
 
-  async function handleEliminar(p: ProductoExtendido) {
-    if (!confirm("¿Está seguro de que desea eliminar este producto?")) return
-    
+  function handleEliminar(p: ProductoExtendido) {
+    setProductoToDelete(p)
+    setDeleteDialogOpen(true)
+  }
+
+  async function confirmarEliminacionProducto() {
+    if (!productoToDelete) return
+
     try {
-      await ProductosService.updateStatus(p.id, 'inactivo')
+      setEliminandoProductoId(productoToDelete.id)
+      await ProductosService.delete(productoToDelete.id)
+      setProductos((prev) => prev.filter((producto) => producto.id !== productoToDelete.id))
       mostrarNotificacion("Producto eliminado correctamente")
       
       // Recargar productos y categorías (para actualizar contadores)
@@ -214,6 +234,10 @@ export default function InventarioPage() {
     } catch (error: any) {
       console.error('❌ Error al eliminar producto:', error)
       mostrarNotificacion(error.message || 'Error al eliminar producto', 'error')
+    } finally {
+      setEliminandoProductoId(null)
+      setDeleteDialogOpen(false)
+      setProductoToDelete(null)
     }
   }
 
@@ -363,6 +387,7 @@ export default function InventarioPage() {
                 onEditar={handleEditar}
                 onAjustarStock={(p) => { setAjustarProducto(p); setAjustarModalOpen(true) }}
                 onEliminar={handleEliminar}
+                deletingProductId={eliminandoProductoId}
               />
             </>
           )}
@@ -409,6 +434,84 @@ export default function InventarioPage() {
           producto={detalleProducto}
           loading={loadingDetalle}
         />
+        <AlertDialog
+          open={deleteDialogOpen}
+          onOpenChange={(open) => {
+            if (eliminandoProductoId && !open) return
+            setDeleteDialogOpen(open)
+            if (!open && !eliminandoProductoId) {
+              setProductoToDelete(null)
+            }
+          }}
+        >
+          <AlertDialogContent
+            className="overflow-hidden border border-destructive/30 bg-card p-0 shadow-2xl"
+          >
+            <div className="relative border-b border-destructive/20 bg-gradient-to-br from-destructive/20 via-destructive/10 to-transparent px-6 py-5">
+              <div className="absolute inset-0 opacity-30" style={{ background: "radial-gradient(circle at top left, rgba(239,68,68,0.35), transparent 55%)" }} />
+              <AlertDialogHeader className="relative gap-3 text-left">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive text-destructive-foreground shadow-lg shadow-destructive/25">
+                    <AlertTriangle className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <AlertDialogTitle className="text-xl font-bold text-foreground">
+                      ¿Eliminar producto?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-sm leading-6 text-muted-foreground">
+                      Esta acción quitará el producto del inventario visible y no se puede deshacer desde esta pantalla.
+                    </AlertDialogDescription>
+                  </div>
+                </div>
+              </AlertDialogHeader>
+            </div>
+
+            <div className="space-y-4 px-6 py-5">
+              <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+                    <Trash2 className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-muted-foreground">Producto seleccionado</p>
+                    <p className="truncate text-base font-semibold text-foreground">{productoToDelete?.nombre}</p>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>Código: <strong className="text-foreground">{productoToDelete?.codigo}</strong></span>
+                      <span>Categoría: <strong className="text-foreground">{productoToDelete?.categoria}</strong></span>
+                      <span>Precio: <strong className="text-foreground">{productoToDelete ? formatPrecio(productoToDelete.precioVenta) : "--"}</strong></span>
+                      <span>Stock: <strong className="text-foreground">{productoToDelete?.stockActual ?? "--"} unidades</strong></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/8 p-4 text-sm text-muted-foreground">
+                <p className="mb-1 font-semibold text-amber-300">Antes de continuar</p>
+                <ul className="space-y-1 text-xs leading-5">
+                  <li>• El producto dejará de aparecer en la lista de inventario.</li>
+                  <li>• Valida que no haya una venta o ajuste pendiente para este artículo.</li>
+                  <li>• Si solo quieres ocultarlo temporalmente, revisa luego si el backend maneja baja lógica.</li>
+                </ul>
+              </div>
+            </div>
+
+            <AlertDialogFooter className="border-t border-border/60 bg-background/80 px-6 py-4 sm:justify-end">
+              <AlertDialogCancel
+                disabled={!!eliminandoProductoId}
+                className="rounded-xl border-accent/40 text-accent hover:bg-accent/10 hover:text-accent"
+              >
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmarEliminacionProducto}
+                disabled={!!eliminandoProductoId}
+                className="rounded-xl border-0 bg-destructive text-destructive-foreground shadow-lg shadow-destructive/20 hover:bg-destructive/90"
+              >
+                {eliminandoProductoId ? "Eliminando..." : "Sí, eliminar producto"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
 
       {/* Toast notification */}
