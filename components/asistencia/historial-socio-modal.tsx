@@ -8,6 +8,7 @@ import { Badge } from "@/ui/badge"
 import { ScrollArea } from "@/ui/scroll-area"
 import { Separator } from "@/ui/separator"
 import { AsistenciaService, HistorialSocioResponse } from "@/lib/services/asistencia"
+import { formatConfidencePercent, getMetodoRegistroLabel } from "@/lib/asistencia-data"
 import { 
   Loader2, 
   Calendar, 
@@ -77,15 +78,65 @@ export function HistorialSocioModal({
   }
 
   const handleExportar = async () => {
-    if (!socioId) return
+    if (!data?.data?.socio || !data?.data?.asistencias?.length) return
 
-    try {
-      await AsistenciaService.exportar('excel', {
-        tipo: `socio-${socioId}`
+    const socio = data.data.socio
+    const encabezados = [
+      "Fecha",
+      "Hora",
+      "Tipo",
+      "Metodo",
+      "Confianza",
+      "Estado Acceso",
+      "Motivo",
+    ]
+
+    const filas = data.data.asistencias.map((registro) => {
+      const fecha = new Date(registro.timestamp)
+      const fechaStr = fecha.toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
       })
-    } catch (err: any) {
-      console.error("Error al exportar:", err)
-    }
+      const horaStr = fecha.toLocaleTimeString("es-MX", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+
+      const confianza = registro.confidence !== null ? `${formatConfidencePercent(registro.confidence, 1)}%` : "N/A"
+
+      return [
+        fechaStr,
+        horaStr,
+        registro.tipo,
+        getMetodoRegistroLabel(registro.metodo),
+        confianza,
+        (registro as any).estado_acceso || "N/A",
+        (registro as any).motivo_texto || "N/A",
+      ]
+    })
+
+    const contenidoCsv = [
+      `Socio,${socio.nombreCompleto}`,
+      `Codigo,${socio.codigoSocio}`,
+      "",
+      encabezados.join(","),
+      ...filas.map((fila) => fila.map((valor) => `"${String(valor).replace(/"/g, '""')}"`).join(",")),
+    ].join("\n")
+
+    const blob = new Blob([contenidoCsv], { type: "text/csv;charset=utf-8;" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const fechaArchivo = new Date().toISOString().split("T")[0]
+    const codigoSeguro = socio.codigoSocio.replace(/[^a-zA-Z0-9_-]/g, "_")
+
+    link.href = url
+    link.setAttribute("download", `historial_asistencias_${codigoSeguro}_${fechaArchivo}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
   }
 
   const renderEstadisticas = () => {
@@ -175,14 +226,14 @@ export function HistorialSocioModal({
                         })}
                       </span>
                       <span className="flex items-center gap-1">
-                        {registro.metodo === 'facial' ? '👤' : '✋'}
-                        {registro.metodo === 'facial' ? 'Facial' : 'Manual'}
+                        {getMetodoRegistroLabel(registro.metodo) === 'Facial' ? '👤' : getMetodoRegistroLabel(registro.metodo) === 'Huella' ? '🖐️' : '✋'}
+                        {getMetodoRegistroLabel(registro.metodo)}
                       </span>
                     </div>
 
                     {registro.confidence !== null && (
                       <div className="text-xs text-muted-foreground">
-                        Confianza: {(registro.confidence * 100).toFixed(1)}%
+                        Confianza: {formatConfidencePercent(registro.confidence, 1)}%
                       </div>
                     )}
                   </div>
