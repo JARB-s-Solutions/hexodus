@@ -13,6 +13,7 @@ export interface RegistroAcceso {
   tipo: EstadoAcceso
   motivo: string
   confianza: string
+  metodoRegistro?: string
   timestamp: string
   estadoMembresia?: EstadoMembresia
   accionRecomendada?: 'ninguna' | 'cobrar_adeudo' | 'renovar_membresia'
@@ -254,4 +255,56 @@ export function exportRegistrosCSV(registros: RegistroAcceso[]) {
   a.download = `registros_asistencia_${new Date().toISOString().split("T")[0]}.csv`
   a.click()
   window.URL.revokeObjectURL(url)
+}
+
+// ============================================================================
+// NORMALIZADORES DE ASISTENCIA
+// ============================================================================
+
+export function normalizeConfidencePercent(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined || value === "") return null
+
+  const numeric = typeof value === "string" ? Number(value) : value
+  if (!Number.isFinite(numeric)) return null
+
+  // Si viene en rango 0-1, convertir a porcentaje.
+  // Si viene como porcentaje (ej. 87.2), respetarlo.
+  const percent = numeric <= 1 ? numeric * 100 : numeric
+  return Math.min(Math.max(percent, 0), 100)
+}
+
+export function formatConfidencePercent(value: number | string | null | undefined, digits = 1): string {
+  const percent = normalizeConfidencePercent(value)
+  if (percent === null) return "N/A"
+
+  if (percent >= 99.95) return "100.0"
+  return percent.toFixed(digits)
+}
+
+export function normalizeMetodoRegistro(metodo: string | null | undefined): "facial" | "huella" | "manual" | "otro" {
+  const raw = String(metodo || "").trim().toLowerCase()
+
+  if (!raw) return "otro"
+
+  if (raw.includes("huella") || raw.includes("finger") || raw.includes("biometr")) {
+    return "huella"
+  }
+
+  if (raw.includes("facial") || raw.includes("face") || raw.includes("rostro")) {
+    return "facial"
+  }
+
+  if (raw.includes("manual") || raw.includes("admin") || raw.includes("recepcion")) {
+    return "manual"
+  }
+
+  return "otro"
+}
+
+export function getMetodoRegistroLabel(metodo: string | null | undefined): string {
+  const normalized = normalizeMetodoRegistro(metodo)
+  if (normalized === "huella") return "Huella"
+  if (normalized === "facial") return "Facial"
+  if (normalized === "manual") return "Manual"
+  return "Desconocido"
 }
