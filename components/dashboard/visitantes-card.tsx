@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react"
 import { UserCheck, RefreshCw, LogIn, LogOut, User, Clock, TrendingUp, Users, Activity } from "lucide-react"
 import { AsistenciaService, AsistenciasHoyResponse } from "@/lib/services/asistencia"
+import { formatConfidencePercent, getMetodoRegistroLabel, normalizeMetodoRegistro } from "@/lib/asistencia-data"
 import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar"
 import { Badge } from "@/ui/badge"
 import { Skeleton } from "@/ui/skeleton"
@@ -126,7 +127,7 @@ export function VisitantesCard() {
               </div>
               <span className="text-xs font-medium text-muted-foreground">Confianza</span>
             </div>
-            <p className="text-xl font-bold text-foreground">{resumen.promedio_confidence.toFixed(0)}%</p>
+            <p className="text-xl font-bold text-foreground">{formatConfidencePercent(resumen.promedio_confidence, 0)}%</p>
           </div>
         </div>
       )}
@@ -179,7 +180,10 @@ export function VisitantesCard() {
         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
           {asistencias.map((asistencia) => {
             const isEntrada = asistencia.tipo === 'IN'
-            const isFacial = asistencia.metodo === 'facial'
+            const metodoNormalizado = normalizeMetodoRegistro(asistencia.metodo)
+            const metodoLabel = getMetodoRegistroLabel(asistencia.metodo)
+            const isFacial = metodoNormalizado === 'facial'
+            const isHuella = metodoNormalizado === 'huella'
             
             return (
               <div
@@ -206,10 +210,12 @@ export function VisitantesCard() {
                         "text-[10px] px-1.5 py-0",
                         isFacial 
                           ? "bg-blue-500/10 text-blue-500 border-blue-500/20" 
-                          : "bg-gray-500/10 text-gray-500 border-gray-500/20"
+                          : isHuella
+                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                            : "bg-gray-500/10 text-gray-500 border-gray-500/20"
                       )}
                     >
-                      {isFacial ? "facial" : "manual"}
+                      {metodoLabel.toLowerCase()}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">

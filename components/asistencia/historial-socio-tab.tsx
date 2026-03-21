@@ -10,6 +10,7 @@ import { Skeleton } from "@/ui/skeleton"
 import { SociosService } from "@/lib/services/socios"
 import { AsistenciaService } from "@/lib/services/asistencia"
 import type { HistorialSocioResponse } from "@/lib/services/asistencia"
+import { formatConfidencePercent, getMetodoRegistroLabel } from "@/lib/asistencia-data"
 
 interface HistorialSocioTabProps {
   onError?: (mensaje: string) => void
@@ -327,11 +328,11 @@ export function HistorialSocioTab({ onError }: HistorialSocioTabProps) {
                       </td>
                       <td className="py-3 px-4">
                         <Badge variant="outline">
-                          {registro.metodo === 'facial' ? '👤 Facial' : '✋ Manual'}
+                          {getMetodoRegistroLabel(registro.metodo) === 'Facial' ? '👤' : getMetodoRegistroLabel(registro.metodo) === 'Huella' ? '🖐️' : '✋'} {getMetodoRegistroLabel(registro.metodo)}
                         </Badge>
                       </td>
                       <td className="py-3 px-4">
-                        {registro.confidence !== null ? `${(registro.confidence * 100).toFixed(1)}%` : '-'}
+                        {registro.confidence !== null ? `${formatConfidencePercent(registro.confidence, 1)}%` : '-'}
                       </td>
                     </tr>
                   ))}

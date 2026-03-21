@@ -268,6 +268,7 @@ export function HistorialRegistros({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="todos">Todos los métodos</SelectItem>
+                      <SelectItem value="huella">Huella dactilar</SelectItem>
                       <SelectItem value="facial">Reconocimiento facial</SelectItem>
                       <SelectItem value="manual">Registro manual</SelectItem>
                     </SelectContent>

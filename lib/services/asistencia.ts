@@ -74,7 +74,7 @@ export interface AsistenciasHoyResponse {
       estado_acceso?: 'permitido' | 'denegado' | string
       motivo_codigo?: string
       motivo_texto?: string
-      metodo: 'facial' | 'manual'
+      metodo: 'facial' | 'manual' | 'huella' | string
       confidence?: number
     }>
     resumen: {
@@ -103,7 +103,7 @@ export interface HistorialAsistenciasResponse {
       estado_acceso?: 'permitido' | 'denegado' | string
       motivo_codigo?: string
       motivo_texto?: string
-      metodo: 'facial' | 'manual'
+      metodo: 'facial' | 'manual' | 'huella' | string
       confidence?: number
       kiosk_id?: string
       validador_manual?: string | null
@@ -123,7 +123,7 @@ export interface FiltrosHistorial {
   limite?: number    // Nombre en español para consistencia con la app
   fecha_inicio?: string
   fecha_fin?: string
-  metodo?: 'facial' | 'manual'
+  metodo?: 'facial' | 'manual' | 'huella'
   search?: string
 }
 
@@ -152,7 +152,7 @@ export interface HistorialSocioResponse {
       id: number
       timestamp: string
       tipo: 'IN' | 'OUT'
-      metodo: 'facial' | 'manual'
+      metodo: 'facial' | 'manual' | 'huella' | string
       confidence: number | null
     }>
     estadisticas: {
