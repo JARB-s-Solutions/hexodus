@@ -175,7 +175,8 @@ export async function apiPost<T>(
     const isPublicAuthEndpoint =
       endpoint === API_ENDPOINTS.LOGIN ||
       endpoint === API_ENDPOINTS.FORGOT_PASSWORD ||
-      endpoint === API_ENDPOINTS.RESET_PASSWORD
+      endpoint === API_ENDPOINTS.RESET_PASSWORD ||
+      endpoint.startsWith(`${API_ENDPOINTS.RESET_PASSWORD}/`)
 
     // En flujos públicos de auth (login/forgot/reset) evitamos console.error
     // para no disparar overlay de error en desarrollo en casos manejados por UI.
