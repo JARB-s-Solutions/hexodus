@@ -130,9 +130,9 @@ export default function ResetPasswordPage() {
         description: 'Tu contraseña ha sido reestablecida exitosamente. Será redirigido al login.',
       })
 
-      // Redirigir al login después de 1.5 segundos
+      // Reemplazar historial para que la URL con token no quede navegable con "atrás".
       setTimeout(() => {
-        router.push('/login')
+        router.replace('/login')
       }, 1500)
     } catch (error) {
       console.error('Error al reestablecer contraseña:', error)
