@@ -21,6 +21,8 @@ import {
   type ConfigRegistro,
   type KpiAsistencia,
   type EstadoMembresia,
+  formatConfidencePercent,
+  getMetodoRegistroLabel,
 } from "@/lib/asistencia-data"
 import type { Socio as SocioTipo } from "@/lib/types/socios"
 
@@ -139,22 +141,8 @@ export default function AsistenciaPage() {
 
         // Transformar datos: /hoy tiene campo 'hora' (string "03:03:36") no 'timestamp'
         const registrosTransformados: RegistroAcceso[] = response.data.asistencias.map((r) => {
-          // Determinar confianza
-          console.log('[HOY] Registro:', {
-            nombre: r.socio_nombre,
-            confidence: r.confidence,
-            confidenceType: typeof r.confidence,
-            allKeys: Object.keys(r)
-          })
-          
-          let confianzaStr = "N/A"
-          if (r.confidence != null) {
-            const conf = r.confidence
-            confianzaStr = conf > 1 ? conf.toFixed(0) : (conf * 100).toFixed(0)
-            console.log('[HOY] Confianza calculada:', confianzaStr)
-          } else {
-            console.warn('[HOY] No hay confidence para:', r.socio_nombre)
-          }
+          const confianzaStr = formatConfidencePercent(r.confidence, 1)
+          const metodoLabel = getMetodoRegistroLabel(r.metodo)
 
           // Construir timestamp desde fecha + hora
           // fecha: "2026-03-09", hora: "03:03:36" -> "2026-03-09T03:03:36"
@@ -172,8 +160,9 @@ export default function AsistenciaPage() {
             motivo:
               override?.motivo ||
               (r as any).motivo_texto ||
-              (esDenegado ? 'Acceso denegado' : (r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual')),
+              (esDenegado ? 'Acceso denegado' : `Registro por ${metodoLabel.toLowerCase()}`),
             confianza: confianzaStr,
+            metodoRegistro: metodoLabel,
             timestamp: timestamp,
             estadoMembresia,
             fotoUrl: r.foto_perfil_url,
@@ -256,22 +245,8 @@ export default function AsistenciaPage() {
 
         // Transformar datos: /asistencia tiene campo 'timestamp' completo
         const registrosTransformados: RegistroAcceso[] = response.data.asistencias.map((r) => {
-          // Determinar confianza
-          console.log('[HISTORIAL] Registro:', {
-            nombre: r.socio_nombre,
-            confidence: r.confidence,
-            confidenceType: typeof r.confidence,
-            allKeys: Object.keys(r)
-          })
-          
-          let confianzaStr = "N/A"
-          if (r.confidence != null) {
-            const conf = r.confidence
-            confianzaStr = conf > 1 ? conf.toFixed(0) : (conf * 100).toFixed(0)
-            console.log('[HISTORIAL] Confianza calculada:', confianzaStr)
-          } else {
-            console.warn('[HISTORIAL] No hay confidence para:', r.socio_nombre)
-          }
+          const confianzaStr = formatConfidencePercent(r.confidence, 1)
+          const metodoLabel = getMetodoRegistroLabel(r.metodo)
 
           const override = overrides[String(r.id)]
           const esDenegado = !!override || esRegistroDenegadoApi({ tipo: r.tipo, estado_acceso: (r as any).estado_acceso, notas: r.notas })
@@ -287,8 +262,9 @@ export default function AsistenciaPage() {
               override?.motivo ||
               (r as any).motivo_texto ||
               r.notas ||
-              (esDenegado ? 'Acceso denegado' : (r.metodo === 'facial' ? 'Reconocimiento facial' : 'Registro manual')),
+              (esDenegado ? 'Acceso denegado' : `Registro por ${metodoLabel.toLowerCase()}`),
             confianza: confianzaStr,
+            metodoRegistro: metodoLabel,
             timestamp: r.timestamp, // Usar timestamp directamente
             estadoMembresia,
             fotoUrl: r.foto_perfil_url,
