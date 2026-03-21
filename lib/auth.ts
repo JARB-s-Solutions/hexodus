@@ -109,6 +109,29 @@ export const AuthService = {
   },
 
   /**
+   * Reestablecer contraseña con token
+   */
+  async resetPassword(token: string, password: string): Promise<{ message: string }> {
+    try {
+      console.log('🔄 Reestableciendo contraseña con token...')
+      
+      const response = await apiPost<{ message: string }>(
+        `${API_ENDPOINTS.RESET_PASSWORD}/${token}`,
+        { password },
+        { skipAuth: true }
+      )
+      
+      console.log('✅ Contraseña reestablecida exitosamente')
+      return response
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error
+      }
+      throw new ApiError(0, 'Error al conectar con el servidor')
+    }
+  },
+
+  /**
    * Validar formato de email
    */
   isValidEmail(email: string): boolean {
