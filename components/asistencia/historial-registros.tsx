@@ -177,6 +177,7 @@ export function HistorialRegistros({
               Exportar
             </button>
           )}
+          {/* botón de limpiar registros (solo para historial completo, no para registros del día) 
           <button
             onClick={onLimpiar}
             disabled={loading || registros.length === 0}
@@ -185,6 +186,7 @@ export function HistorialRegistros({
             <Trash2 className="h-3.5 w-3.5" />
             Limpiar
           </button>
+          */}
         </div>
       </div>
 
