@@ -7,8 +7,9 @@ import { ModalAperturaCaja } from "@/components/caja/modal-apertura-caja"
 import { IndicadorCaja } from "@/components/caja/indicador-caja"
 import { AuthService } from "@/lib/auth"
 
-// Rutas que no requieren caja abierta
-const RUTAS_SIN_CAJA = ["/login", "/register", "/recuperar-password"]
+// Rutas públicas que no requieren autenticación ni caja abierta.
+// Incluye el flujo manual de recuperación por token.
+const RUTAS_SIN_CAJA = ["/login", "/register", "/recuperar-password", "/reset-password"]
 
 function CajaGuardInner({ children }: { children: React.ReactNode }) {
   const { estadoCaja, loading } = useCaja()
@@ -25,6 +26,10 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    if (!pathname) {
+      return
+    }
+
     // 1. PRIMERO: Verificar autenticación
     if (typeof window !== "undefined") {
       const isAuthenticated = AuthService.isAuthenticated()
