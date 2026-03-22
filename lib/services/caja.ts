@@ -86,11 +86,11 @@ export class CajaService {
    * Consultar estado de la caja del día actual
    * POST /api/caja/consultar
    */
-  static async consultarCaja(): Promise<ConsultarCajaResponse> {
+  static async consultarCaja(params?: ConsultarCajaData): Promise<ConsultarCajaResponse> {
     console.log("📊 Consultando estado de caja del día...")
 
     try {
-      const fechas = obtenerFechasDelDia()
+      const fechas = params ?? obtenerFechasDelDia()
       const data: ConsultarCajaData = fechas
 
       console.log("  Rango:", fechas.fecha_inicial, "a", fechas.fecha_final)
