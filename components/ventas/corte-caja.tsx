@@ -29,6 +29,7 @@ import { formatCurrency } from "@/lib/types/ventas"
 import { CajaService } from "@/lib/services/caja"
 import type { CorteCaja as CorteCajaType, GetCortesResponse, Movimiento, CorteDetalle } from "@/lib/types/caja"
 import { useToast } from "@/hooks/use-toast"
+import { DesgloceMetodosKpi } from "@/components/ventas/desglose-metodos-kpi"
 
 // Helper functions para corte de caja (temporal hasta integración con API)
 function getMetodoPagoLabel(metodo: MetodoPago | string): string {
@@ -105,6 +106,56 @@ interface MovimientoConsultaRow {
   metodo: string
   ingreso: number
   egreso: number
+}
+
+interface MetodoResumen {
+  metodo: string
+  ingresos: number
+  egresos: number
+  neto: number
+}
+
+function normalizarMetodoPago(metodo?: string | null): string {
+  const valor = (metodo || "").trim().toLowerCase()
+  if (valor === "") return "N/A"
+  if (valor === "efectivo") return "Efectivo"
+  if (valor === "tarjeta") return "Tarjeta"
+  if (valor === "transferencia") return "Transferencia"
+  if (valor === "otro") return "Otro"
+  return metodo || "N/A"
+}
+
+function agruparMovimientosPorMetodo(
+  movimientos: Array<{ metodo?: string | null; tipo?: string; ingreso?: number; egreso?: number; monto?: number }>
+): MetodoResumen[] {
+  const metodosMap = new Map<string, { ingresos: number; egresos: number }>()
+
+  movimientos.forEach((mov) => {
+    const metodo = normalizarMetodoPago(mov.metodo)
+    const tipo = String(mov.tipo ?? "").toLowerCase()
+    let ingreso = Number(mov.ingreso ?? 0)
+    let egreso = Number(mov.egreso ?? 0)
+
+    if (ingreso === 0 && egreso === 0 && mov.monto != null) {
+      const monto = Number(mov.monto)
+      if (tipo === "ingreso") ingreso = monto
+      if (tipo === "egreso" || tipo === "gasto") egreso = monto
+    }
+
+    const actual = metodosMap.get(metodo) ?? { ingresos: 0, egresos: 0 }
+    actual.ingresos += ingreso
+    actual.egresos += egreso
+    metodosMap.set(metodo, actual)
+  })
+
+  return Array.from(metodosMap.entries())
+    .map(([metodo, valores]) => ({
+      metodo,
+      ingresos: valores.ingresos,
+      egresos: valores.egresos,
+      neto: valores.ingresos - valores.egresos,
+    }))
+    .sort((a, b) => b.neto - a.neto)
 }
 
 // ====== Main Component ======
@@ -600,6 +651,11 @@ function NuevoCorteModal({
   const [efectivoInicial, setEfectivoInicial] = useState(0)
   const [efectivoFinal, setEfectivoFinal] = useState(0)
 
+  const metodosNuevoCorte = useMemo(() => {
+    if (!consulted || movimientos.length === 0) return []
+    return agruparMovimientosPorMetodo(movimientos)
+  }, [consulted, movimientos])
+
   const handleConsultar = useCallback(async () => {
     setLoading(true)
     try {
@@ -832,6 +888,12 @@ function NuevoCorteModal({
               </div>
             </div>
 
+            {metodosNuevoCorte.length > 0 && (
+              <div className="mb-4">
+                <DesgloceMetodosKpi metodos={metodosNuevoCorte} />
+              </div>
+            )}
+
             {/* Movimientos Table */}
             <div className="bg-background rounded-lg overflow-hidden">
               {!consulted ? (
@@ -950,6 +1012,11 @@ function DetalleCorteModal({
   corte: CorteDetalle
   onClose: () => void
 }) {
+  const metodosDetalleCorte = useMemo(() => {
+    if (!corte.movimientos || corte.movimientos.length === 0) return []
+    return agruparMovimientosPorMetodo(corte.movimientos)
+  }, [corte.movimientos])
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4 pb-8 overflow-y-auto">
       <div className="fixed inset-0 bg-background/85 backdrop-blur-sm" onClick={onClose} />
@@ -1018,6 +1085,12 @@ function DetalleCorteModal({
               <p className="text-lg font-bold text-accent">{formatCurrency(corte.cajaFinal)}</p>
             </div>
           </div>
+
+          {metodosDetalleCorte.length > 0 && (
+            <div className="mb-5">
+              <DesgloceMetodosKpi metodos={metodosDetalleCorte} />
+            </div>
+          )}
 
           {/* Observacion */}
           {corte.observaciones && (
