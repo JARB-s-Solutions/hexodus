@@ -110,6 +110,15 @@ export class CajaService {
   }
 
   /**
+   * Obtener resumen de hoy con desglose de ingresos por método
+   * POST /api/caja/consultar (con fechas de hoy)
+   */
+  static async getResumenHoy(): Promise<ConsultarCajaResponse> {
+    console.log("📊 Obteniendo resumen de hoy con desglose de métodos...")
+    return this.consultarCaja()
+  }
+
+  /**
    * Consultar caja con rango de fechas amplio (últimos 7 días)
    * Útil para detectar cajas antiguas sin cerrar
    * POST /api/caja/consultar

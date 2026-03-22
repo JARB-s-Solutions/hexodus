@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { VentasHeader } from "@/components/ventas/ventas-header"
 import { KpiCards } from "@/components/ventas/kpi-cards"
+import { DesgloceMetodosKpi } from "@/components/ventas/desglose-metodos-kpi"
 import { VentasToolbar } from "@/components/ventas/ventas-toolbar"
 import { AnalyticsToolbar } from "@/components/ventas/analytics-toolbar"
 import { VentasTable } from "@/components/ventas/ventas-table"
@@ -14,6 +15,7 @@ import { NuevaVentaModal } from "@/components/ventas/nueva-venta-modal"
 import { DetalleVentaModal } from "@/components/ventas/detalle-venta-modal"
 import { ImprimirTicketVentaModal } from "@/components/ventas/imprimir-ticket-venta-modal"
 import { VentasService } from "@/lib/services/ventas"
+import { CajaService } from "@/lib/services/caja"
 import type { 
   Venta, 
   VentasData, 
@@ -23,6 +25,7 @@ import type {
   Pagination,
   AnalisisVentasData 
 } from "@/lib/types/ventas"
+import type { ConsultarCajaResponse } from "@/lib/types/caja"
 import { formatCurrency, formatDateTime } from "@/lib/types/ventas"
 import { useToast } from "@/hooks/use-toast"
 import { useAuthContext } from "@/lib/contexts/auth-context"
@@ -62,6 +65,10 @@ export default function VentasPage() {
   const [detalleVentaId, setDetalleVentaId] = useState<number | null>(null)
   const [modalImprimirTicket, setModalImprimirTicket] = useState(false)
   const [detalleVentaParaImprimir, setDetalleVentaParaImprimir] = useState<DetalleVenta | null>(null)
+
+  // Estados para resumen de caja (desglose por métodos)
+  const [resumenHoy, setResumenHoy] = useState<ConsultarCajaResponse | null>(null)
+  const [loadingResumen, setLoadingResumen] = useState(false)
 
   // Active tab — inicializa desde query param ?tab=caja|analytics|historial
   const initialTab = ((): VentasTabKey => {
@@ -117,6 +124,25 @@ export default function VentasPage() {
       cargarAnalisis()
     }
   }, [activeTab, periodo, fechaInicio, fechaFin, puedeVerAnalisis])
+
+  // Cargar resumen de hoy cuando se cambie al tab de caja
+  useEffect(() => {
+    if (activeTab === "caja" && puedeVerCaja) {
+      cargarResumenHoy()
+    }
+  }, [activeTab, puedeVerCaja])
+
+  async function cargarResumenHoy() {
+    try {
+      setLoadingResumen(true)
+      const resumen = await CajaService.getResumenHoy()
+      setResumenHoy(resumen)
+    } catch (error) {
+      console.error("Error al cargar resumen de hoy:", error)
+    } finally {
+      setLoadingResumen(false)
+    }
+  }
 
   async function cargarVentas(
     page?: number,
@@ -450,8 +476,15 @@ export default function VentasPage() {
         <VentasHeader />
 
         <div className="flex-1 overflow-y-auto px-4 py-3 md:px-6 space-y-3">
-          {/* KPIs */}
-          <KpiCards data={kpiData} />
+          {/* KPIs - Dinámicos según tab */}
+          {activeTab === "caja" && resumenHoy?.resumen.desglose_metodos ? (
+            <DesgloceMetodosKpi
+              metodos={resumenHoy.resumen.desglose_metodos}
+              loading={loadingResumen}
+            />
+          ) : (
+            <KpiCards data={kpiData} />
+          )}
 
           {/* Summary Bar */}
           {summaryBar && (

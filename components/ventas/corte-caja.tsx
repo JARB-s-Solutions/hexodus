@@ -102,6 +102,7 @@ interface MovimientoConsultaRow {
   tipo: string
   tipoPago: string
   usuario: string
+  metodo: string
   ingreso: number
   egreso: number
 }
@@ -178,7 +179,6 @@ export function CorteCaja({
     }
   }, [filtroFechaInicio, filtroFechaFin, pagination.current_page, toast])
 
-  // Cargar cortes al montar el componente
   useEffect(() => {
     cargarCortes()
   }, [])
@@ -549,99 +549,7 @@ export function CorteCaja({
         )}
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Efectivo en Caja */}
-        <div
-          className="bg-card rounded-xl p-4 relative overflow-hidden"
-          style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
-        >
-          <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "#4BB543" }} />
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Efectivo en Caja</span>
-            <DollarSign className="h-4 w-4 text-success" />
-          </div>
-          {loading ? (
-            <div className="flex items-center py-2">
-              <Loader2 className="h-6 w-6 text-success animate-spin" />
-            </div>
-          ) : (
-            <>
-              <p className="text-xl font-bold text-success">
-                {formatCurrency(dashboardStats?.efectivo_caja.total ?? efectivoEnCaja)}
-              </p>
-              <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <ArrowDownRight className="h-3 w-3" />
-                  Fondo: {formatCurrency(dashboardStats?.efectivo_caja.fondo ?? fondoInicial)}
-                </span>
-                <span className="flex items-center gap-1">
-                  <ArrowUpRight className="h-3 w-3 text-success" />
-                  {dashboardStats && dashboardStats.efectivo_caja.variacion >= 0 ? "+" : ""}
-                  {formatCurrency(dashboardStats?.efectivo_caja.variacion ?? totalEfectivo)}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
 
-        {/* Total Hoy */}
-        <div
-          className="bg-card rounded-xl p-4 relative overflow-hidden"
-          style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
-        >
-          <div className="absolute top-0 left-0 right-0 h-[3px] bg-primary" />
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Hoy</span>
-            <Receipt className="h-4 w-4 text-primary" />
-          </div>
-          {loading ? (
-            <div className="flex items-center py-2">
-              <Loader2 className="h-6 w-6 text-primary animate-spin" />
-            </div>
-          ) : (
-            <>
-              <p className="text-xl font-bold text-primary">
-                {formatCurrency(
-                  dashboardStats?.total_hoy.total ?? ventasHoy.reduce((s, v) => s + v.total, 0)
-                )}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-2">
-                {dashboardStats?.total_hoy.transacciones ?? ventasHoy.length} transacciones
-              </p>
-            </>
-          )}
-        </div>
-
-        {/* Cortes Realizados */}
-        <div
-          className="bg-card rounded-xl p-4 relative overflow-hidden"
-          style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
-        >
-          <div className="absolute top-0 left-0 right-0 h-[3px] bg-accent" />
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Cortes Realizados</span>
-            <Calendar className="h-4 w-4 text-accent" />
-          </div>
-          {loading ? (
-            <div className="flex items-center py-2">
-              <Loader2 className="h-6 w-6 text-accent animate-spin" />
-            </div>
-          ) : (
-            <>
-              <p className="text-xl font-bold text-accent">
-                {dashboardStats?.cortes_realizados.total ?? cortes.length}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-2">
-                Ultimo:{" "}
-                {dashboardStats?.cortes_realizados.ultimo
-                  ? formatFechaHoraCorta(dashboardStats.cortes_realizados.ultimo, "N/A")
-                  : formatFechaHoraCorta(cortes[0]?.fechaCreacion, "N/A")}
-              </p>
-            </>
-          )}
-        </div>
-      </div>
 
       {/* Nuevo Corte Modal */}
       {showNuevoModal && (
@@ -715,6 +623,7 @@ function NuevoCorteModal({
           tipo: m.tipo,
           tipoPago: m.tipo === "ingreso" ? "Ingreso" : "Egreso",
           usuario: m.usuario,
+          metodo: m.metodo,
           ingreso: m.tipo === "ingreso" ? m.monto : 0,
           egreso: m.tipo === "egreso" ? m.monto : 0,
         }
@@ -954,6 +863,9 @@ function NuevoCorteModal({
                           Tipo de pago
                         </th>
                         <th className="px-3 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          Método
+                        </th>
+                        <th className="px-3 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                           Usuario
                         </th>
                         <th className="px-3 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-right">
@@ -975,6 +887,11 @@ function NuevoCorteModal({
                           </td>
                           <td className="px-3 py-2 text-xs text-foreground">{m.concepto}</td>
                           <td className="px-3 py-2 text-xs text-foreground">{m.tipoPago}</td>
+                          <td className="px-3 py-2 text-xs text-foreground">
+                            <span className="bg-muted px-2 py-1 rounded-sm text-[9px] font-medium">
+                              {m.metodo || "N/A"}
+                            </span>
+                          </td>
                           <td className="px-3 py-2 text-xs text-foreground">{m.usuario}</td>
                           <td className="px-3 py-2 text-xs font-semibold text-right">
                             <span className={m.ingreso > 0 ? "text-success" : "text-muted-foreground"}>
@@ -1133,6 +1050,9 @@ function DetalleCorteModal({
                       <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                         Usuario
                       </th>
+                      <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        Método
+                      </th>
                       <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center">
                         Tipo
                       </th>
@@ -1155,6 +1075,11 @@ function DetalleCorteModal({
                         </td>
                         <td className="px-3 py-2 text-xs text-foreground">{m.concepto}</td>
                         <td className="px-3 py-2 text-xs text-foreground">{m.usuario}</td>
+                        <td className="px-3 py-2 text-xs text-foreground">
+                          <span className="bg-muted px-2 py-1 rounded-sm text-[9px] font-medium">
+                            {m.metodo || "N/A"}
+                          </span>
+                        </td>
                         <td className="px-3 py-2 text-xs font-semibold text-center">
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] uppercase ${
