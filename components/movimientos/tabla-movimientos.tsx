@@ -5,7 +5,6 @@ import { useAuthContext } from "@/lib/contexts/auth-context"
 import {
   Plus,
   Eye,
-  Pencil,
   Trash2,
   ChevronLeft,
   ChevronRight,
@@ -87,7 +86,6 @@ export function TablaMovimientos({
   movimientos,
   onNuevo,
   onVer,
-  onEditar,
   onEliminar,
   serverPagination,
   onPageChange,
@@ -405,15 +403,6 @@ export function TablaMovimientos({
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        {tienePermiso('movimientos', 'editar') && (
-                          <button
-                            onClick={() => onEditar(m)}
-                            className="p-1.5 rounded-lg hover:bg-warning/15 text-warning transition-colors"
-                            title="Editar"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                        )}
                         {tienePermiso('movimientos', 'eliminar') && (
                           <button
                             onClick={() => setConfirmDelete(m.id)}
