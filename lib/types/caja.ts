@@ -22,6 +22,14 @@ export interface MovimientoCaja {
   usuario: string
 }
 
+// Desglose de ingresos/egresos por método de pago
+export interface DesgloceMetodo {
+  metodo: string
+  ingresos: number
+  egresos: number
+  neto: number
+}
+
 // ============================================================
 // API REQUESTS
 // ============================================================
@@ -65,8 +73,9 @@ export interface ConsultarCajaResponse {
     total_egresos: number
     efectivo_inicial: number
     efectivo_final: number
+    desglose_metodos: DesgloceMetodo[]
   }
-  movimientos: MovimientoCaja[]
+  movimientos: Array<MovimientoCaja & { metodo: string }>
 }
 
 // Respuesta al cerrar caja
@@ -112,6 +121,7 @@ export interface MovimientoAPI {
   tipo: "ingreso" | "gasto" | "egreso"
   monto: number
   usuario: string
+  metodo: string
 }
 
 // Detalle completo de corte desde el API
@@ -195,6 +205,7 @@ export interface Movimiento {
   tipo: "ingreso" | "gasto" | "egreso"
   monto: number
   usuario: string
+  metodo: string
 }
 
 // Detalle completo de corte para frontend (camelCase)
@@ -250,6 +261,7 @@ export function mapMovimientoFromAPI(apiMovimiento: MovimientoAPI): Movimiento {
     tipo: apiMovimiento.tipo,
     monto: apiMovimiento.monto,
     usuario: apiMovimiento.usuario,
+    metodo: apiMovimiento.metodo,
   }
 }
 
