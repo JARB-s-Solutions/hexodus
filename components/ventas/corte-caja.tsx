@@ -49,6 +49,38 @@ function getVentasPorMetodo(ventas: Venta[]): { metodo: string; cantidad: number
     .sort((a, b) => b.cantidad - a.cantidad)
 }
 
+function parseFecha(fecha?: string | null): Date | null {
+  if (!fecha) return null
+  if (fecha.toLowerCase().includes("caja abierta")) return null
+
+  const date = new Date(fecha)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function formatFecha(fecha?: string | null, fallback = "Sin fecha"): string {
+  const date = parseFecha(fecha)
+  if (!date) return fallback
+  return date.toLocaleDateString("es-MX")
+}
+
+function formatFechaHora(fecha?: string | null, fallback = "Sin fecha"): string {
+  const date = parseFecha(fecha)
+  if (!date) return fallback
+  return date.toLocaleString("es-MX")
+}
+
+function formatFechaHoraCorta(fecha?: string | null, fallback = "Sin fecha"): string {
+  const date = parseFecha(fecha)
+  if (!date) return fallback
+  return date.toLocaleString("es-MX", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 // ====== Types ======
 
 // Usamos los tipos del API directamente
@@ -60,6 +92,18 @@ interface CorteCajaProps {
   fondoInicial: number
   canCrearCorte?: boolean
   canExportar?: boolean
+}
+
+interface MovimientoConsultaRow {
+  id: number
+  fecha: string
+  hora: string
+  concepto: string
+  tipo: string
+  tipoPago: string
+  usuario: string
+  ingreso: number
+  egreso: number
 }
 
 // ====== Main Component ======
@@ -212,7 +256,7 @@ export function CorteCaja({
     const rows = cortes.map((c) => [
       c.folio,
       c.fechaInicio,
-      c.fechaFin,
+      c.fechaFin ?? "Caja abierta",
       c.ingresos.toFixed(2),
       c.egresos.toFixed(2),
       c.cajaInicial.toFixed(2),
@@ -416,10 +460,9 @@ export function CorteCaja({
                 ) : (
                   cortes.map((corte) => {
                     const isSelected = selectedCorte?.id === corte.id
-                    // Formatear fechas
-                    const fechaInicio = new Date(corte.fechaInicio).toLocaleDateString("es-MX")
-                    const fechaFin = new Date(corte.fechaFin).toLocaleDateString("es-MX")
-                    const fechaCreacion = new Date(corte.fechaCreacion).toLocaleString("es-MX")
+                    const fechaInicio = formatFecha(corte.fechaInicio)
+                    const fechaFin = formatFecha(corte.fechaFin, "Caja abierta")
+                    const fechaCreacion = formatFechaHora(corte.fechaCreacion)
                     
                     return (
                       <tr
@@ -592,14 +635,8 @@ export function CorteCaja({
               <p className="text-[10px] text-muted-foreground mt-2">
                 Ultimo:{" "}
                 {dashboardStats?.cortes_realizados.ultimo
-                  ? new Date(dashboardStats.cortes_realizados.ultimo).toLocaleString("es-MX", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : cortes[0]?.fechaCreacion || "N/A"}
+                  ? formatFechaHoraCorta(dashboardStats.cortes_realizados.ultimo, "N/A")
+                  : formatFechaHoraCorta(cortes[0]?.fechaCreacion, "N/A")}
               </p>
             </>
           )}
@@ -649,7 +686,7 @@ function NuevoCorteModal({
   const [observacion, setObservacion] = useState("")
   const [consulted, setConsulted] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [movimientos, setMovimientos] = useState<Movimiento[]>([])
+  const [movimientos, setMovimientos] = useState<MovimientoConsultaRow[]>([])
   const [ingresos, setIngresos] = useState(0)
   const [egresos, setEgresos] = useState(0)
   const [efectivoInicial, setEfectivoInicial] = useState(0)
@@ -1021,13 +1058,13 @@ function DetalleCorteModal({
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Fecha Inicio</p>
               <p className="text-sm font-medium text-foreground">
-                {new Date(corte.fechaInicio).toLocaleString("es-MX")}
+                {formatFechaHora(corte.fechaInicio)}
               </p>
             </div>
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Fecha Final</p>
               <p className="text-sm font-medium text-foreground">
-                {new Date(corte.fechaFin).toLocaleString("es-MX")}
+                {formatFechaHora(corte.fechaFin, "Caja abierta")}
               </p>
             </div>
             <div className="bg-background rounded-lg p-3">
@@ -1037,7 +1074,7 @@ function DetalleCorteModal({
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Creado</p>
               <p className="text-sm font-medium text-foreground">
-                {new Date(corte.creado).toLocaleString("es-MX")}
+                {formatFechaHora(corte.creado)}
               </p>
             </div>
           </div>
@@ -1114,13 +1151,7 @@ function DetalleCorteModal({
                           {m.folioMovimiento}
                         </td>
                         <td className="px-3 py-2 text-xs text-foreground whitespace-nowrap">
-                          {new Date(m.fecha).toLocaleString("es-MX", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {formatFechaHoraCorta(m.fecha)}
                         </td>
                         <td className="px-3 py-2 text-xs text-foreground">{m.concepto}</td>
                         <td className="px-3 py-2 text-xs text-foreground">{m.usuario}</td>

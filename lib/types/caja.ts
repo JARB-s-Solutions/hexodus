@@ -92,7 +92,7 @@ export interface CorteAPI {
   id: number
   folio: string
   fecha_inicio: string // ISO 8601
-  fecha_fin: string // ISO 8601
+  fecha_fin: string | null // ISO 8601 | null cuando la caja esta abierta
   ingresos: number
   egresos: number
   caja_inicial: number
@@ -120,7 +120,7 @@ export interface CorteDetalleAPI {
   folio: string
   estado: string
   fecha_inicio: string // ISO 8601
-  fecha_fin: string // ISO 8601
+  fecha_fin: string | null // ISO 8601 | null cuando la caja esta abierta
   usuario: string
   creado: string // ISO 8601
   total_ingresos: number
@@ -150,7 +150,7 @@ export interface DashboardStatsCortes {
   }
   cortes_realizados: {
     total: number
-    ultimo: string // ISO 8601
+    ultimo: string | null // ISO 8601
   }
 }
 
@@ -175,7 +175,7 @@ export interface CorteCaja {
   id: number
   folio: string
   fechaInicio: string
-  fechaFin: string
+  fechaFin: string | null
   ingresos: number
   egresos: number
   cajaInicial: number
@@ -203,7 +203,7 @@ export interface CorteDetalle {
   folio: string
   estado: string
   fechaInicio: string
-  fechaFin: string
+  fechaFin: string | null
   usuario: string
   creado: string
   totalIngresos: number
