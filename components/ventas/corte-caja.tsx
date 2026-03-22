@@ -615,17 +615,20 @@ function NuevoCorteModal({
       // Adaptar MovimientoCaja a estructura UI
       const movs = response.movimientos.map((m: any) => {
         const fecha = new Date(m.fecha)
+        const tipoNormalizado = String(m.tipo ?? "").toLowerCase()
+        const monto = Number(m.monto ?? 0)
+        const esIngreso = tipoNormalizado === "ingreso"
         return {
           id: m.id,
           fecha: fecha.toLocaleDateString("es-MX"),
           hora: fecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
           concepto: m.concepto,
           tipo: m.tipo,
-          tipoPago: m.tipo === "ingreso" ? "Ingreso" : "Egreso",
+          tipoPago: esIngreso ? "Ingreso" : "Egreso",
           usuario: m.usuario,
           metodo: m.metodo,
-          ingreso: m.tipo === "ingreso" ? m.monto : 0,
-          egreso: m.tipo === "egreso" ? m.monto : 0,
+          ingreso: esIngreso ? monto : 0,
+          egreso: esIngreso ? 0 : monto,
         }
       })
       
