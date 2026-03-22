@@ -125,12 +125,25 @@ function normalizarMetodoPago(metodo?: string | null): string {
   return metodo || "N/A"
 }
 
+function esMovimientoApertura(concepto?: string | null): boolean {
+  const valor = (concepto || "").trim().toLowerCase()
+  return (
+    valor.includes("apertura") ||
+    valor.includes("fondo de caja")
+  )
+}
+
 function agruparMovimientosPorMetodo(
-  movimientos: Array<{ metodo?: string | null; tipo?: string; ingreso?: number; egreso?: number; monto?: number }>
+  movimientos: Array<{ metodo?: string | null; tipo?: string; ingreso?: number; egreso?: number; monto?: number; concepto?: string | null }>
 ): MetodoResumen[] {
   const metodosMap = new Map<string, { ingresos: number; egresos: number }>()
 
   movimientos.forEach((mov) => {
+    // La apertura/fondo inicial no debe formar parte del desglose por método.
+    if (esMovimientoApertura(mov.concepto)) {
+      return
+    }
+
     const metodo = normalizarMetodoPago(mov.metodo)
     const tipo = String(mov.tipo ?? "").toLowerCase()
     let ingreso = Number(mov.ingreso ?? 0)
