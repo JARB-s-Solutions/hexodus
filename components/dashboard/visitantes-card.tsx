@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { UserCheck, RefreshCw, LogIn, LogOut, User, Clock, TrendingUp, Users, Activity } from "lucide-react"
+import { UserCheck, RefreshCw, LogIn, LogOut, User, Clock, TrendingUp, Users, Activity, XCircle } from "lucide-react"
 import { AsistenciaService, AsistenciasHoyResponse } from "@/lib/services/asistencia"
 import { formatConfidencePercent, getMetodoRegistroLabel, normalizeMetodoRegistro } from "@/lib/asistencia-data"
 import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar"
@@ -69,6 +69,12 @@ export function VisitantesCard() {
                 <Users className="h-3 w-3 mr-1" />
                 {resumen.socios_activos_ahora} activos
               </Badge>
+              {(resumen.denegados ?? 0) > 0 && (
+                <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20 hidden sm:flex">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  {resumen.denegados} denegados
+                </Badge>
+              )}
             </div>
           )}
           <button
@@ -89,7 +95,7 @@ export function VisitantesCard() {
 
       {/* Estadísticas Resumen */}
       {!loading && resumen && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
           <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
             <div className="flex items-center gap-2 mb-1">
               <div className="p-1.5 rounded-md bg-emerald-500/10">
@@ -118,6 +124,16 @@ export function VisitantesCard() {
               <span className="text-xs font-medium text-muted-foreground">Activos</span>
             </div>
             <p className="text-xl font-bold text-foreground">{resumen.socios_activos_ahora}</p>
+          </div>
+
+          <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 rounded-md bg-red-500/10">
+                <XCircle className="h-3.5 w-3.5 text-red-500" />
+              </div>
+              <span className="text-xs font-medium text-muted-foreground">Denegados</span>
+            </div>
+            <p className="text-xl font-bold text-red-600">{resumen.denegados ?? 0}</p>
           </div>
 
           <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
@@ -180,6 +196,8 @@ export function VisitantesCard() {
         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
           {asistencias.map((asistencia) => {
             const isEntrada = asistencia.tipo === 'IN'
+            const isSalida = asistencia.tipo === 'OUT'
+            const isDenegado = asistencia.tipo === 'DENEGADO'
             const metodoNormalizado = normalizeMetodoRegistro(asistencia.metodo)
             const metodoLabel = getMetodoRegistroLabel(asistencia.metodo)
             const isFacial = metodoNormalizado === 'facial'
@@ -188,12 +206,27 @@ export function VisitantesCard() {
             return (
               <div
                 key={asistencia.id}
-                className="group flex items-center gap-3 p-3 rounded-lg border border-border/50 bg-card hover:bg-muted/30 transition-all hover:border-primary/30 hover:shadow-sm"
+                className={cn(
+                  "group flex items-center gap-3 p-3 rounded-lg border transition-all hover:shadow-sm",
+                  isDenegado
+                    ? "border-red-500/30 bg-red-500/5 hover:bg-red-500/10 hover:border-red-500/50"
+                    : "border-border/50 bg-card hover:bg-muted/30 hover:border-primary/30"
+                )}
               >
                 {/* Avatar */}
-                <Avatar className="h-10 w-10 border-2 border-border group-hover:border-primary/30 transition-colors">
+                <Avatar className={cn(
+                  "h-10 w-10 border-2 transition-colors",
+                  isDenegado
+                    ? "border-red-500/30"
+                    : "border-border group-hover:border-primary/30"
+                )}>
                   <AvatarImage src={asistencia.foto_perfil_url} alt={asistencia.socio_nombre} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                  <AvatarFallback className={cn(
+                    "text-xs font-semibold",
+                    isDenegado
+                      ? "bg-red-500/10 text-red-500"
+                      : "bg-primary/10 text-primary"
+                  )}>
                     <User className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
@@ -223,6 +256,12 @@ export function VisitantesCard() {
                     <span>{asistencia.hora}</span>
                     <span className="text-[10px]">•</span>
                     <span className="text-[10px] font-mono">{asistencia.codigo_socio}</span>
+                    {isDenegado && asistencia.motivo_texto && (
+                      <>
+                        <span className="text-[10px]">•</span>
+                        <span className="text-[10px] text-red-500 font-medium">{asistencia.motivo_texto}</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -230,12 +269,19 @@ export function VisitantesCard() {
                 <Badge 
                   className={cn(
                     "font-semibold text-xs shadow-sm",
-                    isEntrada 
-                      ? "bg-emerald-500/90 hover:bg-emerald-500 text-white border-emerald-600" 
-                      : "bg-orange-500/90 hover:bg-orange-500 text-white border-orange-600"
+                    isDenegado
+                      ? "bg-red-500/90 hover:bg-red-500 text-white border-red-600"
+                      : isEntrada 
+                        ? "bg-emerald-500/90 hover:bg-emerald-500 text-white border-emerald-600" 
+                        : "bg-orange-500/90 hover:bg-orange-500 text-white border-orange-600"
                   )}
                 >
-                  {isEntrada ? (
+                  {isDenegado ? (
+                    <>
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Denegado
+                    </>
+                  ) : isEntrada ? (
                     <>
                       <LogIn className="h-3 w-3 mr-1" />
                       Entrada
