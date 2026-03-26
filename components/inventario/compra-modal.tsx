@@ -29,6 +29,10 @@ export function CompraModal({ open, onClose, onCompraRealizada, productosDisponi
   const searchRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  const handleNumberWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur()
+  }
+
   useEffect(() => {
     if (!open) {
       setProveedor(""); setTipoPago(""); setItems([]); setSearchTerm("")
@@ -239,12 +243,12 @@ export function CompraModal({ open, onClose, onCompraRealizada, productosDisponi
 
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Cantidad</label>
-                <input type="number" min="1" value={cantidad} onChange={(e) => setCantidad(e.target.value)}
+                <input type="number" min="1" value={cantidad} onChange={(e) => setCantidad(e.target.value)} onWheel={handleNumberWheel}
                   className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Costo Unitario</label>
-                <input type="number" step="0.01" min="0" value={costoUnitario} onChange={(e) => setCostoUnitario(e.target.value)}
+                <input type="number" step="0.01" min="0" value={costoUnitario} onChange={(e) => setCostoUnitario(e.target.value)} onWheel={handleNumberWheel}
                   className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent" />
               </div>
               <div className="flex items-end">
