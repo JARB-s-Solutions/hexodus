@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AlertTriangle, Clock, DollarSign, Calendar, X } from "lucide-react"
 import { CajaService } from "@/lib/services/caja"
 import { useToast } from "@/hooks/use-toast"
@@ -23,6 +23,7 @@ export function ModalCierreAutomatico({
   onCancel,
 }: ModalCierreAutomaticoProps) {
   const [loading, setLoading] = useState(false)
+  const autoAttemptedRef = useRef(false)
   const { toast } = useToast()
 
   if (!open) return null
@@ -74,6 +75,13 @@ export function ModalCierreAutomatico({
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (open && !autoAttemptedRef.current) {
+      autoAttemptedRef.current = true
+      void handleCierreAutomatico()
+    }
+  }, [open])
 
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -153,8 +161,8 @@ export function ModalCierreAutomatico({
             <p className="text-sm text-blue-600 dark:text-blue-400">
               💡 <strong>¿Qué hará el sistema?</strong>
               <br />
-              Se generará automáticamente el corte de caja del día de apertura, calculando todos los
-              movimientos registrados. Después podrás abrir una nueva caja para el día de hoy.
+              Se está ejecutando el cierre automático del día anterior. Si falla por red o permisos,
+              podrás reintentar desde este mismo modal.
             </p>
           </div>
         </div>
@@ -172,12 +180,12 @@ export function ModalCierreAutomatico({
             {loading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Cerrando caja...
+                Cerrando caja automáticamente...
               </>
             ) : (
               <>
                 <Clock className="h-4 w-4" />
-                Cerrar Caja Automáticamente
+                Reintentar Cierre Automático
               </>
             )}
           </button>
