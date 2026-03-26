@@ -38,6 +38,10 @@ export function ProductoModal({
   const [stockMinimo, setStockMinimo] = useState("")
   const [descripcion, setDescripcion] = useState("")
   const [codigoEditado, setCodigoEditado] = useState(false) // Para saber si el usuario editó manualmente el código
+
+  const handleNumberWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur()
+  }
   
   // Modal de categoría inline
   const [categoriaModalOpen, setCategoriaModalOpen] = useState(false)
@@ -295,6 +299,7 @@ export function ProductoModal({
                     min="0" 
                     value={precioCompra} 
                     onChange={(e) => setPrecioCompra(e.target.value)}
+                    onWheel={handleNumberWheel}
                     placeholder="0.00"
                     className="w-full pl-7 pr-4 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all" 
                   />
@@ -314,6 +319,7 @@ export function ProductoModal({
                     min="0" 
                     value={precioVenta} 
                     onChange={(e) => setPrecioVenta(e.target.value)}
+                    onWheel={handleNumberWheel}
                     placeholder="0.00"
                     className="w-full pl-7 pr-4 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all" 
                   />
@@ -329,6 +335,7 @@ export function ProductoModal({
                   min="0" 
                   value={stockActual} 
                   onChange={(e) => setStockActual(e.target.value)}
+                  onWheel={handleNumberWheel}
                   placeholder="0"
                   className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all" 
                 />
@@ -343,6 +350,7 @@ export function ProductoModal({
                   min="0" 
                   value={stockMinimo} 
                   onChange={(e) => setStockMinimo(e.target.value)}
+                  onWheel={handleNumberWheel}
                   placeholder="5"
                   className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all" 
                 />

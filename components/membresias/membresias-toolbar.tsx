@@ -42,6 +42,10 @@ export function MembresiasToolbar({
     precioMin !== "" ||
     precioMax !== ""
 
+  const handleNumberWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur()
+  }
+
   const selectBase =
     "h-10 px-3 text-sm bg-[#070B1E]/70 border border-accent/20 rounded-lg text-foreground focus:border-accent focus:ring-1 focus:ring-accent/30 outline-none transition-all"
 
@@ -125,6 +129,7 @@ export function MembresiasToolbar({
             placeholder="$0"
             value={precioMin}
             onChange={(e) => onPrecioMinChange(e.target.value)}
+            onWheel={handleNumberWheel}
             className={selectBase}
           />
         </div>
@@ -139,6 +144,7 @@ export function MembresiasToolbar({
             placeholder="$99,999"
             value={precioMax}
             onChange={(e) => onPrecioMaxChange(e.target.value)}
+            onWheel={handleNumberWheel}
             className={selectBase}
           />
         </div>
