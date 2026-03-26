@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { X, ShoppingCart, Plus, Trash2, Search, Package, Info, AlertTriangle } from "lucide-react"
+import { X, ShoppingCart, Plus, Trash2, Search, Package, Info, AlertTriangle, Loader2 } from "lucide-react"
 import type { ProductoExtendido } from "@/lib/types/productos"
 import type { CompraItem } from "@/lib/inventario-data"
 import { formatPrecio } from "@/lib/types/productos"
 import { categoriaInfo, estadoStockInfo } from "@/lib/inventario-data"
+import { getMetodosPago, type MetodoPago } from "@/lib/services/metodos-pago"
 
 interface CompraModalProps {
   open: boolean
@@ -20,6 +21,11 @@ export function CompraModal({ open, onClose, onCompraRealizada, productosDisponi
   const [fechaCompra, setFechaCompra] = useState(() => new Date().toISOString().split("T")[0])
   const [items, setItems] = useState<CompraItem[]>([])
 
+  // Payment methods loading
+  const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
+  const [loadingMetodos, setLoadingMetodos] = useState(false)
+  const [errorMetodos, setErrorMetodos] = useState<string | null>(null)
+
   // Product search
   const [searchTerm, setSearchTerm] = useState("")
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -31,6 +37,33 @@ export function CompraModal({ open, onClose, onCompraRealizada, productosDisponi
 
   const handleNumberWheel = (e: React.WheelEvent<HTMLInputElement>) => {
     e.currentTarget.blur()
+  }
+
+  // Cargar métodos de pago cuando el modal se abre
+  useEffect(() => {
+    if (open) {
+      loadMetodosPago()
+    }
+  }, [open])
+
+  const loadMetodosPago = async () => {
+    try {
+      setLoadingMetodos(true)
+      setErrorMetodos(null)
+      const data = await getMetodosPago()
+      if (Array.isArray(data)) {
+        setMetodosPago(data)
+      } else {
+        setMetodosPago([])
+        setErrorMetodos("Formato de respuesta inválido")
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Error al cargar métodos de pago"
+      setErrorMetodos(errorMessage)
+      setMetodosPago([])
+    } finally {
+      setLoadingMetodos(false)
+    }
   }
 
   useEffect(() => {
@@ -154,14 +187,29 @@ export function CompraModal({ open, onClose, onCompraRealizada, productosDisponi
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Tipo de Pago <span className="text-primary">*</span></label>
-                <select required value={tipoPago} onChange={(e) => setTipoPago(e.target.value)}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent appearance-none cursor-pointer">
-                  <option value="">Seleccionar tipo...</option>
-                  <option value="efectivo">Efectivo</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="tarjeta">Tarjeta</option>
-                  <option value="credito">Credito</option>
-                </select>
+                {loadingMetodos ? (
+                  <div className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-muted-foreground flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando...
+                  </div>
+                ) : errorMetodos ? (
+                  <div className="w-full px-3 py-2 bg-background border border-destructive/30 rounded-lg text-sm text-destructive">
+                    Error: {errorMetodos}
+                  </div>
+                ) : (
+                  <select required value={tipoPago} onChange={(e) => setTipoPago(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent appearance-none cursor-pointer">
+                    <option value="">Seleccionar método de pago...</option>
+                    {metodosPago.map((metodo) => (
+                      <option key={metodo.id} value={metodo.id}>
+                        {metodo.nombre}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!loadingMetodos && metodosPago.length === 0 && !errorMetodos && (
+                  <p className="text-xs text-muted-foreground mt-1">No hay métodos de pago disponibles</p>
+                )}
               </div>
             </div>
           </div>
