@@ -6,6 +6,7 @@ import { CajaProvider, useCaja } from "@/lib/contexts/caja-context"
 import { ModalAperturaCaja } from "@/components/caja/modal-apertura-caja"
 import { IndicadorCaja } from "@/components/caja/indicador-caja"
 import { AuthService } from "@/lib/auth"
+import { AlertTriangle, LogOut } from "lucide-react"
 
 // Rutas públicas que no requieren autenticación ni caja abierta.
 // Incluye el flujo manual de recuperación por token.
@@ -16,6 +17,7 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
+  const [showBlockedModal, setShowBlockedModal] = useState(false)
   const openModalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearOpenModalTimeout = () => {
@@ -64,13 +66,6 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
         AuthService.hasPermission("ventas", "crearCorte") ||
         AuthService.hasPermission("ventas", "verCortesAnteriores")
 
-      if (!requiereGestionCaja) {
-        console.log("✅ Usuario sin subpermisos de caja, no se requiere modal de caja")
-        clearOpenModalTimeout()
-        setShowModal(false)
-        return
-      }
-
       // 2. SEGUNDO: Si está autenticado y no está en ruta pública, verificar caja
       const requiereCaja = !RUTAS_SIN_CAJA.some((ruta) => pathname?.startsWith(ruta))
 
@@ -81,6 +76,15 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
       //    - está autenticado
       if (!loading && estadoCaja !== null && requiereCaja && isAuthenticated) {
         if (!estadoCaja.abierta) {
+          if (!requiereGestionCaja) {
+            console.log("⛔ Caja cerrada y usuario sin permisos de gestión. Mostrando bloqueo.")
+            clearOpenModalTimeout()
+            setShowModal(false)
+            setShowBlockedModal(true)
+            return
+          }
+
+          setShowBlockedModal(false)
           if (!openModalTimeoutRef.current) {
             console.log("⚠️ CAJA CERRADA DETECTADA - Validando antes de mostrar modal")
             openModalTimeoutRef.current = setTimeout(() => {
@@ -92,6 +96,7 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
           console.log("✅ CAJA ABIERTA - Acceso permitido")
           clearOpenModalTimeout()
           setShowModal(false)
+          setShowBlockedModal(false)
         }
       }
       // Si loading es true o estadoCaja es null, no hacer nada (esperar)
@@ -104,6 +109,11 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
 
   const handleAperturaExitosa = () => {
     setShowModal(false)
+  }
+
+  const handleLogout = async () => {
+    await AuthService.logout()
+    router.push("/login")
   }
 
   // Mostrar loading mientras se verifica el estado
@@ -122,6 +132,43 @@ function CajaGuardInner({ children }: { children: React.ReactNode }) {
     <>
       {children}
       <ModalAperturaCaja open={showModal} onSuccess={handleAperturaExitosa} />
+      {showBlockedModal && (
+        <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
+            <div className="px-6 py-5 border-b border-border bg-destructive/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-destructive/15 border border-destructive/30">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">Caja Cerrada</h3>
+                  <p className="text-sm text-muted-foreground">No puedes operar mientras la caja esté cerrada.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-sm text-foreground">
+                El sistema bloqueó ventas, cobros y movimientos porque la caja no está aperturada para hoy.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Solicita a un administrador abrir caja para continuar.
+              </p>
+            </div>
+
+            <div className="px-6 py-4 border-t border-border bg-muted/30 flex justify-end">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
