@@ -137,7 +137,7 @@ export function VentasToolbar({
               <option disabled>Cargando...</option>
             ) : (
               metodosPago.map((metodo) => (
-                <option key={metodo.id} value={metodo.nombre}>
+                <option key={metodo.id} value={metodo.id}>
                   {metodo.nombre}
                 </option>
               ))
