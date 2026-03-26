@@ -1,7 +1,8 @@
 "use client"
 
-import { Search, Filter, XCircle, PlusCircle, Plus, CalendarCheck } from "lucide-react"
-import type { MetodoPago } from "@/lib/ventas-data"
+import { useState, useEffect } from "react"
+import { Search, Filter, XCircle, PlusCircle, Plus, CalendarCheck, Loader2 } from "lucide-react"
+import { getMetodosPago, type MetodoPago } from "@/lib/services/metodos-pago"
 
 interface VentasFiltersProps {
   busqueda: string
@@ -34,6 +35,30 @@ export function VentasFilters({
   onNuevaVenta,
   onAplicarFiltros,
 }: VentasFiltersProps) {
+  const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
+  const [loadingMetodos, setLoadingMetodos] = useState(true)
+  const [errorMetodos, setErrorMetodos] = useState<string | null>(null)
+
+  // Cargar métodos de pago al montar el componente
+  useEffect(() => {
+    async function cargarMetodosPago() {
+      try {
+        setLoadingMetodos(true)
+        setErrorMetodos(null)
+        const metodos = await getMetodosPago()
+        setMetodosPago(Array.isArray(metodos) ? metodos : [])
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Error al cargar métodos de pago"
+        console.error("Error al cargar métodos de pago:", error)
+        setErrorMetodos(errorMessage)
+        setMetodosPago([])
+      } finally {
+        setLoadingMetodos(false)
+      }
+    }
+    cargarMetodosPago()
+  }, [])
+
   return (
     <div className="space-y-5">
       {/* New Sale Button */}
@@ -149,18 +174,33 @@ export function VentasFilters({
           <label htmlFor="metodo-pago" className="block text-xs font-medium mb-1.5 text-muted-foreground">
             Metodo de Pago
           </label>
-          <select
-            id="metodo-pago"
-            value={metodoPago}
-            onChange={(e) => onMetodoPagoChange(e.target.value)}
-            className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-0 focus:outline-none transition-colors cursor-pointer"
-          >
-            <option value="todos">Todos los Metodos</option>
-            <option value="efectivo">Efectivo</option>
-            <option value="tarjeta">Tarjeta</option>
-            <option value="transferencia">Transferencia</option>
-            <option value="digital">Pago Digital</option>
-          </select>
+          {loadingMetodos ? (
+            <div className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-xs text-muted-foreground">Cargando...</span>
+            </div>
+          ) : errorMetodos ? (
+            <div className="w-full px-3 py-2.5 bg-background border border-destructive/30 rounded-lg text-foreground text-sm">
+              <p className="text-xs text-destructive">{errorMetodos}</p>
+            </div>
+          ) : (
+            <select
+              id="metodo-pago"
+              value={metodoPago}
+              onChange={(e) => onMetodoPagoChange(e.target.value)}
+              className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-0 focus:outline-none transition-colors cursor-pointer"
+            >
+              <option value="todos">Todos los Metodos</option>
+              {metodosPago.map((metodo) => (
+                <option key={metodo.id} value={metodo.id}>
+                  {metodo.nombre}
+                </option>
+              ))}
+            </select>
+          )}
+          {!loadingMetodos && metodosPago.length === 0 && !errorMetodos && (
+            <p className="text-xs text-muted-foreground mt-1.5">No hay métodos de pago disponibles</p>
+          )}
         </div>
 
         {/* Clear Filters */}
