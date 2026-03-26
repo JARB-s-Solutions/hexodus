@@ -14,6 +14,7 @@ import { NuevaVentaModal } from "@/components/ventas/nueva-venta-modal"
 import { DetalleVentaModal } from "@/components/ventas/detalle-venta-modal"
 import { ImprimirTicketVentaModal } from "@/components/ventas/imprimir-ticket-venta-modal"
 import { VentasService } from "@/lib/services/ventas"
+import { getMetodosPago, type MetodoPago } from "@/lib/services/metodos-pago"
 import type { 
   Venta, 
   VentasData, 
@@ -49,6 +50,9 @@ export default function VentasPage() {
     totalPages: 0,
   })
   const [loading, setLoading] = useState(true)
+
+  // Métodos de pago para mapeo de filtro
+  const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
 
   // Filters
   const [busqueda, setBusqueda] = useState("")
@@ -95,6 +99,27 @@ export default function VentasPage() {
       setActiveTab(tabsDisponibles[0]?.key ?? "historial")
     }
   }, [activeTab, tabsDisponibles])
+
+  // Cargar métodos de pago al montar
+  useEffect(() => {
+    async function cargarMetodosPago() {
+      try {
+        const metodos = await getMetodosPago()
+        setMetodosPago(Array.isArray(metodos) ? metodos : [])
+      } catch (error) {
+        console.error("Error al cargar métodos de pago:", error)
+        setMetodosPago([])
+      }
+    }
+    cargarMetodosPago()
+  }, [])
+
+  // Función para obtener el nombre del método de pago por ID
+  const obtenerNombreMetodoPago = (metodoPagoId: string | number): string => {
+    if (metodoPagoId === "todos" || !metodoPagoId) return "todos"
+    const metodo = metodosPago.find((m) => String(m.id) === String(metodoPagoId))
+    return metodo ? metodo.nombre : String(metodoPagoId)
+  }
 
   // Cargar historial de ventas cuando cambien filtros simples.
   // El rango personalizado sigue aplicándose manualmente con el botón.
@@ -162,9 +187,12 @@ export default function VentasPage() {
         params.periodo = periodoMap[periodoActual] || periodoActual
       }
       
-      // Filtro por método de pago (ahora va al backend)
+      // Filtro por método de pago (convertir ID a nombre para backend)
       if (metodoPagoActual && metodoPagoActual !== "todos") {
-        params.metodo_pago = metodoPagoActual
+        const nombreMetodo = obtenerNombreMetodoPago(metodoPagoActual)
+        if (nombreMetodo && nombreMetodo !== "todos") {
+          params.metodo_pago = nombreMetodo
+        }
       }
       
       // Filtro por búsqueda (ahora va al backend)
