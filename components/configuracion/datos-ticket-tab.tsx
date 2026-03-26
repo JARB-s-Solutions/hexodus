@@ -1,6 +1,9 @@
 "use client"
 
-import { Receipt, MapPin, Phone, FileText, Building2, MessageSquare, Image, AlertCircle } from "lucide-react"
+import { useState } from "react"
+import { Receipt, MapPin, Phone, FileText, Building2, MessageSquare, Image, AlertCircle, RotateCcw } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { ConfiguracionService } from "@/lib/services/configuracion"
 import type { ConfigState } from "./config-types"
 
 interface DatosTicketTabProps {
@@ -9,6 +12,41 @@ interface DatosTicketTabProps {
 }
 
 export function DatosTicketTab({ config, onChange }: DatosTicketTabProps) {
+  const { toast } = useToast()
+  const [isRestoringTicket, setIsRestoringTicket] = useState(false)
+
+  const handleRestablecerTicket = async () => {
+    setIsRestoringTicket(true)
+
+    try {
+      const response = await ConfiguracionService.restablecerTicket()
+      const data = response.data
+
+      // Actualizar solo los campos del ticket (mantener apariencia)
+      onChange({
+        gimnasioNombre: data.gimnasioNombre,
+        gimnasioDomicilio: data.gimnasioDomicilio,
+        gimnasioTelefono: data.gimnasioTelefono,
+        gimnasioRFC: data.gimnasioRFC,
+        gimnasioLogo: data.gimnasioLogo || "",
+        ticketFooter: data.ticketFooter,
+        ticketMensajeAgradecimiento: data.ticketMensajeAgradecimiento,
+      })
+
+      toast({
+        title: "Datos del ticket restablecidos",
+        description: "Los datos del gimnasio han sido restaurados a valores de fábrica",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error al restablecer",
+        description: error.message || "No se pudo restablecer los datos del ticket",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRestoringTicket(false)
+    }
+  }
   return (
     <div className="bg-card rounded-xl p-6 border border-border animate-fade-in-up">
       <div className="flex items-center gap-2 mb-6">
@@ -329,6 +367,30 @@ export function DatosTicketTab({ config, onChange }: DatosTicketTabProps) {
               </ul>
             </div>
           )}
+        </div>
+
+        {/* Restore Button */}
+        <div className="mt-8 pt-6 border-t border-border">
+          <button
+            onClick={handleRestablecerTicket}
+            disabled={isRestoringTicket}
+            className="w-full px-4 py-3 bg-accent/10 hover:bg-accent/20 border border-accent text-accent rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isRestoringTicket ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-accent"></div>
+                <span>Restaurando...</span>
+              </>
+            ) : (
+              <>
+                <RotateCcw className="h-4 w-4" />
+                <span>Restaurar Ticket</span>
+              </>
+            )}
+          </button>
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Restaura RFC, nombre y dirección a valores de fábrica
+          </p>
         </div>
       </div>
     </div>

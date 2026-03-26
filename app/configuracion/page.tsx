@@ -102,27 +102,68 @@ export default function ConfiguracionPage() {
     }
   }, [config, activeTab])
 
-  const handleRestablecer = useCallback(() => {
-    // Si estamos en el tab de apariencia, usar el servicio de tema
-    if (activeTab === "apariencia") {
-      ThemeService.restablecerTema()
-      setNotification({ message: "Tema restablecido a valores por defecto", type: "info" })
-      setTimeout(() => setNotification(null), 3000)
-      return
-    }
-    
+  const handleRestablecer = useCallback(async () => {
     // Si estamos en el tab de roles, no hacer nada (el tab maneja su propia lógica)
     if (activeTab === "roles") {
       setNotification({ message: "Los roles del sistema no se pueden restablecer", type: "info" })
       setTimeout(() => setNotification(null), 3000)
       return
     }
-    
-    // Para otros tabs, restablecer config normal
-    setConfig({ ...defaultConfig })
-    setSavedConfig({ ...defaultConfig })
-    setNotification({ message: "Configuracion restablecida a valores por defecto", type: "info" })
-    setTimeout(() => setNotification(null), 3000)
+
+    setLoading(true)
+
+    try {
+      const response = await ConfiguracionService.restablecerSistema()
+      const data = response.data
+
+      ThemeService.guardarTema(
+        {
+          colorPrincipal: data.colorPrincipal,
+          colorSecundario: data.colorSecundario,
+          modoTema: data.modoTema,
+          nombreSistema: data.nombreSistema,
+          logoSistema: data.logoSistema,
+        },
+        { skipRemoteSync: true }
+      )
+
+      setConfig((prev) => ({
+        ...prev,
+        colorPrincipal: data.colorPrincipal,
+        colorSecundario: data.colorSecundario,
+        modoTema: data.modoTema,
+        nombreSistema: data.nombreSistema,
+        gimnasioNombre: data.gimnasioNombre,
+        gimnasioDomicilio: data.gimnasioDomicilio,
+        gimnasioTelefono: data.gimnasioTelefono,
+        gimnasioRFC: data.gimnasioRFC,
+        gimnasioLogo: data.gimnasioLogo || "",
+        ticketFooter: data.ticketFooter,
+        ticketMensajeAgradecimiento: data.ticketMensajeAgradecimiento,
+      }))
+
+      setSavedConfig((prev) => ({
+        ...prev,
+        colorPrincipal: data.colorPrincipal,
+        colorSecundario: data.colorSecundario,
+        modoTema: data.modoTema,
+        nombreSistema: data.nombreSistema,
+        gimnasioNombre: data.gimnasioNombre,
+        gimnasioDomicilio: data.gimnasioDomicilio,
+        gimnasioTelefono: data.gimnasioTelefono,
+        gimnasioRFC: data.gimnasioRFC,
+        gimnasioLogo: data.gimnasioLogo || "",
+        ticketFooter: data.ticketFooter,
+        ticketMensajeAgradecimiento: data.ticketMensajeAgradecimiento,
+      }))
+
+      setNotification({ message: response.message || "Configuracion restablecida a valores de fabrica", type: "info" })
+    } catch (error: any) {
+      setNotification({ message: error.message || "Error al restablecer la configuracion", type: "error" })
+    } finally {
+      setLoading(false)
+      setTimeout(() => setNotification(null), 3000)
+    }
   }, [activeTab])
 
   return (

@@ -2,7 +2,7 @@
 // SERVICIO DE CONFIGURACIÓN GLOBAL (APARIENCIA + TICKET)
 // ============================================================
 
-import { ApiError, apiDelete, apiGet, apiPatch, apiPut } from '@/lib/api'
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from '@/lib/api'
 
 export type ModoTema = 'dark' | 'light' | 'auto'
 
@@ -266,19 +266,75 @@ export class ConfiguracionService {
   }
 
   /**
+   * POST /configuracion/sistema/restablecer
+   */
+  static async restablecerSistema(): Promise<ConfiguracionSistemaResponse> {
+    try {
+      const response = await apiPost<ConfiguracionSistemaResponse>(
+        '/configuracion/sistema/restablecer'
+      )
+      return {
+        ...response,
+        data: normalizarConfiguracion(response.data),
+      }
+    } catch (error) {
+      throw mapearErrorConfiguracion(error, 'Error al restablecer la configuración del sistema')
+    }
+  }
+
+  /**
+   * POST /configuracion/sistema/apariencia/restablecer
+   * Restaura solo apariencia (colores, tema, nombre, logo) - mantiene datos del gimnasio
+   */
+  static async restablecerApariencia(): Promise<ConfiguracionSistemaResponse> {
+    try {
+      const response = await apiPost<ConfiguracionSistemaResponse>(
+        '/configuracion/sistema/apariencia/restablecer'
+      )
+      return {
+        ...response,
+        data: normalizarConfiguracion(response.data),
+      }
+    } catch (error) {
+      throw mapearErrorConfiguracion(error, 'Error al restablecer la apariencia del sistema')
+    }
+  }
+
+  /**
+   * POST /configuracion/sistema/ticket/restablecer
+   * Restaura solo datos del ticket/gimnasio (nombre, RFC, domicilio, etc.) - mantiene apariencia
+   */
+  static async restablecerTicket(): Promise<ConfiguracionSistemaResponse> {
+    try {
+      const response = await apiPost<ConfiguracionSistemaResponse>(
+        '/configuracion/sistema/ticket/restablecer'
+      )
+      return {
+        ...response,
+        data: normalizarConfiguracion(response.data),
+      }
+    } catch (error) {
+      throw mapearErrorConfiguracion(error, 'Error al restablecer los datos del ticket')
+    }
+  }
+
+  /**
    * Mantiene compatibilidad con la UI actual de "restablecer" sin endpoint dedicado.
    */
   static async restaurarDefecto(): Promise<ConfiguracionResponse> {
+    const response = await this.restablecerSistema()
+    const data = response.data
+
     return {
-      message: 'Configuración restablecida localmente',
+      message: response.message,
       data: {
-        gimnasioNombre: DEFAULT_CONFIG_SISTEMA.gimnasioNombre,
-        gimnasioDomicilio: DEFAULT_CONFIG_SISTEMA.gimnasioDomicilio,
-        gimnasioTelefono: DEFAULT_CONFIG_SISTEMA.gimnasioTelefono,
-        gimnasioRFC: DEFAULT_CONFIG_SISTEMA.gimnasioRFC,
-        gimnasioLogo: DEFAULT_CONFIG_SISTEMA.gimnasioLogo || '',
-        ticketFooter: DEFAULT_CONFIG_SISTEMA.ticketFooter,
-        ticketMensajeAgradecimiento: DEFAULT_CONFIG_SISTEMA.ticketMensajeAgradecimiento,
+        gimnasioNombre: data.gimnasioNombre,
+        gimnasioDomicilio: data.gimnasioDomicilio,
+        gimnasioTelefono: data.gimnasioTelefono,
+        gimnasioRFC: data.gimnasioRFC,
+        gimnasioLogo: data.gimnasioLogo || '',
+        ticketFooter: data.ticketFooter,
+        ticketMensajeAgradecimiento: data.ticketMensajeAgradecimiento,
       },
     }
   }

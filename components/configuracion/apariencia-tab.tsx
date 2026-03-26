@@ -1,15 +1,18 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Upload, X, Image as ImageIcon } from "lucide-react"
+import { Upload, X, Image as ImageIcon, RotateCcw } from "lucide-react"
 import { useTheme } from "@/components/theme-provider-custom"
 import { useToast } from "@/hooks/use-toast"
+import { ConfiguracionService } from "@/lib/services/configuracion"
+import { ThemeService } from "@/lib/services/theme"
 
 export function AparienciaTab() {
   const { theme, actualizarTema, subirLogo, eliminarLogo } = useTheme()
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
+  const [isRestoringAppearance, setIsRestoringAppearance] = useState(false)
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -43,6 +46,40 @@ export function AparienciaTab() {
       title: "Logo eliminado",
       description: "Se ha eliminado el logo personalizado",
     })
+  }
+
+  const handleRestablecerApariencia = async () => {
+    setIsRestoringAppearance(true)
+
+    try {
+      const response = await ConfiguracionService.restablecerApariencia()
+      const data = response.data
+
+      // Guardar en tema sin sincronizar al backend (ya lo hizo el endpoint)
+      ThemeService.guardarTema(
+        {
+          colorPrincipal: data.colorPrincipal,
+          colorSecundario: data.colorSecundario,
+          modoTema: data.modoTema,
+          nombreSistema: data.nombreSistema,
+          logoSistema: data.logoSistema,
+        },
+        { skipRemoteSync: true }
+      )
+
+      toast({
+        title: "Apariencia restablecida",
+        description: "Los colores y logo han sido restaurados a valores de fábrica",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error al restablecer",
+        description: error.message || "No se pudo restablecer la apariencia",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRestoringAppearance(false)
+    }
   }
 
   return (
@@ -235,6 +272,30 @@ export function AparienciaTab() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Restore Button */}
+      <div className="mt-8 pt-6 border-t border-border">
+        <button
+          onClick={handleRestablecerApariencia}
+          disabled={isRestoringAppearance}
+          className="w-full px-4 py-3 bg-accent/10 hover:bg-accent/20 border border-accent text-accent rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isRestoringAppearance ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-accent"></div>
+              <span>Restaurando...</span>
+            </>
+          ) : (
+            <>
+              <RotateCcw className="h-4 w-4" />
+              <span>Restaurar Apariencia</span>
+            </>
+          )}
+        </button>
+        <p className="text-xs text-muted-foreground mt-2 text-center">
+          Restaura los colores a rojo y azul oscuro, y quita el logo
+        </p>
       </div>
     </div>
   )
