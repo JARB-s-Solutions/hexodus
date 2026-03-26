@@ -22,6 +22,10 @@ export function MembresiaModal({ open, onClose, onGuardar, membresia }: Membresi
   const [precioOriginal, setPrecioOriginal] = useState("")
   const [fechaVencimiento, setFechaVencimiento] = useState("")
 
+  const handleNumberWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur()
+  }
+
   useEffect(() => {
     if (membresia) {
       setNombre(membresia.nombre)
@@ -172,6 +176,7 @@ export function MembresiaModal({ open, onClose, onGuardar, membresia }: Membresi
                         type="number"
                         value={precio}
                         onChange={(e) => setPrecio(e.target.value)}
+                        onWheel={handleNumberWheel}
                         required
                         min="0"
                         step="0.01"
@@ -203,6 +208,7 @@ export function MembresiaModal({ open, onClose, onGuardar, membresia }: Membresi
                       type="number"
                       value={duracionCantidad}
                       onChange={(e) => setDuracionCantidad(e.target.value)}
+                      onWheel={handleNumberWheel}
                       required
                       min="1"
                       placeholder="1"
@@ -271,6 +277,7 @@ export function MembresiaModal({ open, onClose, onGuardar, membresia }: Membresi
                           type="number"
                           value={precioOriginal}
                           onChange={(e) => setPrecioOriginal(e.target.value)}
+                          onWheel={handleNumberWheel}
                           min="0"
                           step="0.01"
                           placeholder="0.00"
