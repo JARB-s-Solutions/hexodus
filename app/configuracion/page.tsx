@@ -71,17 +71,23 @@ export default function ConfiguracionPage() {
     try {
       // Si estamos en el tab de Datos del Ticket, guardar en el backend
       if (activeTab === "datosTicket") {
+        const logoFueEliminado = Boolean(savedConfig.gimnasioLogo) && !config.gimnasioLogo
+
+        if (logoFueEliminado) {
+          await ConfiguracionService.eliminarLogoTicket()
+        }
+
         const configGimnasio = {
           gimnasioNombre: config.gimnasioNombre,
           gimnasioDomicilio: config.gimnasioDomicilio,
           gimnasioTelefono: config.gimnasioTelefono,
           gimnasioRFC: config.gimnasioRFC,
-          gimnasioLogo: config.gimnasioLogo,
           ticketFooter: config.ticketFooter,
           ticketMensajeAgradecimiento: config.ticketMensajeAgradecimiento,
-        }
+          ...(config.gimnasioLogo ? { gimnasioLogo: config.gimnasioLogo } : {}),
+        } satisfies Parameters<typeof ConfiguracionService.actualizarSoloTicket>[0]
         
-        await ConfiguracionService.guardarConfiguracion(configGimnasio)
+        await ConfiguracionService.actualizarSoloTicket(configGimnasio)
       }
 
       // Guardar en estado local
@@ -173,7 +179,7 @@ export default function ConfiguracionPage() {
         <div
           className={`
             fixed top-5 right-5 z-50 px-5 py-3 rounded-lg text-sm font-medium text-foreground
-            shadow-lg border-l-4 animate-slide-in-right max-w-[350px]
+            shadow-lg border-l-4 animate-slide-in-right max-w-87.5
             ${notification.type === "success" ? "bg-[#22c55e] border-[#15803d]" : ""}
             ${notification.type === "error" ? "bg-destructive border-destructive" : ""}
             ${notification.type === "info" ? "bg-accent border-accent" : ""}

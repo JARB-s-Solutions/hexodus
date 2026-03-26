@@ -3,6 +3,8 @@
  * Maneja la persistencia en localStorage y aplicación de colores en tiempo real
  */
 
+import { ConfiguracionService } from '@/lib/services/configuracion'
+
 export interface ThemeConfig {
   colorPrincipal: string
   colorSecundario: string
@@ -21,6 +23,8 @@ const DEFAULT_THEME: ThemeConfig = {
 }
 
 export class ThemeService {
+  private static persistTimer: ReturnType<typeof setTimeout> | null = null
+
   /**
    * Cargar configuración de tema desde localStorage
    */
@@ -42,7 +46,10 @@ export class ThemeService {
   /**
    * Guardar configuración de tema en localStorage
    */
-  static guardarTema(config: Partial<ThemeConfig>): ThemeConfig {
+  static guardarTema(
+    config: Partial<ThemeConfig>,
+    options?: { skipRemoteSync?: boolean }
+  ): ThemeConfig {
     if (typeof window === 'undefined') return DEFAULT_THEME
 
     try {
@@ -53,6 +60,11 @@ export class ThemeService {
       
       // Aplicar cambios inmediatamente
       this.aplicarTema(updated)
+
+      // Persistir en backend sin bloquear la UI
+      if (!options?.skipRemoteSync) {
+        this.programarPersistenciaRemota(updated)
+      }
       
       return updated
     } catch (error) {
@@ -166,7 +178,7 @@ export class ThemeService {
         
         // Guardar logo en la configuración
         const config = this.cargarTema()
-        const updated = this.guardarTema({ ...config, logoSistema: base64 })
+        this.guardarTema({ ...config, logoSistema: base64 })
         
         resolve(base64)
       }
@@ -185,6 +197,10 @@ export class ThemeService {
   static eliminarLogo(): void {
     const config = this.cargarTema()
     this.guardarTema({ ...config, logoSistema: null })
+
+    void ConfiguracionService.eliminarLogoApariencia().catch((error) => {
+      console.error('Error eliminando logo de apariencia en backend:', error)
+    })
   }
 
   /**
@@ -195,6 +211,7 @@ export class ThemeService {
       localStorage.removeItem(STORAGE_KEY)
     }
     this.aplicarTema(DEFAULT_THEME)
+    this.programarPersistenciaRemota(DEFAULT_THEME)
     return DEFAULT_THEME
   }
 
@@ -203,6 +220,55 @@ export class ThemeService {
    */
   static obtenerTemaPorDefecto(): ThemeConfig {
     return { ...DEFAULT_THEME }
+  }
+
+  /**
+   * Cargar configuración de apariencia desde backend y reflejarla localmente.
+   */
+  static async sincronizarConBackend(): Promise<ThemeConfig | null> {
+    if (typeof window === 'undefined') return null
+
+    // En rutas públicas (ej. login) no debe intentarse sincronizar sin sesión,
+    // porque un 401 dispara redirección global y provoca recargas repetidas.
+    const token = localStorage.getItem('auth_token')
+    if (!token) return null
+
+    try {
+      const response = await ConfiguracionService.obtenerConfiguracionUnificada()
+      const data = response.data
+      const remoteTheme: ThemeConfig = {
+        colorPrincipal: data.colorPrincipal,
+        colorSecundario: data.colorSecundario,
+        modoTema: data.modoTema,
+        nombreSistema: data.nombreSistema,
+        logoSistema: data.logoSistema,
+      }
+
+      const updated = this.guardarTema(remoteTheme, { skipRemoteSync: true })
+      this.aplicarTema(updated)
+      return updated
+    } catch (error) {
+      console.warn('No se pudo sincronizar apariencia con backend, se mantiene configuración local')
+      return null
+    }
+  }
+
+  private static programarPersistenciaRemota(config: ThemeConfig): void {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer)
+    }
+
+    this.persistTimer = setTimeout(() => {
+      void ConfiguracionService.actualizarSoloApariencia({
+        colorPrincipal: config.colorPrincipal,
+        colorSecundario: config.colorSecundario,
+        modoTema: config.modoTema,
+        nombreSistema: config.nombreSistema,
+        logoSistema: config.logoSistema,
+      }).catch((error) => {
+        console.error('Error guardando apariencia en backend:', error)
+      })
+    }, 400)
   }
 }
 

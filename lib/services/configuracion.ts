@@ -1,10 +1,18 @@
 // ============================================================
-// SERVICIO DE CONFIGURACIÓN DEL GIMNASIO (LocalStorage)
+// SERVICIO DE CONFIGURACIÓN GLOBAL (APARIENCIA + TICKET)
 // ============================================================
 
-// ============================================================
-// TIPOS
-// ============================================================
+import { ApiError, apiDelete, apiGet, apiPatch, apiPut } from '@/lib/api'
+
+export type ModoTema = 'dark' | 'light' | 'auto'
+
+export interface ConfiguracionApariencia {
+  colorPrincipal: string
+  colorSecundario: string
+  modoTema: ModoTema
+  nombreSistema: string
+  logoSistema: string | null
+}
 
 export interface ConfiguracionGimnasio {
   gimnasioNombre: string
@@ -16,113 +24,262 @@ export interface ConfiguracionGimnasio {
   ticketMensajeAgradecimiento: string
 }
 
+export interface ConfiguracionSistemaData extends ConfiguracionApariencia {
+  gimnasioNombre: string
+  gimnasioDomicilio: string
+  gimnasioTelefono: string
+  gimnasioRFC: string
+  gimnasioLogo: string | null
+  ticketFooter: string
+  ticketMensajeAgradecimiento: string
+  updatedAt?: string
+}
+
+export interface ConfiguracionSistemaResponse {
+  success?: boolean
+  message: string
+  data: ConfiguracionSistemaData
+}
+
 export interface ConfiguracionResponse {
   message: string
   data: ConfiguracionGimnasio
 }
 
-// Configuración por defecto
-const DEFAULT_CONFIG: ConfiguracionGimnasio = {
+const DEFAULT_CONFIG_SISTEMA: ConfiguracionSistemaData = {
+  colorPrincipal: '#FF3B3B',
+  colorSecundario: '#00BFFF',
+  modoTema: 'dark',
+  nombreSistema: 'HEXODUS',
+  logoSistema: null,
   gimnasioNombre: 'GYM FITNESS',
   gimnasioDomicilio: 'Av. Principal #123, Col. Centro, CP 12345',
   gimnasioTelefono: '+52 123 456 7890',
-  gimnasioRFC: 'GYM123456ABC',
-  gimnasioLogo: '/assets/images/icon-printers.png',
+  gimnasioRFC: 'XAXX010101000',
+  gimnasioLogo: null,
   ticketFooter: '¡Gracias por tu visita!',
-  ticketMensajeAgradecimiento: 'Te esperamos pronto'
+  ticketMensajeAgradecimiento: 'Te esperamos pronto',
 }
 
-const STORAGE_KEY = 'hexodus_configuracion_gimnasio'
+function normalizarModoTema(value: unknown): ModoTema {
+  if (value === 'light' || value === 'auto') return value
+  return 'dark'
+}
 
-// ============================================================
-// SERVICIO
-// ============================================================
+function normalizarConfiguracion(data?: Partial<ConfiguracionSistemaData>): ConfiguracionSistemaData {
+  return {
+    colorPrincipal: data?.colorPrincipal || DEFAULT_CONFIG_SISTEMA.colorPrincipal,
+    colorSecundario: data?.colorSecundario || DEFAULT_CONFIG_SISTEMA.colorSecundario,
+    modoTema: normalizarModoTema(data?.modoTema),
+    nombreSistema: data?.nombreSistema || DEFAULT_CONFIG_SISTEMA.nombreSistema,
+    logoSistema: data?.logoSistema ?? DEFAULT_CONFIG_SISTEMA.logoSistema,
+    gimnasioNombre: data?.gimnasioNombre || DEFAULT_CONFIG_SISTEMA.gimnasioNombre,
+    gimnasioDomicilio: data?.gimnasioDomicilio || DEFAULT_CONFIG_SISTEMA.gimnasioDomicilio,
+    gimnasioTelefono: data?.gimnasioTelefono || DEFAULT_CONFIG_SISTEMA.gimnasioTelefono,
+    gimnasioRFC: data?.gimnasioRFC || DEFAULT_CONFIG_SISTEMA.gimnasioRFC,
+    gimnasioLogo: data?.gimnasioLogo ?? DEFAULT_CONFIG_SISTEMA.gimnasioLogo,
+    ticketFooter: data?.ticketFooter || DEFAULT_CONFIG_SISTEMA.ticketFooter,
+    ticketMensajeAgradecimiento:
+      data?.ticketMensajeAgradecimiento || DEFAULT_CONFIG_SISTEMA.ticketMensajeAgradecimiento,
+    updatedAt: data?.updatedAt,
+  }
+}
+
+function mapearErrorConfiguracion(error: unknown, fallback: string): Error {
+  if (error instanceof ApiError) {
+    const rawErrors = error.errors as unknown
+    if (Array.isArray(rawErrors) && rawErrors.length > 0) {
+      const detalle = rawErrors.find((item) => typeof item === 'object' && item !== null) as
+        | { detail?: string }
+        | undefined
+      if (detalle?.detail) return new Error(detalle.detail)
+    }
+    return new Error(error.message || fallback)
+  }
+
+  if (error instanceof Error) {
+    return new Error(error.message || fallback)
+  }
+
+  return new Error(fallback)
+}
+
+function validarBase64Logo(campo: 'logoSistema' | 'gimnasioLogo', value?: string | null): void {
+  if (!value) return
+  const lower = value.toLowerCase()
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
+    if (campo === 'gimnasioLogo') {
+      throw new Error(
+        'El campo gimnasioLogo no permite enlaces (URLs). Debe ser una imagen en Base64 para poder imprimirse en el ticket.'
+      )
+    }
+    throw new Error('El campo logoSistema no permite enlaces (URLs). Debe ser una imagen en Base64.')
+  }
+}
 
 export class ConfiguracionService {
   /**
-   * Obtener configuración del gimnasio desde localStorage
+   * GET /configuracion/sistema
+   */
+  static async obtenerConfiguracionUnificada(): Promise<ConfiguracionSistemaResponse> {
+    try {
+      const response = await apiGet<ConfiguracionSistemaResponse>('/configuracion/sistema')
+      return {
+        ...response,
+        data: normalizarConfiguracion(response.data),
+      }
+    } catch (error) {
+      throw mapearErrorConfiguracion(error, 'No se pudo obtener la configuración del sistema')
+    }
+  }
+
+  /**
+   * Compatibilidad con consumidores que solo necesitan datos de ticket/gimnasio.
    */
   static async obtenerConfiguracion(): Promise<ConfiguracionResponse> {
-    try {
-      console.log('📋 Obteniendo configuración del gimnasio desde localStorage...')
+    const response = await this.obtenerConfiguracionUnificada()
+    const data = response.data
 
-      // Simular delay de red para consistencia
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      const stored = localStorage.getItem(STORAGE_KEY)
-      
-      if (stored) {
-        const data = JSON.parse(stored) as ConfiguracionGimnasio
-        console.log('✅ Configuración del gimnasio cargada desde localStorage')
-        console.log('   Nombre:', data.gimnasioNombre)
-        return {
-          message: 'Configuración obtenida exitosamente',
-          data
-        }
-      }
-
-      // Si no hay configuración guardada, usar la por defecto
-      console.log('📋 Usando configuración por defecto')
-      return {
-        message: 'Configuración por defecto',
-        data: { ...DEFAULT_CONFIG }
-      }
-    } catch (error: any) {
-      console.error('❌ Error obteniendo configuración del gimnasio:', error)
-      // En caso de error, retornar configuración por defecto
-      return {
-        message: 'Configuración por defecto (error en lectura)',
-        data: { ...DEFAULT_CONFIG }
-      }
+    return {
+      message: response.message,
+      data: {
+        gimnasioNombre: data.gimnasioNombre,
+        gimnasioDomicilio: data.gimnasioDomicilio,
+        gimnasioTelefono: data.gimnasioTelefono,
+        gimnasioRFC: data.gimnasioRFC,
+        gimnasioLogo: data.gimnasioLogo || '',
+        ticketFooter: data.ticketFooter,
+        ticketMensajeAgradecimiento: data.ticketMensajeAgradecimiento,
+      },
     }
   }
 
   /**
-   * Guardar/actualizar configuración del gimnasio en localStorage
+   * PUT /configuracion/sistema
+   */
+  static async actualizarConfiguracionTotal(
+    body: Omit<ConfiguracionSistemaData, 'updatedAt'>
+  ): Promise<ConfiguracionSistemaResponse> {
+    validarBase64Logo('logoSistema', body.logoSistema)
+    validarBase64Logo('gimnasioLogo', body.gimnasioLogo)
+
+    try {
+      const response = await apiPut<ConfiguracionSistemaResponse>('/configuracion/sistema', body)
+      return {
+        ...response,
+        data: normalizarConfiguracion(response.data),
+      }
+    } catch (error) {
+      throw mapearErrorConfiguracion(error, 'Error al actualizar la configuración global')
+    }
+  }
+
+  /**
+   * PATCH /configuracion/sistema/apariencia
+   */
+  static async actualizarSoloApariencia(
+    body: Partial<ConfiguracionApariencia>
+  ): Promise<ConfiguracionSistemaResponse> {
+    validarBase64Logo('logoSistema', body.logoSistema)
+
+    try {
+      const response = await apiPatch<ConfiguracionSistemaResponse>(
+        '/configuracion/sistema/apariencia',
+        body
+      )
+      return {
+        ...response,
+        data: normalizarConfiguracion(response.data),
+      }
+    } catch (error) {
+      throw mapearErrorConfiguracion(error, 'Error al actualizar la apariencia del sistema')
+    }
+  }
+
+  /**
+   * PATCH /configuracion/sistema/ticket
+   */
+  static async actualizarSoloTicket(
+    body: Partial<ConfiguracionGimnasio>
+  ): Promise<ConfiguracionSistemaResponse> {
+    validarBase64Logo('gimnasioLogo', body.gimnasioLogo)
+
+    try {
+      const response = await apiPatch<ConfiguracionSistemaResponse>(
+        '/configuracion/sistema/ticket',
+        body
+      )
+      return {
+        ...response,
+        data: normalizarConfiguracion(response.data),
+      }
+    } catch (error) {
+      throw mapearErrorConfiguracion(error, 'Error al actualizar los datos del ticket')
+    }
+  }
+
+  /**
+   * Compatibilidad con flujo actual de guardado de ticket.
    */
   static async guardarConfiguracion(config: ConfiguracionGimnasio): Promise<ConfiguracionResponse> {
-    try {
-      console.log('💾 Guardando configuración del gimnasio en localStorage...')
-      console.log('   Configuración:', config)
+    const response = await this.actualizarSoloTicket(config)
+    const data = response.data
 
-      // Simular delay de red para consistencia
-      await new Promise(resolve => setTimeout(resolve, 150))
-
-      // Guardar en localStorage
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
-
-      console.log('✅ Configuración del gimnasio guardada exitosamente')
-
-      return {
-        message: 'Configuración guardada exitosamente',
-        data: config
-      }
-    } catch (error: any) {
-      console.error('❌ Error guardando configuración del gimnasio:', error)
-      throw new Error('Error al guardar la configuración. Por favor, intente nuevamente.')
+    return {
+      message: response.message,
+      data: {
+        gimnasioNombre: data.gimnasioNombre,
+        gimnasioDomicilio: data.gimnasioDomicilio,
+        gimnasioTelefono: data.gimnasioTelefono,
+        gimnasioRFC: data.gimnasioRFC,
+        gimnasioLogo: data.gimnasioLogo || '',
+        ticketFooter: data.ticketFooter,
+        ticketMensajeAgradecimiento: data.ticketMensajeAgradecimiento,
+      },
     }
   }
 
   /**
-   * Restaurar configuración por defecto
+   * DELETE /configuracion/sistema/logo-apariencia
+   */
+  static async eliminarLogoApariencia(): Promise<{ success?: boolean; message: string }> {
+    try {
+      return await apiDelete<{ success?: boolean; message: string }>(
+        '/configuracion/sistema/logo-apariencia'
+      )
+    } catch (error) {
+      throw mapearErrorConfiguracion(error, 'No se pudo eliminar el logo de apariencia')
+    }
+  }
+
+  /**
+   * DELETE /configuracion/sistema/logo-ticket
+   */
+  static async eliminarLogoTicket(): Promise<{ success?: boolean; message: string }> {
+    try {
+      return await apiDelete<{ success?: boolean; message: string }>(
+        '/configuracion/sistema/logo-ticket'
+      )
+    } catch (error) {
+      throw mapearErrorConfiguracion(error, 'No se pudo eliminar el logo del ticket')
+    }
+  }
+
+  /**
+   * Mantiene compatibilidad con la UI actual de "restablecer" sin endpoint dedicado.
    */
   static async restaurarDefecto(): Promise<ConfiguracionResponse> {
-    try {
-      console.log('🔄 Restaurando configuración por defecto...')
-      
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CONFIG))
-      
-      console.log('✅ Configuración restaurada a valores por defecto')
-      
-      return {
-        message: 'Configuración restaurada exitosamente',
-        data: { ...DEFAULT_CONFIG }
-      }
-    } catch (error: any) {
-      console.error('❌ Error restaurando configuración:', error)
-      throw new Error('Error al restaurar la configuración')
+    return {
+      message: 'Configuración restablecida localmente',
+      data: {
+        gimnasioNombre: DEFAULT_CONFIG_SISTEMA.gimnasioNombre,
+        gimnasioDomicilio: DEFAULT_CONFIG_SISTEMA.gimnasioDomicilio,
+        gimnasioTelefono: DEFAULT_CONFIG_SISTEMA.gimnasioTelefono,
+        gimnasioRFC: DEFAULT_CONFIG_SISTEMA.gimnasioRFC,
+        gimnasioLogo: DEFAULT_CONFIG_SISTEMA.gimnasioLogo || '',
+        ticketFooter: DEFAULT_CONFIG_SISTEMA.ticketFooter,
+        ticketMensajeAgradecimiento: DEFAULT_CONFIG_SISTEMA.ticketMensajeAgradecimiento,
+      },
     }
   }
 }

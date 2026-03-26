@@ -23,7 +23,24 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const loadedTheme = ThemeService.cargarTema()
     setTheme(loadedTheme)
     ThemeService.aplicarTema(loadedTheme)
-    setIsLoading(false)
+
+    let isMounted = true
+
+    const syncTheme = async () => {
+      const remoteTheme = await ThemeService.sincronizarConBackend()
+      if (isMounted && remoteTheme) {
+        setTheme(remoteTheme)
+      }
+      if (isMounted) {
+        setIsLoading(false)
+      }
+    }
+
+    void syncTheme()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   // Escuchar cambios de preferencia de sistema cuando el modo es 'auto'

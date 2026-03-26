@@ -37,7 +37,16 @@ function handleHttpError(status: number, message: string): void {
     localStorage.removeItem('auth_user')
     localStorage.removeItem('auth_expires')
     window.dispatchEvent(new CustomEvent('auth:logout'))
-    window.location.href = '/login'
+
+    const currentPath = window.location.pathname
+    const isPublicAuthPath =
+      currentPath === '/login' ||
+      currentPath === '/recuperar-password' ||
+      currentPath.startsWith('/reset-password')
+
+    if (!isPublicAuthPath) {
+      window.location.href = '/login'
+    }
   } else if (status === 403) {
     window.dispatchEvent(
       new CustomEvent('api:forbidden', { detail: { message } })
