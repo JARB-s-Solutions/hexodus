@@ -1,9 +1,11 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react"
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { CajaService } from "@/lib/services/caja"
 import { AuthService } from "@/lib/auth"
 import type { EstadoCaja } from "@/lib/types/caja"
+import { formatYmdInTimeZone, getTodayYmdInTimeZone } from "@/lib/timezone"
+import { toast } from "@/hooks/use-toast"
 
 interface CajaContextType {
   estadoCaja: EstadoCaja | null
@@ -18,6 +20,8 @@ const CajaContext = createContext<CajaContextType | undefined>(undefined)
 export function CajaProvider({ children }: { children: React.ReactNode }) {
   const [estadoCaja, setEstadoCaja] = useState<EstadoCaja | null>(null)
   const [loading, setLoading] = useState(true)
+  const autoClosingRef = useRef(false)
+  const lastAutoCloseKeyRef = useRef<string | null>(null)
 
   // Función para refrescar el estado de la caja
   const refrescarEstado = useCallback(async () => {
@@ -29,25 +33,6 @@ export function CajaProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      const puedeGestionarCaja =
-        AuthService.hasPermission("ventas", "crearCorte") ||
-        AuthService.hasPermission("ventas", "verCortesAnteriores")
-
-      if (!puedeGestionarCaja) {
-        console.log("⏸️ Usuario sin permisos de caja, omitiendo consulta de estado")
-        const user = AuthService.getUser()
-        setEstadoCaja({
-          abierta: false,
-          corte_id: null,
-          monto_inicial: 0,
-          monto_actual: 0,
-          fecha_apertura: null,
-          usuario: user?.nombre_completo || user?.username || "Usuario",
-        })
-        setLoading(false)
-        return
-      }
-      
       console.log("🔄 Refrescando estado de caja...")
       console.log("   ✅ Usuario autenticado, consultando backend...")
       
@@ -90,6 +75,63 @@ export function CajaProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (movApertura) {
+        const fechaAperturaYmd = formatYmdInTimeZone(movApertura.fecha)
+        const hoyYmd = getTodayYmdInTimeZone()
+        const autoCloseKey = `${fechaAperturaYmd}|${movApertura.id}`
+
+        // Cierre automático real: si la caja pertenece a un día anterior, se cierra
+        // sin requerir clic del usuario.
+        if (fechaAperturaYmd && fechaAperturaYmd < hoyYmd && !autoClosingRef.current && lastAutoCloseKeyRef.current !== autoCloseKey) {
+          autoClosingRef.current = true
+          lastAutoCloseKeyRef.current = autoCloseKey
+
+          try {
+            console.log("🤖 Detectada caja de día anterior. Ejecutando cierre automático...")
+            const resultado = await CajaService.cerrarCajaAntigua(
+              movApertura.fecha,
+              `Cierre automático por cambio de día (${fechaAperturaYmd} -> ${hoyYmd})`
+            )
+
+            setEstadoCaja({
+              abierta: false,
+              corte_id: null,
+              monto_inicial: 0,
+              monto_actual: 0,
+              fecha_apertura: null,
+              usuario: user?.nombre_completo || user?.username || "Usuario",
+            })
+
+            toast({
+              title: "✅ Caja cerrada automáticamente",
+              description: `Se cerró la caja del día anterior. Total: $${resultado.data.total_ingresos_amarrados}`,
+            })
+
+            return
+          } catch (autoCloseError: any) {
+            console.error("❌ Error al cerrar caja automáticamente:", autoCloseError)
+
+            // Mantenemos bloqueado el acceso para evitar registrar operaciones en una caja desfasada.
+            setEstadoCaja({
+              abierta: false,
+              corte_id: null,
+              monto_inicial: 0,
+              monto_actual: 0,
+              fecha_apertura: null,
+              usuario: user?.nombre_completo || user?.username || "Usuario",
+            })
+
+            toast({
+              title: "⚠️ Cierre automático pendiente",
+              description: "No se pudo cerrar automáticamente la caja anterior. Requiere intervención de administrador.",
+              variant: "destructive",
+            })
+
+            return
+          } finally {
+            autoClosingRef.current = false
+          }
+        }
+
         // Caja abierta
         const nuevoEstado = {
           abierta: true,
