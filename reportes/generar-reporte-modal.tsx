@@ -11,7 +11,9 @@ import {
   Download,
   Loader2,
 } from "lucide-react"
-import { exportReporteToCSV, type TipoReporte } from "@/lib/reportes-data"
+import { type TipoReporte } from "@/lib/reportes-data"
+
+type FormatoReporte = "CSV" | "XLSX" | "PDF"
 
 interface GenerarReporteModalProps {
   open: boolean
@@ -23,6 +25,7 @@ export interface ReporteConfig {
   nombre: string
   descripcion: string
   tipo: TipoReporte | "completo"
+  formato: FormatoReporte
   fechaInicio: string
   fechaFin: string
   incluirGraficos: boolean
@@ -33,6 +36,7 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
   const [nombre, setNombre] = useState("")
   const [descripcion, setDescripcion] = useState("")
   const [tipo, setTipo] = useState<TipoReporte | "completo">("completo")
+  const [formato, setFormato] = useState<FormatoReporte>("CSV")
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
   const [incluirGraficos, setIncluirGraficos] = useState(true)
@@ -52,6 +56,7 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
         nombre: nombre.trim(),
         descripcion: descripcion.trim(),
         tipo,
+        formato,
         fechaInicio,
         fechaFin,
         incluirGraficos,
@@ -62,6 +67,7 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
       setNombre("")
       setDescripcion("")
       setTipo("completo")
+      setFormato("CSV")
       setFechaInicio("")
       setFechaFin("")
       onClose()
@@ -175,12 +181,15 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
                 <label className="block text-xs font-medium mb-1.5 text-muted-foreground">
                   Formato
                 </label>
-                <div className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm">
-                  <span className="text-accent font-medium">Excel (.csv)</span>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Formato optimizado para Excel con datos ordenados
-                  </p>
-                </div>
+                <select
+                  value={formato}
+                  onChange={(e) => setFormato(e.target.value as FormatoReporte)}
+                  className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-0 focus:outline-none transition-colors cursor-pointer"
+                >
+                  <option value="CSV">CSV</option>
+                  <option value="XLSX">XLSX</option>
+                  <option value="PDF">PDF</option>
+                </select>
               </div>
             </div>
           </div>

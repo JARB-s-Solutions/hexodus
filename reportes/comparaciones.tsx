@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -19,38 +18,23 @@ interface ComparacionesProps {
   items: ComparacionItem[]
   labelActual: string
   labelAnterior: string
-  // Extra comparison sets for different period types
-  comparacionesPeriodos?: {
-    tipo: string
-    label: string
-    labelAnterior: string
-    items: ComparacionItem[]
-  }[]
+  periodoActivo?: string
+  onPeriodoActivoChange?: (periodo: string) => void
 }
 
 export function Comparaciones({
   items,
   labelActual,
   labelAnterior,
-  comparacionesPeriodos,
+  periodoActivo = "actual",
+  onPeriodoActivoChange,
 }: ComparacionesProps) {
-  const [periodoActivo, setPeriodoActivo] = useState<string>("actual")
-
-  const displayItems = periodoActivo === "actual"
-    ? items
-    : comparacionesPeriodos?.find((c) => c.tipo === periodoActivo)?.items || items
-
-  const displayLabelActual = periodoActivo === "actual"
-    ? labelActual
-    : comparacionesPeriodos?.find((c) => c.tipo === periodoActivo)?.label || labelActual
-
-  const displayLabelAnterior = periodoActivo === "actual"
-    ? labelAnterior
-    : comparacionesPeriodos?.find((c) => c.tipo === periodoActivo)?.labelAnterior || labelAnterior
-
   const periodoTabs = [
     { tipo: "actual", label: "Periodo Seleccionado" },
-    ...(comparacionesPeriodos?.map((c) => ({ tipo: c.tipo, label: c.label })) || []),
+    { tipo: "mes", label: "Mes vs Anterior" },
+    { tipo: "trimestre", label: "Trimestre vs Anterior" },
+    { tipo: "semestre", label: "Semestre vs Anterior" },
+    { tipo: "anual", label: "Ano vs Anterior" },
   ]
 
   return (
@@ -58,7 +42,7 @@ export function Comparaciones({
       className="bg-card rounded-xl p-5 relative overflow-hidden"
       style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
     >
-      <div className="absolute top-0 left-0 right-0 h-[3px] bg-accent glow-accent" />
+      <div className="absolute top-0 left-0 right-0 h-0.75 bg-accent glow-accent" />
 
       <div className="flex items-center gap-2 mb-4">
         <ArrowUpRight className="h-5 w-5 text-accent" />
@@ -70,11 +54,11 @@ export function Comparaciones({
       {/* Period selector tabs */}
       {periodoTabs.length > 1 && (
         <div className="flex items-center gap-1 mb-5 overflow-x-auto pb-1">
-          <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mr-1" />
+          <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0 mr-1" />
           {periodoTabs.map((tab) => (
             <button
               key={tab.tipo}
-              onClick={() => setPeriodoActivo(tab.tipo)}
+              onClick={() => onPeriodoActivoChange?.(tab.tipo)}
               className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
                 periodoActivo === tab.tipo
                   ? "bg-accent/20 text-accent"
@@ -90,12 +74,12 @@ export function Comparaciones({
       {/* Header showing period label */}
       <div className="flex items-center gap-2 mb-4 px-1">
         <span className="text-xs text-muted-foreground">
-          {displayLabelActual} vs {displayLabelAnterior}
+          {labelActual} vs {labelAnterior}
         </span>
       </div>
 
       <div className="space-y-4">
-        {displayItems.map((item) => {
+        {items.map((item) => {
           const cambio = calcCambio(item.actual, item.anterior)
           const isPositive = item.label === "Gastos Totales" ? cambio <= 0 : cambio >= 0
           const diferencia = item.actual - item.anterior
@@ -128,11 +112,11 @@ export function Comparaciones({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-background rounded-lg p-3">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{displayLabelActual}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{labelActual}</p>
                   <p className="text-lg font-bold text-foreground">{formatCurrency(item.actual)}</p>
                 </div>
                 <div className="bg-background rounded-lg p-3">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{displayLabelAnterior}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{labelAnterior}</p>
                   <p className="text-lg font-bold text-muted-foreground">{formatCurrency(item.anterior)}</p>
                 </div>
               </div>
@@ -170,7 +154,7 @@ export function Comparaciones({
           <div>
             <p className="text-[10px] text-muted-foreground uppercase">Indicadores Positivos</p>
             <p className="text-lg font-bold text-success">
-              {displayItems.filter((item) => {
+              {items.filter((item) => {
                 const c = calcCambio(item.actual, item.anterior)
                 return item.label === "Gastos Totales" ? c <= 0 : c >= 0
               }).length}
@@ -179,7 +163,7 @@ export function Comparaciones({
           <div>
             <p className="text-[10px] text-muted-foreground uppercase">Indicadores Negativos</p>
             <p className="text-lg font-bold text-destructive">
-              {displayItems.filter((item) => {
+              {items.filter((item) => {
                 const c = calcCambio(item.actual, item.anterior)
                 return item.label === "Gastos Totales" ? c > 0 : c < 0
               }).length}

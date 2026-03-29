@@ -21,7 +21,7 @@ export interface ReporteHistorial {
   periodo: string
   fechaGenerado: string
   estado: "generado" | "descargado"
-  formato: "Excel"
+  formato: "CSV" | "XLSX" | "PDF" | "EXCEL"
   resumen: {
     ventas: number
     gastos: number

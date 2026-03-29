@@ -261,14 +261,16 @@ export interface ComparacionesResponse {
  * Reporte del historial del backend
  */
 export interface ReporteHistorialBackend {
-  id: string
+  id: string | number
   nombre: string
   tipo: string
   periodo: string
-  fecha_generado: string
-  estado: 'generado' | 'descargado'
-  formato: 'Excel'
-  resumen: {
+  fecha_generacion?: string
+  fecha_generado?: string
+  generado_por?: string
+  estado: string
+  formato: string
+  resumen?: {
     ventas: number
     gastos: number
     utilidad: number
@@ -284,9 +286,12 @@ export interface HistorialResponse {
     reportes: ReporteHistorialBackend[]
     paginacion: {
       total: number
-      page: number
-      limit: number
-      totalPages: number
+      page?: number
+      limit?: number
+      totalPages?: number
+      pagina?: number
+      limite?: number
+      totalPaginas?: number
     }
   }
 }
@@ -537,7 +542,7 @@ export class ReportesService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+        throw new Error(errorData.message || errorData.error || `Error ${response.status}: ${response.statusText}`)
       }
 
       const data: KpisResponse = await response.json()
@@ -644,7 +649,7 @@ export class ReportesService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+        throw new Error(errorData.message || errorData.error || `Error ${response.status}: ${response.statusText}`)
       }
 
       const data: ComparacionesResponse = await response.json()
@@ -776,12 +781,29 @@ export class ReportesService {
           totalPages: 1,
         }
       }
+
+      // Normalizar llaves de paginación a un formato único para el frontend
+      const paginacionRaw = data.data.paginacion || { total: 0 }
+      const paginacionNormalizada = {
+        total: paginacionRaw.total || 0,
+        page: paginacionRaw.page ?? paginacionRaw.pagina ?? 1,
+        limit: paginacionRaw.limit ?? paginacionRaw.limite ?? limit,
+        totalPages: paginacionRaw.totalPages ?? paginacionRaw.totalPaginas ?? 1,
+      }
+
+      const respuestaNormalizada: HistorialResponse = {
+        message: data.message || 'Historial obtenido',
+        data: {
+          reportes: data.data.reportes || [],
+          paginacion: paginacionNormalizada,
+        },
+      }
       
       console.log('   Total reportes:', data.data?.paginacion?.total || 0)
-      console.log('   Página actual:', data.data?.paginacion?.page || 1, 'de', data.data?.paginacion?.totalPages || 1)
+      console.log('   Página actual:', paginacionNormalizada.page, 'de', paginacionNormalizada.totalPages)
       console.log('   Reportes en esta página:', data.data?.reportes?.length || 0)
 
-      return data
+      return respuestaNormalizada
     } catch (error: any) {
       console.error('❌ Error obteniendo historial de reportes:', error)
       throw error
@@ -816,8 +838,8 @@ export class ReportesService {
       const body = {
         nombre: config.nombre,
         descripcion: config.descripcion,
-        tipo_reporte: config.tipoReporte,
-        formato: config.formato,
+        tipo_reporte: config.tipoReporte === 'Reporte Completo' ? 'Completo' : config.tipoReporte,
+        formato: config.formato === 'Excel (.csv)' ? 'CSV' : String(config.formato).toUpperCase(),
         fecha_inicio: config.fechaInicio,
         fecha_fin: config.fechaFin,
         incluir_graficos: config.incluirGraficos,
@@ -837,7 +859,7 @@ export class ReportesService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+        throw new Error(errorData.message || errorData.error || `Error ${response.status}: ${response.statusText}`)
       }
 
       const data = await response.json()
@@ -858,7 +880,7 @@ export class ReportesService {
   /**
    * Descargar un reporte del historial
    */
-  static async descargarReporte(reporteId: string): Promise<void> {
+  static async descargarReporte(reporteId: string | number): Promise<void> {
     try {
       const url = `${API_BASE_URL}/financiero/descargar-reporte/${reporteId}`
       
@@ -879,32 +901,24 @@ export class ReportesService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+        throw new Error(errorData.message || errorData.error || `Error ${response.status}: ${response.statusText}`)
       }
 
-      // Descargar archivo como blob
-      const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
+      const data = await response.json()
+      const downloadUrl = data?.data?.downloadUrl
+      if (!downloadUrl) {
+        throw new Error('No se recibió una URL de descarga válida.')
+      }
+
       const link = document.createElement('a')
       link.href = downloadUrl
-      
-      // Obtener nombre del archivo del header Content-Disposition o usar uno por defecto
-      const contentDisposition = response.headers.get('Content-Disposition')
-      let filename = `reporte_${reporteId}.csv`
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i)
-        if (filenameMatch) {
-          filename = filenameMatch[1]
-        }
-      }
-      
-      link.download = filename
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      window.URL.revokeObjectURL(downloadUrl)
       
-      console.log('✅ Reporte descargado:', filename)
+      console.log('✅ URL de descarga abierta para reporte:', reporteId)
     } catch (error: any) {
       console.error('❌ Error descargando reporte:', error)
       throw error
@@ -914,7 +928,7 @@ export class ReportesService {
   /**
    * Eliminar un reporte del historial
    */
-  static async eliminarReporte(reporteId: string): Promise<void> {
+  static async eliminarReporte(reporteId: string | number): Promise<void> {
     try {
       const url = `${API_BASE_URL}/financiero/eliminar-reporte/${reporteId}`
       
@@ -936,7 +950,7 @@ export class ReportesService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`)
+        throw new Error(errorData.message || errorData.error || `Error ${response.status}: ${response.statusText}`)
       }
 
       const data = await response.json()
