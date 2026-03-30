@@ -12,7 +12,6 @@ import {
   ChevronsRight,
   ChevronsUpDown,
 } from "lucide-react"
-import { formatCurrency } from "@/lib/reportes-data"
 
 export interface ReporteHistorial {
   id: string
@@ -31,6 +30,7 @@ export interface ReporteHistorial {
 
 interface HistorialReportesProps {
   reportes: ReporteHistorial[]
+  onVer: (reporte: ReporteHistorial) => void
   onDescargar: (reporte: ReporteHistorial) => void
   onEliminar: (id: string) => void
   canDescargar?: boolean
@@ -42,6 +42,7 @@ type SortDir = "asc" | "desc"
 
 export function HistorialReportes({
   reportes,
+  onVer,
   onDescargar,
   onEliminar,
   canDescargar = true,
@@ -51,7 +52,6 @@ export function HistorialReportes({
   const [perPage, setPerPage] = useState(10)
   const [sortKey, setSortKey] = useState<SortKey>("fechaGenerado")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
-  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const sorted = useMemo(() => {
     const items = [...reportes]
@@ -217,9 +217,9 @@ export function HistorialReportes({
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
                       <button
-                        onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                        onClick={() => onVer(r)}
                         className="p-1.5 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-all"
-                        title="Ver resumen"
+                        title="Ver reporte"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
@@ -242,28 +242,6 @@ export function HistorialReportes({
                         </button>
                       )}
                     </div>
-                    {/* Expanded summary row */}
-                    {expandedId === r.id && (
-                      <div className="mt-2 p-3 bg-background rounded-lg text-left animate-fade-in-up">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Resumen Rapido</p>
-                        <div className="grid grid-cols-3 gap-2 text-xs">
-                          <div>
-                            <span className="text-muted-foreground">Ventas:</span>
-                            <p className="font-medium text-success">{formatCurrency(r.resumen.ventas)}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Gastos:</span>
-                            <p className="font-medium text-primary">{formatCurrency(r.resumen.gastos)}</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Utilidad:</span>
-                            <p className={`font-medium ${r.resumen.utilidad >= 0 ? "text-accent" : "text-destructive"}`}>
-                              {formatCurrency(r.resumen.utilidad)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </td>
                 </tr>
               ))
