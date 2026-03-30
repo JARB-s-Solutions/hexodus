@@ -4,7 +4,6 @@ import { useState, useMemo } from "react"
 import {
   History,
   Download,
-  Trash2,
   CheckCircle,
   XCircle,
   Search,
@@ -28,7 +27,11 @@ import { Button } from "@/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar"
 import { Badge } from "@/ui/badge"
 import type { RegistroAcceso } from "@/lib/asistencia-data"
-import { formatHora, exportRegistrosCSV } from "@/lib/asistencia-data"
+import { formatHora } from "@/lib/asistencia-data"
+import {
+  exportarRegistrosAsistencia,
+  type FormatoExportacionAsistencias,
+} from "@/lib/export-asistencias"
 
 interface Props {
   registros: RegistroAcceso[]
@@ -84,6 +87,7 @@ export function HistorialRegistros({
   const [filtroTipo, setFiltroTipo] = useState("todos")
   const [busqueda, setBusqueda] = useState("")
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  const [formatoExportacion, setFormatoExportacion] = useState<FormatoExportacionAsistencias>("XLSX")
 
   // Calcular si hay filtros activos
   const hayFiltrosActivos = filtroMetodo !== "todos" || fechaInicio || fechaFin
@@ -113,81 +117,105 @@ export function HistorialRegistros({
       style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 pb-3 border-b border-border">
-        <div className="flex items-center gap-3">
-          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <History className="h-4 w-4 text-accent" />
-            Registros
-            <span className="text-xs text-muted-foreground font-normal ml-1">
-              ({registrosFiltrados.length})
-            </span>
-            {loading && (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-            )}
-          </h3>
-          {/* Info de paginación en header */}
-          {paginaActual && totalPaginas && totalRegistros && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="hidden sm:inline">•</span>
-              <span className="hidden sm:inline">
-                <span className="font-semibold text-foreground">{Math.min((paginaActual - 1) * registrosPorPagina + 1, totalRegistros)}</span> - <span className="font-semibold text-foreground">{Math.min(paginaActual * registrosPorPagina, totalRegistros)}</span> de <span className="font-semibold text-foreground">{totalRegistros}</span>
+      <div className="p-4 pb-3 border-b border-border space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <History className="h-4 w-4 text-accent" />
+              Registros
+              <span className="text-xs text-muted-foreground font-normal ml-1">
+                ({registrosFiltrados.length})
               </span>
-            </div>
-          )}
+              {loading && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              )}
+            </h3>
+            {/* Info de paginación en header */}
+            {paginaActual && totalPaginas && totalRegistros && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="hidden sm:inline">•</span>
+                <span>
+                  <span className="font-semibold text-foreground">{Math.min((paginaActual - 1) * registrosPorPagina + 1, totalRegistros)}</span> - <span className="font-semibold text-foreground">{Math.min(paginaActual * registrosPorPagina, totalRegistros)}</span> de <span className="font-semibold text-foreground">{totalRegistros}</span>
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {/* Selector de registros por página en header */}
+            {onCambiarRegistrosPorPagina && totalRegistros && totalRegistros > 10 && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground whitespace-nowrap">Ver:</span>
+                <Select
+                  value={String(registrosPorPagina)}
+                  onValueChange={(value) => onCambiarRegistrosPorPagina(Number(value))}
+                  disabled={loading}
+                >
+                  <SelectTrigger className="h-7 w-[70px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {onRecargar && (
+              <button
+                onClick={onRecargar}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-foreground border border-border hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Recargar datos"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Selector de registros por página en header */}
-          {onCambiarRegistrosPorPagina && totalRegistros && totalRegistros > 10 && (
-            <div className="hidden sm:flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground whitespace-nowrap">Ver:</span>
+
+        {canExportar && (
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2.5 rounded-lg border border-border bg-muted/20 p-2">
+            <p className="text-[11px] text-muted-foreground px-1">
+              Exporta en el formato adecuado para compartir o imprimir.
+            </p>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <Select
-                value={String(registrosPorPagina)}
-                onValueChange={(value) => onCambiarRegistrosPorPagina(Number(value))}
+                value={formatoExportacion}
+                onValueChange={(value) => setFormatoExportacion(value as FormatoExportacionAsistencias)}
                 disabled={loading}
               >
-                <SelectTrigger className="h-7 w-[70px] text-xs">
+                <SelectTrigger className="h-8 w-full sm:w-[230px] text-xs bg-background">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="XLSX">Excel (.xlsx) - Recomendado</SelectItem>
+                  <SelectItem value="PDF">PDF (imprimible)</SelectItem>
+                  <SelectItem value="CSV">CSV (avanzado)</SelectItem>
                 </SelectContent>
               </Select>
+
+              <button
+                onClick={() =>
+                  exportarRegistrosAsistencia({
+                    registros: registrosFiltrados,
+                    formato: formatoExportacion,
+                  })
+                }
+                disabled={loading || registrosFiltrados.length === 0}
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[142px]"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {formatoExportacion === "XLSX" && "Exportar Excel"}
+                {formatoExportacion === "PDF" && "Exportar PDF"}
+                {formatoExportacion === "CSV" && "Exportar CSV"}
+              </button>
             </div>
-          )}
-          {onRecargar && (
-            <button
-              onClick={onRecargar}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-foreground border border-border hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Recargar datos"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          )}
-          {canExportar && (
-            <button
-              onClick={() => exportRegistrosCSV(registrosFiltrados)}
-              disabled={loading || registrosFiltrados.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-accent border border-accent/30 hover:bg-accent/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Exportar
-            </button>
-          )}
-          {/* botón de limpiar registros (solo para historial completo, no para registros del día) 
-          <button
-            onClick={onLimpiar}
-            disabled={loading || registros.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive border border-destructive/30 hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Limpiar
-          </button>
-          */}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
