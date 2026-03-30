@@ -15,6 +15,7 @@ import { DetalleVentaModal } from "@/components/ventas/detalle-venta-modal"
 import { ImprimirTicketVentaModal } from "@/components/ventas/imprimir-ticket-venta-modal"
 import { VentasService } from "@/lib/services/ventas"
 import { getMetodosPago, type MetodoPago } from "@/lib/services/metodos-pago"
+import { exportarVentasArchivo, type FormatoExportacionVentas } from "@/lib/export-ventas"
 import type { 
   Venta, 
   VentasData, 
@@ -24,7 +25,7 @@ import type {
   Pagination,
   AnalisisVentasData 
 } from "@/lib/types/ventas"
-import { formatCurrency, formatDateTime } from "@/lib/types/ventas"
+import { formatCurrency } from "@/lib/types/ventas"
 import { useToast } from "@/hooks/use-toast"
 import { useAuthContext } from "@/lib/contexts/auth-context"
 
@@ -58,6 +59,7 @@ export default function VentasPage() {
   const [busqueda, setBusqueda] = useState("")
   const [periodo, setPeriodo] = useState("hoy")
   const [metodoPagoFiltro, setMetodoPagoFiltro] = useState("todos")
+  const [formatoExportacion, setFormatoExportacion] = useState<FormatoExportacionVentas>("XLSX")
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
 
@@ -387,56 +389,21 @@ export default function VentasPage() {
     }
 
     try {
-      const headers = [
-        "ID Venta",
-        "Cliente",
-        "Productos",
-        "Total",
-        "Fecha y Hora",
-        "Metodo de Pago",
-        "Estado",
-      ]
-
-      const rows = ventas.map((venta) => [
-        venta.idVenta,
-        venta.cliente,
-        venta.productosResumen,
-        formatCurrency(venta.total),
-        formatDateTime(venta.fechaHora),
-        venta.metodoPago,
-        venta.status,
-      ])
-
-      const csvContent = [
-        headers.join(","),
-        ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
-      ].join("\n")
-
-      const BOM = "\uFEFF"
-      const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      const fecha = new Date().toISOString().split("T")[0]
-      link.href = url
-      link.download = `ventas_${fecha}.csv`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      exportarVentasArchivo({ ventas, formato: formatoExportacion })
 
       toast({
         title: "Exportacion completada",
-        description: `Se exportaron ${ventas.length} ventas`,
+        description: `Se exportaron ${ventas.length} ventas en formato ${formatoExportacion}`,
       })
     } catch (error) {
       console.error("Error al exportar ventas:", error)
       toast({
         title: "Error",
-        description: "No se pudo exportar el archivo CSV",
+        description: "No se pudo exportar el archivo seleccionado",
         variant: "destructive",
       })
     }
-  }, [ventas, toast, puedeExportarVentas])
+  }, [ventas, formatoExportacion, toast, puedeExportarVentas])
 
   const handleAplicarFiltros = useCallback(() => {
     if (periodo === "personalizado" && fechaInicio && fechaFin) {
@@ -533,6 +500,8 @@ export default function VentasPage() {
                   onPeriodoChange={setPeriodo}
                   metodoPago={metodoPagoFiltro}
                   onMetodoPagoChange={setMetodoPagoFiltro}
+                  formatoExportacion={formatoExportacion}
+                  onFormatoExportacionChange={setFormatoExportacion}
                   fechaInicio={fechaInicio}
                   onFechaInicioChange={setFechaInicio}
                   fechaFin={fechaFin}
@@ -553,7 +522,6 @@ export default function VentasPage() {
                   onPageChange={handlePageChange}
                   onLimitChange={handleLimitChange}
                   onVerDetalle={(venta) => setDetalleVentaId(venta.id)}
-                  onExportar={handleExportar}
                 />
               </>
             )}
