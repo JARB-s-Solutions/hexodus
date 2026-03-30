@@ -36,7 +36,7 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
   const [nombre, setNombre] = useState("")
   const [descripcion, setDescripcion] = useState("")
   const [tipo, setTipo] = useState<TipoReporte | "completo">("completo")
-  const [formato, setFormato] = useState<FormatoReporte>("CSV")
+  const [formato, setFormato] = useState<FormatoReporte>("XLSX")
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
   const [incluirGraficos, setIncluirGraficos] = useState(true)
@@ -67,7 +67,7 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
       setNombre("")
       setDescripcion("")
       setTipo("completo")
-      setFormato("CSV")
+      setFormato("XLSX")
       setFechaInicio("")
       setFechaFin("")
       onClose()
@@ -186,9 +186,9 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
                   onChange={(e) => setFormato(e.target.value as FormatoReporte)}
                   className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-0 focus:outline-none transition-colors cursor-pointer"
                 >
-                  <option value="CSV">CSV</option>
-                  <option value="XLSX">XLSX</option>
-                  <option value="PDF">PDF</option>
+                  <option value="XLSX">Excel (.xlsx) - Recomendado</option>
+                  <option value="PDF">PDF (imprimible)</option>
+                  <option value="CSV">CSV (avanzado)</option>
                 </select>
               </div>
             </div>
