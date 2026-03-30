@@ -878,9 +878,9 @@ export class ReportesService {
   }
 
   /**
-   * Descargar un reporte del historial
+   * Obtener URL firmada de descarga de un reporte
    */
-  static async descargarReporte(reporteId: string | number): Promise<void> {
+  static async obtenerUrlDescargaReporte(reporteId: string | number): Promise<string> {
     try {
       const url = `${API_BASE_URL}/financiero/descargar-reporte/${reporteId}`
       
@@ -909,6 +909,20 @@ export class ReportesService {
       if (!downloadUrl) {
         throw new Error('No se recibió una URL de descarga válida.')
       }
+
+      return downloadUrl
+    } catch (error: any) {
+      console.error('❌ Error obteniendo URL de descarga:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Descargar un reporte del historial
+   */
+  static async descargarReporte(reporteId: string | number): Promise<void> {
+    try {
+      const downloadUrl = await this.obtenerUrlDescargaReporte(reporteId)
 
       const link = document.createElement('a')
       link.href = downloadUrl
