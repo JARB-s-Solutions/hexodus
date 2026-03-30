@@ -19,7 +19,6 @@ interface VentasTableProps {
   onPageChange: (page: number) => void
   onLimitChange: (limit: number) => void
   onVerDetalle: (venta: Venta) => void
-  onExportar: () => void
 }
 
 const metodoPagoStyles: Record<string, string> = {
@@ -29,7 +28,7 @@ const metodoPagoStyles: Record<string, string> = {
   "Digital": "bg-warning/20 text-warning",
 }
 
-export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, onVerDetalle, onExportar }: VentasTableProps) {
+export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, onVerDetalle }: VentasTableProps) {
   const [sortField, setSortField] = useState<"idVenta" | "fechaHora" | "total">("fechaHora")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
 
