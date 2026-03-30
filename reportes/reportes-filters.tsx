@@ -15,6 +15,8 @@ interface ReportesFiltersProps {
   onPeriodoChange: (value: string) => void
   tipoReporte: TipoReporte | "todos"
   onTipoReporteChange: (value: TipoReporte | "todos") => void
+  formatoExportacion: "XLSX" | "PDF" | "CSV"
+  onFormatoExportacionChange: (value: "XLSX" | "PDF" | "CSV") => void
   fechaInicio: string
   onFechaInicioChange: (value: string) => void
   fechaFin: string
@@ -30,6 +32,8 @@ export function ReportesFilters({
   onPeriodoChange,
   tipoReporte,
   onTipoReporteChange,
+  formatoExportacion,
+  onFormatoExportacionChange,
   fechaInicio,
   onFechaInicioChange,
   fechaFin,
@@ -71,14 +75,33 @@ export function ReportesFilters({
           <Download className="h-10 w-10 mb-3 text-accent" />
           <h2 className="text-lg font-semibold text-foreground mb-2">Exportar Reporte</h2>
           <p className="text-xs text-center mb-4 text-muted-foreground">
-            Descarga el resumen financiero en formato Excel/CSV con los datos del periodo seleccionado.
+            Elige el formato final antes de exportar para evitar descargas equivocadas.
           </p>
+
+          <div className="w-full mb-3">
+            <label htmlFor="formato-exportacion" className="block text-xs font-medium mb-1.5 text-muted-foreground">
+              Formato de exportacion
+            </label>
+            <select
+              id="formato-exportacion"
+              value={formatoExportacion}
+              onChange={(e) => onFormatoExportacionChange(e.target.value as "XLSX" | "PDF" | "CSV")}
+              className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-0 focus:outline-none transition-colors cursor-pointer"
+            >
+              <option value="XLSX">Excel (.xlsx) - Recomendado</option>
+              <option value="PDF">PDF (imprimible)</option>
+              <option value="CSV">CSV (avanzado)</option>
+            </select>
+          </div>
+
           <button
             onClick={onExportar}
             className="w-full py-2.5 font-semibold rounded-lg text-sm text-accent border border-accent hover:bg-accent/10 transition-all duration-300 flex items-center justify-center gap-2"
           >
             <Download className="h-4 w-4" />
-            Descargar Excel
+            {formatoExportacion === "XLSX" && "Descargar Excel (.xlsx)"}
+            {formatoExportacion === "PDF" && "Descargar PDF"}
+            {formatoExportacion === "CSV" && "Descargar CSV"}
           </button>
         </div>
       )}
