@@ -109,6 +109,7 @@ export function DesgloseIngresos({
                     </Pie>
                     <Tooltip
                       contentStyle={tooltipStyle}
+                      itemStyle={{ color: "#E0E0E0" }}
                       formatter={(value: number) => [formatCurrency(value), "Total"]}
                     />
                   </PieChart>
