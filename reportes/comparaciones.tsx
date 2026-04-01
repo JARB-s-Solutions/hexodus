@@ -26,15 +26,17 @@ export function Comparaciones({
   items,
   labelActual,
   labelAnterior,
-  periodoActivo = "actual",
+  periodoActivo = "dia",
   onPeriodoActivoChange,
 }: ComparacionesProps) {
   const periodoTabs = [
-    { tipo: "actual", label: "Periodo Seleccionado" },
-    { tipo: "mes", label: "Mes vs Anterior" },
-    { tipo: "trimestre", label: "Trimestre vs Anterior" },
-    { tipo: "semestre", label: "Semestre vs Anterior" },
-    { tipo: "anual", label: "Ano vs Anterior" },
+    { tipo: "dia", label: "Hoy" },
+    { tipo: "semana", label: "Esta Semana" },
+    { tipo: "mes", label: "Este Mes" },
+    { tipo: "trimestre", label: "Este Trimestre" },
+    { tipo: "semestre", label: "Este Semestre" },
+    { tipo: "anual", label: "Este Año" },
+    { tipo: "personalizado", label: "Personalizado" },
   ]
 
   return (
@@ -83,30 +85,40 @@ export function Comparaciones({
           const cambio = calcCambio(item.actual, item.anterior)
           const isPositive = item.label === "Gastos Totales" ? cambio <= 0 : cambio >= 0
           const diferencia = item.actual - item.anterior
+          const esExtremo = Math.abs(cambio) > 200
+          const cambioCappeado = Math.min(Math.abs(cambio), 300)
 
           return (
             <div key={item.label} className="group">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-foreground">{item.label}</span>
-                <div className="flex items-center gap-1.5">
-                  {cambio === 0 ? (
-                    <Equal className="h-3.5 w-3.5 text-muted-foreground" />
-                  ) : isPositive ? (
-                    <ArrowUpRight className="h-3.5 w-3.5 text-success" />
-                  ) : (
-                    <ArrowDownRight className="h-3.5 w-3.5 text-destructive" />
+                <div className="flex items-center gap-2">
+                  {esExtremo && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-500/20 text-amber-500 uppercase tracking-widest">
+                      Cambio Extremo
+                    </span>
                   )}
-                  <span
-                    className={`text-sm font-bold ${
-                      cambio === 0
-                        ? "text-muted-foreground"
-                        : isPositive
-                        ? "text-success"
-                        : "text-destructive"
-                    }`}
-                  >
-                    {cambio >= 0 ? "+" : ""}{cambio.toFixed(1)}%
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {cambio === 0 ? (
+                      <Equal className="h-3.5 w-3.5 text-muted-foreground" />
+                    ) : isPositive ? (
+                      <ArrowUpRight className="h-3.5 w-3.5 text-success" />
+                    ) : (
+                      <ArrowDownRight className="h-3.5 w-3.5 text-destructive" />
+                    )}
+                    <span
+                      className={`text-sm font-bold ${
+                        cambio === 0
+                          ? "text-muted-foreground"
+                          : isPositive
+                          ? "text-success"
+                          : "text-destructive"
+                      }`}
+                      title={`${cambio >= 0 ? "+" : ""}${cambio.toFixed(1)}%`}
+                    >
+                      {esExtremo ? (cambio >= 0 ? "+" : "") + cambioCappeado.toFixed(0) + "%+" : (cambio >= 0 ? "+" : "") + cambio.toFixed(1) + "%"}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -140,7 +152,8 @@ export function Comparaciones({
                   className={`h-full rounded-full transition-all duration-500 ${
                     isPositive ? "bg-success" : "bg-destructive"
                   }`}
-                  style={{ width: `${Math.min(Math.abs(cambio), 100)}%` }}
+                  style={{ width: `${(cambioCappeado / 300) * 100}%` }}
+                  title={`${cambio >= 0 ? "+" : ""}${cambio.toFixed(1)}%`}
                 />
               </div>
             </div>
