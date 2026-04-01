@@ -40,6 +40,15 @@ export function KpiReportes({
   const cambioUtilidad = calcCambio(utilidad, utilidadAnterior)
   const cambioMembresias = calcCambio(membresias, membresiasAnterior)
 
+  // Helper para manejar cambios extremos
+  const handleCambioExtremo = (cambio: number) => {
+    return {
+      esExtremo: Math.abs(cambio) > 200,
+      cambioCappeado: Math.min(Math.abs(cambio), 300),
+      cambioReal: cambio
+    }
+  }
+
   const kpis = [
     {
       label: "Ingresos Totales",
@@ -80,6 +89,8 @@ export function KpiReportes({
         const changePositive = kpi.invertChange
           ? kpi.change <= 0
           : kpi.change >= 0
+        
+        const { esExtremo, cambioCappeado, cambioReal } = handleCambioExtremo(kpi.change)
 
         return (
           <div
@@ -111,23 +122,41 @@ export function KpiReportes({
               />
             </div>
 
-            <p className="text-2xl lg:text-3xl font-bold text-foreground mb-1">{kpi.value}</p>
+            <p className="text-2xl lg:text-3xl font-bold text-foreground mb-2">{kpi.value}</p>
 
-            <span
-              className={`text-xs flex items-center gap-1 ${
-                changePositive ? "text-success" : "text-destructive"
-              }`}
-            >
-              {changePositive ? (
-                <TrendingUp className="h-3 w-3" />
-              ) : (
-                <TrendingDown className="h-3 w-3" />
+            {/* Change indicator with extremo badge */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {esExtremo && (
+                <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-sm bg-amber-500/20 text-amber-500 uppercase tracking-widest">
+                  Extremo
+                </span>
               )}
-              {kpi.change >= 0 ? "+" : ""}{kpi.change.toFixed(1)}% vs {labelAnterior}
-            </span>
+              <span
+                className={`text-xs flex items-center gap-1 ${
+                  changePositive ? "text-success" : "text-destructive"
+                }`}
+                title={`${cambioReal >= 0 ? "+" : ""}${cambioReal.toFixed(1)}% vs ${labelAnterior}`}
+              >
+                {changePositive ? (
+                  <TrendingUp className="h-3 w-3" />
+                ) : (
+                  <TrendingDown className="h-3 w-3" />
+                )}
+                {esExtremo ? (
+                  <>
+                    {cambioReal >= 0 ? "+" : ""}{cambioCappeado.toFixed(0)}%+
+                  </>
+                ) : (
+                  <>
+                    {cambioReal >= 0 ? "+" : ""}{cambioReal.toFixed(1)}%
+                  </>
+                )}
+                <span className="text-muted-foreground">vs {labelAnterior}</span>
+              </span>
+            </div>
 
             {kpi.extra && (
-              <span className="text-xs text-muted-foreground block mt-0.5">{kpi.extra}</span>
+              <span className="text-xs text-muted-foreground block mt-1">{kpi.extra}</span>
             )}
           </div>
         )
