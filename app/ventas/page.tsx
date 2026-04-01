@@ -176,7 +176,6 @@ export default function VentasPage() {
         mes: "Este Mes",
         trimestre: "Este Trimestre",
         anio: "Este Año",
-        todo: "Todo",
         personalizado: "Personalizado",
       }
       
@@ -185,8 +184,10 @@ export default function VentasPage() {
         params.periodo = "Personalizado"
         if (fechaInicioActual) params.fecha_inicio = fechaInicioActual
         if (fechaFinActual) params.fecha_fin = fechaFinActual
-      } else {
+      } else if (periodoActual !== "todo") {
         params.periodo = periodoMap[periodoActual] || periodoActual
+      } else {
+        // Para "todo" no enviamos periodo y el backend devuelve el historial completo.
       }
       
       // Filtro por método de pago (convertir ID a nombre para backend)
