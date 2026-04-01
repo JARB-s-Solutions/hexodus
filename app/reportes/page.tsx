@@ -32,6 +32,7 @@ function getPeriodoLabel(periodo: string): string {
 }
 
 type FormatoExportacion = "XLSX" | "PDF" | "CSV"
+type ReportesTabKey = "resumen" | "graficas" | "comparaciones" | "historial"
 
 function formatUtcYmd(date: Date): string {
   const y = date.getUTCFullYear()
@@ -95,7 +96,7 @@ export default function ReportesPage() {
   const [formatoExportacion, setFormatoExportacion] = useState<FormatoExportacion>("XLSX")
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
-  const [activeTab, setActiveTab] = useState<"resumen" | "graficas" | "comparaciones" | "historial">("resumen")
+  const [activeTab, setActiveTab] = useState<ReportesTabKey>("resumen")
   const [modalGenerar, setModalGenerar] = useState(false)
   const [modalPreviewOpen, setModalPreviewOpen] = useState(false)
   const [reportePreview, setReportePreview] = useState<ReporteHistorial | null>(null)
@@ -115,7 +116,6 @@ export default function ReportesPage() {
   const [comparacionesData, setComparacionesData] = useState<any>(null)
   const [loadingComparaciones, setLoadingComparaciones] = useState(false)
   const [errorComparaciones, setErrorComparaciones] = useState<string | null>(null)
-  const [tabComparacion, setTabComparacion] = useState("mes") // mes, trimestre, semestre, anual
   const [comparacionesLabelActual, setComparacionesLabelActual] = useState("Periodo actual")
   const [comparacionesLabelAnterior, setComparacionesLabelAnterior] = useState("Periodo anterior")
   const [comparacionesInsights, setComparacionesInsights] = useState<Array<{ tipo: string; texto: string }>>([])
@@ -133,12 +133,12 @@ export default function ReportesPage() {
   const puedeGenerar = tienePermiso("reportes", "generar")
   const puedeEliminarHistorial = tienePermiso("reportes", "eliminar")
 
-  const tabsDisponibles = [
+  const tabsDisponibles: Array<{ key: ReportesTabKey; label: string }> = [
     { key: "resumen", label: "Resumen General" },
-    ...(puedeVerGraficas ? [{ key: "graficas", label: "Graficas" }] : []),
-    ...(puedeVerComparaciones ? [{ key: "comparaciones", label: "Comparaciones" }] : []),
-    ...(puedeVerHistorial ? [{ key: "historial", label: "Historial" }] : []),
-  ] as const
+  ]
+  if (puedeVerGraficas) tabsDisponibles.push({ key: "graficas", label: "Graficas" })
+  if (puedeVerComparaciones) tabsDisponibles.push({ key: "comparaciones", label: "Comparaciones" })
+  if (puedeVerHistorial) tabsDisponibles.push({ key: "historial", label: "Historial" })
 
   useEffect(() => {
     if (!tabsDisponibles.some((tab) => tab.key === activeTab)) {
@@ -302,12 +302,16 @@ export default function ReportesPage() {
       try {
         console.log('📊 Cargando comparaciones con filtros:', {
           periodo,
-          tabComparacion,
+          tabComparacion: periodo,
+          fechaInicio,
+          fechaFin,
         })
 
         const response = await ReportesService.getComparaciones({
           periodo,
-          tabSeleccionada: tabComparacion,
+          tabSeleccionada: periodo,
+          fechaInicio: periodo === 'personalizado' ? fechaInicio : undefined,
+          fechaFin: periodo === 'personalizado' ? fechaFin : undefined,
         })
 
         // Si no hay token, mostrar como error
@@ -370,7 +374,7 @@ export default function ReportesPage() {
     }
 
     cargarComparaciones()
-  }, [periodo, tabComparacion, puedeVerComparaciones])
+  }, [periodo, fechaInicio, fechaFin, puedeVerComparaciones])
 
   // ------ Effect para cargar historial de reportes desde backend ------
   useEffect(() => {
@@ -412,20 +416,31 @@ export default function ReportesPage() {
             setReportesHistorial([])
           } else {
             // Transformar reportes del backend al formato del componente
-            const reportesTransformados = response.data.reportes.map((reporte) => ({
-              id: String(reporte.id),
-              nombre: reporte.nombre,
-              tipo: reporte.tipo,
-              periodo: reporte.periodo,
-              fechaGenerado: reporte.fecha_generacion || reporte.fecha_generado || '',
-              estado: reporte.estado === 'descargado' ? 'descargado' : 'generado',
-              formato: reporte.formato,
-              resumen: reporte.resumen || {
-                ventas: 0,
-                gastos: 0,
-                utilidad: 0,
-              },
-            }))
+            const reportesTransformados: ReporteHistorial[] = response.data.reportes.map((reporte) => {
+              const estado: ReporteHistorial["estado"] =
+                reporte.estado === "descargado" ? "descargado" : "generado"
+
+              const formatoRaw = String(reporte.formato ?? "").toUpperCase()
+              const formato: ReporteHistorial["formato"] =
+                formatoRaw === "CSV" || formatoRaw === "XLSX" || formatoRaw === "PDF" || formatoRaw === "EXCEL"
+                  ? formatoRaw
+                  : "PDF"
+
+              return {
+                id: String(reporte.id),
+                nombre: reporte.nombre,
+                tipo: reporte.tipo,
+                periodo: reporte.periodo,
+                fechaGenerado: reporte.fecha_generacion || reporte.fecha_generado || "",
+                estado,
+                formato,
+                resumen: reporte.resumen || {
+                  ventas: 0,
+                  gastos: 0,
+                  utilidad: 0,
+                },
+              }
+            })
             
             setReportesHistorial(reportesTransformados)
             console.log('✅ Historial transformado y cargado exitosamente')
@@ -798,8 +813,8 @@ export default function ReportesPage() {
                         items={comparacionesData}
                         labelActual={comparacionesLabelActual}
                         labelAnterior={comparacionesLabelAnterior}
-                        periodoActivo={tabComparacion}
-                        onPeriodoActivoChange={setTabComparacion}
+                        periodoActivo={periodo}
+                        onPeriodoActivoChange={setPeriodo}
                       />
                       {comparacionesInsights.length > 0 && (
                         <div className="bg-card rounded-xl p-5" style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}>

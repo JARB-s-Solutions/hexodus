@@ -338,10 +338,13 @@ export function mapTipoReporteToBackend(tipo: string): TipoReporte {
 export function mapTabSeleccionadaToBackend(tab: string): string {
   const mapper: Record<string, string> = {
     'actual': 'periodo seleccionado',
+    'dia': 'periodo seleccionado',
+    'semana': 'periodo seleccionado',
     'mes': 'mes vs mes anterior',
     'trimestre': 'trimestre vs anterior',
     'semestre': 'semestre vs anterior',
     'anual': 'ano vs anterior',
+    'personalizado': 'periodo seleccionado',
   }
   
   return mapper[tab.toLowerCase()] || 'periodo seleccionado'
@@ -590,6 +593,8 @@ export class ReportesService {
   static async getComparaciones(params: {
     periodo: string
     tabSeleccionada: string
+    fechaInicio?: string
+    fechaFin?: string
   }): Promise<ComparacionesResponse> {
     try {
       // Mapear parámetros de frontend a backend
@@ -602,12 +607,23 @@ export class ReportesService {
         tab_seleccionada: tabBackend,
       })
 
+      if (periodoBackend === 'Personalizado') {
+        if (params.fechaInicio) {
+          queryParams.append('fecha_inicio', params.fechaInicio)
+        }
+        if (params.fechaFin) {
+          queryParams.append('fecha_fin', params.fechaFin)
+        }
+      }
+
       const url = `${API_BASE_URL}/financiero/comparaciones?${queryParams.toString()}`
       
       console.log('📊 GET /api/financiero/comparaciones')
       console.log('   Parámetros:', {
         periodo: periodoBackend,
         tab_seleccionada: tabBackend,
+        fecha_inicio: params.fechaInicio,
+        fecha_fin: params.fechaFin,
       })
       console.log('   URL:', url)
 
