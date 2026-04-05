@@ -153,6 +153,31 @@ const safePlay = (audioRef: React.RefObject<HTMLAudioElement | null>) => {
   }
 }
 
+const playAlertBeep = (tipo: "warning" | "error" = "error") => {
+  try {
+    const audioCtx = new AudioContext()
+    const oscillator = audioCtx.createOscillator()
+    const gainNode = audioCtx.createGain()
+
+    oscillator.connect(gainNode)
+    gainNode.connect(audioCtx.destination)
+    gainNode.gain.value = 0.3
+
+    if (tipo === "warning") {
+      oscillator.frequency.value = 660
+      oscillator.type = "triangle"
+    } else {
+      oscillator.frequency.value = 330
+      oscillator.type = "square"
+    }
+
+    oscillator.start()
+    oscillator.stop(audioCtx.currentTime + 0.3)
+  } catch (error) {
+    console.warn("No se pudo reproducir beep de alerta:", error)
+  }
+}
+
 const normalizarTexto = (texto: string) =>
   texto
     .normalize("NFD")
@@ -296,9 +321,6 @@ export default function AsistenciaHuellaPage() {
   const [ultimoEventoMotor, setUltimoEventoMotor] = useState("Sin eventos del motor todavia.")
 
   const audioSuccessRef = useRef<HTMLAudioElement | null>(null)
-  const audioWarningRef = useRef<HTMLAudioElement | null>(null)
-  const audioErrorRef = useRef<HTMLAudioElement | null>(null)
-  const audioBeepRef = useRef<HTMLAudioElement | null>(null)
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const autoRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -319,11 +341,8 @@ export default function AsistenciaHuellaPage() {
   // Inicializar audios
   useEffect(() => {
     audioSuccessRef.current = new Audio("/sounds/success.wav")
-    audioWarningRef.current = new Audio("/sounds/warning.wav")
-    audioErrorRef.current = new Audio("/sounds/error.wav")
-    audioBeepRef.current = new Audio("/sounds/beep-start.wav")
 
-    ;[audioSuccessRef, audioWarningRef, audioErrorRef, audioBeepRef].forEach((ref) => {
+    ;[audioSuccessRef].forEach((ref) => {
       if (ref.current) {
         ref.current.volume = 0.7
         ref.current.preload = "auto"
@@ -331,7 +350,7 @@ export default function AsistenciaHuellaPage() {
     })
 
     return () => {
-      ;[audioSuccessRef, audioWarningRef, audioErrorRef, audioBeepRef].forEach((ref) => {
+      ;[audioSuccessRef].forEach((ref) => {
         if (ref.current) {
           ref.current.pause()
           ref.current = null
@@ -465,7 +484,7 @@ export default function AsistenciaHuellaPage() {
       setSocioData(null)
       setErrorMsg(mensajeEvento || "Huella no reconocida.")
       setMensajeEscaneo(mensajeEvento || "Huella no reconocida.")
-      safePlay(audioErrorRef)
+      playAlertBeep("error")
       iniciarCountdown(5)
       return
     }
@@ -483,7 +502,7 @@ export default function AsistenciaHuellaPage() {
     setSocioData(null)
     setErrorMsg("")
     setMensajeEscaneo(mensajeEvento || "Huella detectada. Preparando validacion...")
-    safePlay(audioBeepRef)
+    playAlertBeep("warning")
 
     if (arranqueEventoTimeoutRef.current) clearTimeout(arranqueEventoTimeoutRef.current)
     arranqueEventoTimeoutRef.current = setTimeout(() => {
@@ -707,7 +726,7 @@ export default function AsistenciaHuellaPage() {
 
                 if (esMensajeActividadHuella(texto) && !huboActividadHuellaRef.current) {
                   huboActividadHuellaRef.current = true
-                  safePlay(audioBeepRef)
+                  playAlertBeep("warning")
                   setProgress((prev) => (prev < 20 ? 20 : prev))
                 }
               }
@@ -770,7 +789,7 @@ export default function AsistenciaHuellaPage() {
 
         setEstado("error")
         setErrorMsg(mensajeNoCoincidencia)
-        safePlay(audioErrorRef)
+        playAlertBeep("error")
         iniciarCountdown(5)
       }
     } catch (err: any) {
@@ -830,10 +849,10 @@ export default function AsistenciaHuellaPage() {
         if (diasRestantes < 0) {
           setEstado("error")
           setErrorMsg("Membresía vencida")
-          safePlay(audioErrorRef)
+          playAlertBeep("error")
         } else if (diasRestantes <= 3) {
           setEstado("warning")
-          safePlay(audioWarningRef)
+          safePlay(audioSuccessRef)
         } else {
           setEstado("success")
           safePlay(audioSuccessRef)
@@ -843,13 +862,13 @@ export default function AsistenciaHuellaPage() {
         setEstado("warning")
         setSocioData(socioValidado)
         setErrorMsg(dataValidar.message || "Membresía con restricciones.")
-        safePlay(audioWarningRef)
+        playAlertBeep("error")
         iniciarCountdown(5)
       } else {
         setSocioData(socioValidado)
         setEstado("error")
         setErrorMsg(dataValidar.message || "No se pudo registrar la asistencia.")
-        safePlay(audioErrorRef)
+        playAlertBeep("error")
         iniciarCountdown(5)
       }
     } catch (err: any) {
@@ -857,7 +876,7 @@ export default function AsistenciaHuellaPage() {
       if (isMounted.current) {
         setEstado("error")
         setErrorMsg("Error de conexión al validar membresía.")
-        safePlay(audioErrorRef)
+        playAlertBeep("error")
         iniciarCountdown(5)
       }
     }
