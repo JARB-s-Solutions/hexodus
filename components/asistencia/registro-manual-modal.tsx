@@ -156,17 +156,9 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
       (mensajeNormalizado.includes("membresia") &&
         (mensajeNormalizado.includes("vencida") || mensajeNormalizado.includes("expirada") || mensajeNormalizado.includes("vencio")))
 
-    const esMembresiaNoVigente =
-      mensajeNormalizado.includes("no tiene una membresia activa o vigente") ||
-      (mensajeNormalizado.includes("membresia") &&
-        (mensajeNormalizado.includes("no vigente") ||
-          mensajeNormalizado.includes("no activa") ||
-          mensajeNormalizado.includes("activa o vigente") ||
-          mensajeNormalizado.includes("inactiva")))
-
-    if (esMembresiaVencida || esMembresiaNoVigente) {
+    if (esMembresiaVencida) {
       return {
-        mensaje: "No se pudo registrar la asistencia porque la membresía del socio no está activa o vigente.",
+        mensaje: "No se pudo registrar la asistencia porque la membresía del socio está vencida.",
         esMembresiaVencida: true,
       }
     }
@@ -218,26 +210,6 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
       audioSuccessRef.current.play()
         .then(() => console.log('[RegistroManual] ✅ Sonido reproducido'))
         .catch(err => console.error('[RegistroManual] ❌ Error al reproducir sonido:', err))
-    }
-  }
-
-  const reproducirBeepAlerta = () => {
-    try {
-      const audioCtx = new AudioContext()
-      const oscillator = audioCtx.createOscillator()
-      const gainNode = audioCtx.createGain()
-
-      oscillator.connect(gainNode)
-      gainNode.connect(audioCtx.destination)
-
-      oscillator.frequency.value = 330
-      oscillator.type = "square"
-      gainNode.gain.value = 0.3
-
-      oscillator.start()
-      oscillator.stop(audioCtx.currentTime + 0.3)
-    } catch (err) {
-      console.warn('[RegistroManual] No se pudo reproducir beep de alerta:', err)
     }
   }
 
@@ -333,7 +305,6 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
         setError(analisisError.mensaje)
 
         if (analisisError.esMembresiaVencida) {
-          reproducirBeepAlerta()
           mostrarToastMembresiaVencida()
         }
       }
@@ -343,7 +314,6 @@ export function RegistroManualModal({ open, onOpenChange, onRegistroExitoso }: R
       setError(analisisError.mensaje)
 
       if (analisisError.esMembresiaVencida) {
-        reproducirBeepAlerta()
         mostrarToastMembresiaVencida()
       }
     } finally {
