@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Fingerprint, CheckCircle2, XCircle, AlertTriangle, Clock, Wifi, WifiOff, Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar"
 import { AuthService } from "@/lib/auth"
+import { SociosService } from "@/lib/services/socios"
 import { sincronizarCacheMotorHuella } from "@/lib/motor-huella"
 import type { HuellaMotorEvent, HuellaMotorEventsResponse } from "@/lib/types/asistencia-huella"
 
@@ -125,6 +126,9 @@ const formatearNivelConfianza = (valor: number | null | undefined) => {
   return `${porcentaje.toFixed(decimales)}%`
 }
 
+const tieneTexto = (valor: unknown): valor is string =>
+  typeof valor === "string" && valor.trim().length > 0
+
 const enriquecerSocioConConfianza = (data: SocioData | null | undefined, confidence: number) => {
   if (!data) return null
 
@@ -140,6 +144,49 @@ const enriquecerSocioConConfianza = (data: SocioData | null | undefined, confide
   }
 }
 
+const completarSocioConDetalle = async (data: SocioData | null) => {
+  if (!data?.socio?.id) return data
+
+  const necesitaMembresia = !tieneTexto(data.socio.membresia)
+  const necesitaFechaFin = !tieneTexto(data.socio.fecha_fin_membresia)
+  if (!necesitaMembresia && !necesitaFechaFin) return data
+
+  try {
+    const socioDetalle = await SociosService.getById(data.socio.id)
+
+    return {
+      ...data,
+      socio: {
+        ...data.socio,
+        membresia: necesitaMembresia
+          ? socioDetalle.nombrePlan?.trim() || data.socio.membresia
+          : data.socio.membresia,
+        fecha_fin_membresia: necesitaFechaFin
+          ? socioDetalle.fechaVencimientoMembresia || data.socio.fecha_fin_membresia
+          : data.socio.fecha_fin_membresia,
+      },
+    }
+  } catch (error) {
+    console.warn("No se pudo completar el detalle del socio:", error)
+    return data
+  }
+}
+
+const obtenerNombreMembresia = (data: SocioData | null | undefined) =>
+  tieneTexto(data?.socio?.membresia) ? data.socio.membresia.trim() : "Sin membresía asignada"
+
+const formatearFechaMembresia = (
+  fecha: string | null | undefined,
+  options?: Intl.DateTimeFormatOptions,
+) => {
+  if (!tieneTexto(fecha)) return "No disponible"
+
+  const parsed = new Date(fecha)
+  if (Number.isNaN(parsed.getTime())) return "No disponible"
+
+  return parsed.toLocaleDateString("es-MX", options)
+}
+
 const safePlay = (audioRef: React.RefObject<HTMLAudioElement | null>) => {
   const audio = audioRef.current
   if (!audio) return
@@ -153,12 +200,79 @@ const safePlay = (audioRef: React.RefObject<HTMLAudioElement | null>) => {
   }
 }
 
+// Generador de tonos usando Web Audio API para casos de error o advertencia.
+const playWebAudioTone = (type: "warning" | "error") => {
+  if (typeof window === "undefined") return
+
+  const AudioContextClass =
+    (window as any).AudioContext ||
+    (window as any).webkitAudioContext
+  if (!AudioContextClass) return
+
+  const audioCtx = new AudioContextClass()
+  const oscillator = audioCtx.createOscillator()
+  const gainNode = audioCtx.createGain()
+
+  oscillator.connect(gainNode)
+  gainNode.connect(audioCtx.destination)
+
+  oscillator.onended = () => {
+    void audioCtx.close().catch((error: unknown) => {
+      console.warn("No se pudo cerrar AudioContext:", error)
+    })
+  }
+
+  const startTone = () => {
+    const startTime = audioCtx.currentTime
+
+    if (type === "warning") {
+      oscillator.type = "sine"
+      oscillator.frequency.setValueAtTime(523.25, startTime)
+      oscillator.frequency.setValueAtTime(659.25, startTime + 0.2)
+      gainNode.gain.setValueAtTime(0.5, startTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.5)
+      oscillator.start(startTime)
+      oscillator.stop(startTime + 0.5)
+      return
+    }
+
+    oscillator.type = "sawtooth"
+    oscillator.frequency.setValueAtTime(330, startTime)
+    oscillator.frequency.exponentialRampToValueAtTime(261, startTime + 0.8)
+    gainNode.gain.setValueAtTime(0.3, startTime)
+    gainNode.gain.linearRampToValueAtTime(0, startTime + 0.8)
+    oscillator.start(startTime)
+    oscillator.stop(startTime + 0.8)
+  }
+
+  if (audioCtx.state === "suspended") {
+    void audioCtx.resume().then(startTone).catch((error: unknown) => {
+      console.warn("No se pudo reanudar AudioContext:", error)
+      void audioCtx.close().catch(() => undefined)
+    })
+    return
+  }
+
+  startTone()
+}
+
 const normalizarTexto = (texto: string) =>
   texto
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim()
+
+const esMembresiaVencida = (mensaje: string, diasRestantes?: number | null) => {
+  const textoNormalizado = normalizarTexto(mensaje)
+
+  return (
+    (typeof diasRestantes === "number" && diasRestantes < 0) ||
+    textoNormalizado.includes("vencid") ||
+    textoNormalizado.includes("expirad") ||
+    textoNormalizado.includes("caduc")
+  )
+}
 
 const esMensajeEsperaHuella = (texto: string) => {
   const textoNormalizado = normalizarTexto(texto)
@@ -296,8 +410,6 @@ export default function AsistenciaHuellaPage() {
   const [ultimoEventoMotor, setUltimoEventoMotor] = useState("Sin eventos del motor todavia.")
 
   const audioSuccessRef = useRef<HTMLAudioElement | null>(null)
-  const audioWarningRef = useRef<HTMLAudioElement | null>(null)
-  const audioErrorRef = useRef<HTMLAudioElement | null>(null)
   const audioBeepRef = useRef<HTMLAudioElement | null>(null)
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const autoRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -319,11 +431,9 @@ export default function AsistenciaHuellaPage() {
   // Inicializar audios
   useEffect(() => {
     audioSuccessRef.current = new Audio("/sounds/success.wav")
-    audioWarningRef.current = new Audio("/sounds/warning.wav")
-    audioErrorRef.current = new Audio("/sounds/error.wav")
     audioBeepRef.current = new Audio("/sounds/beep-start.wav")
 
-    ;[audioSuccessRef, audioWarningRef, audioErrorRef, audioBeepRef].forEach((ref) => {
+    ;[audioSuccessRef, audioBeepRef].forEach((ref) => {
       if (ref.current) {
         ref.current.volume = 0.7
         ref.current.preload = "auto"
@@ -331,7 +441,7 @@ export default function AsistenciaHuellaPage() {
     })
 
     return () => {
-      ;[audioSuccessRef, audioWarningRef, audioErrorRef, audioBeepRef].forEach((ref) => {
+      ;[audioSuccessRef, audioBeepRef].forEach((ref) => {
         if (ref.current) {
           ref.current.pause()
           ref.current = null
@@ -465,7 +575,7 @@ export default function AsistenciaHuellaPage() {
       setSocioData(null)
       setErrorMsg(mensajeEvento || "Huella no reconocida.")
       setMensajeEscaneo(mensajeEvento || "Huella no reconocida.")
-      safePlay(audioErrorRef)
+      playWebAudioTone("error")
       iniciarCountdown(5)
       return
     }
@@ -770,7 +880,7 @@ export default function AsistenciaHuellaPage() {
 
         setEstado("error")
         setErrorMsg(mensajeNoCoincidencia)
-        safePlay(audioErrorRef)
+        playWebAudioTone("error")
         iniciarCountdown(5)
       }
     } catch (err: any) {
@@ -816,9 +926,11 @@ export default function AsistenciaHuellaPage() {
       if (!isMounted.current) return
 
       setProgress(100)
-      const socioValidado = enriquecerSocioConConfianza(
-        (dataValidar?.data || null) as SocioData | null,
-        confidence,
+      const socioValidado = await completarSocioConDetalle(
+        enriquecerSocioConConfianza(
+          (dataValidar?.data || null) as SocioData | null,
+          confidence,
+        )
       )
 
       if (resValidar.ok && dataValidar.success) {
@@ -830,26 +942,37 @@ export default function AsistenciaHuellaPage() {
         if (diasRestantes < 0) {
           setEstado("error")
           setErrorMsg("Membresía vencida")
-          safePlay(audioErrorRef)
+          playWebAudioTone("error")
         } else if (diasRestantes <= 3) {
           setEstado("warning")
-          safePlay(audioWarningRef)
+          safePlay(audioSuccessRef)
         } else {
           setEstado("success")
           safePlay(audioSuccessRef)
         }
         iniciarCountdown(5)
       } else if (resValidar.status === 403) {
-        setEstado("warning")
+        const bloqueoPorVencimiento = esMembresiaVencida(
+          String(dataValidar.message || ""),
+          socioValidado?.socio?.fecha_fin_membresia
+            ? calcularDiasRestantesMembresia(socioValidado.socio.fecha_fin_membresia)
+            : null
+        )
+
+        setEstado(bloqueoPorVencimiento ? "error" : "warning")
         setSocioData(socioValidado)
-        setErrorMsg(dataValidar.message || "Membresía con restricciones.")
-        safePlay(audioWarningRef)
+        setErrorMsg(
+          bloqueoPorVencimiento
+            ? "Membresía vencida"
+            : dataValidar.message || "Membresía con restricciones."
+        )
+        playWebAudioTone(bloqueoPorVencimiento ? "error" : "warning")
         iniciarCountdown(5)
       } else {
         setSocioData(socioValidado)
         setEstado("error")
         setErrorMsg(dataValidar.message || "No se pudo registrar la asistencia.")
-        safePlay(audioErrorRef)
+        playWebAudioTone("error")
         iniciarCountdown(5)
       }
     } catch (err: any) {
@@ -857,7 +980,7 @@ export default function AsistenciaHuellaPage() {
       if (isMounted.current) {
         setEstado("error")
         setErrorMsg("Error de conexión al validar membresía.")
-        safePlay(audioErrorRef)
+        playWebAudioTone("error")
         iniciarCountdown(5)
       }
     }
@@ -1299,12 +1422,12 @@ function PantallaSuccess({ socio, countdown }: { socio: SocioData, countdown: nu
           <div className="grid grid-cols-2 gap-6">
             <div>
               <p className="text-sm text-muted-foreground mb-1">💎 Membresía</p>
-              <p className="text-lg font-bold text-foreground">{socio.socio.membresia}</p>
+              <p className="text-lg font-bold text-foreground">{obtenerNombreMembresia(socio)}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground mb-1">📅 Vencimiento</p>
               <p className="text-lg font-bold text-foreground">
-                {new Date(socio.socio.fecha_fin_membresia).toLocaleDateString('es-MX')}
+                {formatearFechaMembresia(socio.socio.fecha_fin_membresia)}
               </p>
             </div>
             <div>
@@ -1357,6 +1480,14 @@ function PantallaWarning({ socio, countdown }: { socio: SocioData, countdown: nu
 
   const diasRestantes = calcularDiasRestantesMembresia(socio.socio.fecha_fin_membresia)
   const precision = formatearNivelConfianza(socio.asistencia?.match_score)
+  const mensajeVencimiento =
+    diasRestantes === 0
+      ? "⏰ Tu membresía vence hoy"
+      : `⏰ Tu membresía vence en ${diasRestantes} ${diasRestantes === 1 ? "día" : "días"}`
+
+  if (diasRestantes < 0) {
+    return <PantallaError mensaje="Membresía vencida" countdown={countdown} socio={socio} />
+  }
 
   return (
     <div className="animate-scale-in">
@@ -1400,10 +1531,10 @@ function PantallaWarning({ socio, countdown }: { socio: SocioData, countdown: nu
           <div className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-xl p-6 border-2 border-amber-500/50">
             <div className="text-center space-y-3">
               <p className="text-2xl font-bold text-amber-500">
-                ⏰ Tu membresía vence en {diasRestantes} {diasRestantes === 1 ? 'día' : 'días'}
+                {mensajeVencimiento}
               </p>
               <p className="text-lg text-foreground">
-                📅 Fecha de vencimiento: {new Date(socio.socio.fecha_fin_membresia).toLocaleDateString('es-MX', {
+                📅 Fecha de vencimiento: {formatearFechaMembresia(socio.socio.fecha_fin_membresia, {
                   weekday: 'long',
                   year: 'numeric',
                   month: 'long',
@@ -1426,7 +1557,7 @@ function PantallaWarning({ socio, countdown }: { socio: SocioData, countdown: nu
             </div>
             <div>
               <p className="text-sm text-muted-foreground mb-1">💎 Membresía</p>
-              <p className="text-lg font-bold text-foreground">{socio.socio.membresia}</p>
+              <p className="text-lg font-bold text-foreground">{obtenerNombreMembresia(socio)}</p>
             </div>
           </div>
 
@@ -1453,7 +1584,7 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
       titulo: "Membresía Vencida",
       emoji: "⏰",
       accion: "Por favor, acude a recepción para renovar tu membresía.",
-      cta: "¡Renueva hoy y obtén 10% de descuento! 🎁"
+      cta: "¡Renueva hoy y no pierdas tu membresía!"
     },
     noReconocida: {
       titulo: "Huella No Reconocida",
@@ -1473,11 +1604,12 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
   const diasRestantes = socio
     ? calcularDiasRestantesMembresia(socio.socio.fecha_fin_membresia)
     : null
-  const tipo = mensaje.toLowerCase().includes('vencida') || (diasRestantes !== null && diasRestantes < 0)
+  const tipo = esMembresiaVencida(mensaje, diasRestantes)
     ? 'vencida'
-    : mensaje.toLowerCase().includes('no reconocida')
+    : normalizarTexto(mensaje).includes('no reconocida')
     ? 'noReconocida'
     : 'default'
+  const mensajePrincipal = tipo === 'vencida' ? 'Membresía vencida' : mensaje
   
   const info = mensajesMotivacionales[tipo]
 
@@ -1500,7 +1632,7 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
         <div className="bg-card/50 rounded-2xl p-8 space-y-6">
           <div className="text-center space-y-4">
             <p className="text-xl text-foreground font-semibold">
-              {mensaje}
+              {mensajePrincipal}
             </p>
             <div className="border-t-2 border-border/30 my-4" />
             <p className="text-lg text-muted-foreground">
@@ -1525,7 +1657,7 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-xl border border-border/30 bg-muted/20 px-4 py-3">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Membresia</p>
-                  <p className="mt-1 text-base font-bold text-foreground">{socio.socio.membresia}</p>
+                  <p className="mt-1 text-base font-bold text-foreground">{obtenerNombreMembresia(socio)}</p>
                 </div>
                 <div className="rounded-xl border border-border/30 bg-muted/20 px-4 py-3">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Confianza</p>
@@ -1539,7 +1671,7 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
                     Membresia vencida hace {Math.abs(diasRestantes)} {Math.abs(diasRestantes) === 1 ? "dia" : "dias"}
                   </p>
                   <p className="mt-2 text-center text-sm text-muted-foreground">
-                    Fecha de vencimiento: {new Date(socio.socio.fecha_fin_membresia).toLocaleDateString("es-MX")}
+                    Fecha de vencimiento: {formatearFechaMembresia(socio.socio.fecha_fin_membresia)}
                   </p>
                 </div>
               )}
