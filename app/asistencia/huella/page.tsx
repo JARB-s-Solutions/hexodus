@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Fingerprint, CheckCircle2, XCircle, AlertTriangle, Clock, Wifi, WifiOff, Loader2 } from "lucide-react"
+import { Fingerprint, CheckCircle2, XCircle, AlertTriangle, Clock, Wifi, WifiOff } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar"
 import { AuthService } from "@/lib/auth"
 import { SociosService } from "@/lib/services/socios"
@@ -16,6 +16,9 @@ const MOTOR_URL = process.env.NEXT_PUBLIC_MOTOR_URL || "http://localhost:4000"
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://hexodusapi.vercel.app/api"
 const AUTO_RETRY_DELAY_MS = 800
 const EVENT_POLL_INTERVAL_MS = 750
+const MOTOR_HEALTHCHECK_INTERVAL_MS = 3000
+const READY_FOR_NEXT_SCAN_DELAY_MS = 150
+const RESULT_NOTIFICATION_DURATION_MS = 4500
 
 const MENSAJES_ESPERA_HUELLA = [
   "lectura fallida",
@@ -73,6 +76,8 @@ type EstadoMotorDiagnostico = {
   detectorActivo: boolean | null
 }
 
+type TipoNotificacionAcceso = "success" | "warning" | "error"
+
 interface SocioData {
   socio: {
     id: number
@@ -93,6 +98,13 @@ interface SocioData {
     racha_dias: number
     ultima_asistencia: string
   }
+}
+
+interface NotificacionAcceso {
+  id: string
+  tipo: TipoNotificacionAcceso
+  mensaje: string
+  socio: SocioData | null
 }
 
 const ESTADO_MOTOR_INICIAL: EstadoMotorDiagnostico = {
@@ -408,6 +420,7 @@ export default function AsistenciaHuellaPage() {
   const [estadoMotor, setEstadoMotor] = useState<EstadoMotorDiagnostico>(ESTADO_MOTOR_INICIAL)
   const [ultimoCallbackAt, setUltimoCallbackAt] = useState("")
   const [ultimoEventoMotor, setUltimoEventoMotor] = useState("Sin eventos del motor todavia.")
+  const [notificaciones, setNotificaciones] = useState<NotificacionAcceso[]>([])
 
   const audioSuccessRef = useRef<HTMLAudioElement | null>(null)
   const audioBeepRef = useRef<HTMLAudioElement | null>(null)
@@ -426,6 +439,7 @@ export default function AsistenciaHuellaPage() {
   const pollingEnCursoRef = useRef(false)
   const callbackActivoRef = useRef(false)
   const deteccionesRecientesRef = useRef<Map<string, number>>(new Map())
+  const notificationTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const isMounted = useRef(true)
 
   // Inicializar audios
@@ -467,9 +481,21 @@ export default function AsistenciaHuellaPage() {
       if (pollingTimeoutRef.current) clearTimeout(pollingTimeoutRef.current)
       if (arranqueEventoTimeoutRef.current) clearTimeout(arranqueEventoTimeoutRef.current)
       if (compareAbortRef.current) compareAbortRef.current.abort()
+      notificationTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout))
+      notificationTimeoutsRef.current.clear()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (estado === "connecting") return
+
+    const interval = setInterval(() => {
+      void verificarEstadoMotorEnSegundoPlano()
+    }, MOTOR_HEALTHCHECK_INTERVAL_MS)
+
+    return () => clearInterval(interval)
+  }, [estado])
 
   const sincronizarCursorEventos = async () => {
     try {
@@ -542,6 +568,80 @@ export default function AsistenciaHuellaPage() {
     deteccionesRecientesRef.current.set(codigoSocio, Date.now())
   }
 
+  const encolarNotificacion = (tipo: TipoNotificacionAcceso, mensaje: string, socio: SocioData | null) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+    setNotificaciones((prev) => [...prev.slice(-2), { id, tipo, mensaje, socio }])
+
+    const timeout = setTimeout(() => {
+      if (!isMounted.current) return
+
+      setNotificaciones((prev) => prev.filter((notificacion) => notificacion.id !== id))
+      notificationTimeoutsRef.current.delete(id)
+    }, RESULT_NOTIFICATION_DURATION_MS)
+
+    notificationTimeoutsRef.current.set(id, timeout)
+  }
+
+  const limpiarNotificaciones = () => {
+    notificationTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout))
+    notificationTimeoutsRef.current.clear()
+    setNotificaciones([])
+  }
+
+  const obtenerMensajeMotorNoDisponible = (diagnostico?: EstadoMotorDiagnostico) => {
+    if (diagnostico?.lectorConectado === false) {
+      return "Lector de huella desconectado. Verifica el sensor."
+    }
+
+    if (diagnostico?.detectorActivo === false) {
+      return "El detector del motor biometrico esta inactivo. Reinicia el lector."
+    }
+
+    return "Motor biometrico no disponible. Verifica la conexion con el sensor."
+  }
+
+  const manejarMotorNoDisponible = (mensaje: string) => {
+    motorListoRef.current = false
+    flujoAccesoActivoRef.current = false
+    verificacionEnCursoRef.current = false
+    callbackActivoRef.current = false
+    pollingEnCursoRef.current = false
+
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+    if (autoRetryTimeoutRef.current) clearTimeout(autoRetryTimeoutRef.current)
+    if (pollingTimeoutRef.current) clearTimeout(pollingTimeoutRef.current)
+    if (arranqueEventoTimeoutRef.current) clearTimeout(arranqueEventoTimeoutRef.current)
+    if (compareAbortRef.current) {
+      compareAbortRef.current.abort()
+      compareAbortRef.current = null
+    }
+
+    colaEventosRef.current = []
+    setSocioData(null)
+    setProgress(0)
+    setErrorMsg(mensaje)
+    limpiarNotificaciones()
+    setEstado("no-device")
+  }
+
+  const verificarEstadoMotorEnSegundoPlano = async () => {
+    if (!isMounted.current || estado === "connecting") return
+
+    const diagnostico = await consultarEstadoMotor()
+    const lectorDesconectado = diagnostico.lectorConectado === false
+    const detectorInactivo = diagnostico.detectorActivo === false
+    const estadoSinRespuesta =
+      motorListoRef.current &&
+      diagnostico.lectorConectado === null &&
+      diagnostico.detectorActivo === null &&
+      diagnostico.cacheCargada === null
+
+    if (lectorDesconectado || detectorInactivo || estadoSinRespuesta) {
+      manejarMotorNoDisponible(obtenerMensajeMotorNoDisponible(diagnostico))
+    }
+  }
+
   const procesarSiguienteEvento = () => {
     if (!isMounted.current || flujoAccesoActivoRef.current || verificacionEnCursoRef.current) return
 
@@ -570,13 +670,12 @@ export default function AsistenciaHuellaPage() {
 
     if (!evento.codigoSocio) {
       flujoAccesoActivoRef.current = true
-      setEstado("error")
+      const mensajeError = mensajeEvento || "Huella no reconocida."
       setProgress(100)
-      setSocioData(null)
-      setErrorMsg(mensajeEvento || "Huella no reconocida.")
-      setMensajeEscaneo(mensajeEvento || "Huella no reconocida.")
+      setMensajeEscaneo(mensajeError)
+      encolarNotificacion("error", mensajeError, null)
       playWebAudioTone("error")
-      iniciarCountdown(5)
+      resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
       return
     }
 
@@ -705,6 +804,7 @@ export default function AsistenciaHuellaPage() {
     setUltimoCallbackAt("")
     setUltimoEventoMotor("Sin eventos del motor todavia.")
     setEstadoMotor(ESTADO_MOTOR_INICIAL)
+    limpiarNotificaciones()
     colaEventosRef.current = []
     flujoAccesoActivoRef.current = false
     ultimoEventoIdRef.current = 0
@@ -727,8 +827,16 @@ export default function AsistenciaHuellaPage() {
 
       */
       if (isMounted.current) {
+        const diagnostico = await consultarEstadoMotor()
+        const motorDisponible =
+          diagnostico.lectorConectado !== false &&
+          diagnostico.detectorActivo !== false
+
+        if (!motorDisponible) {
+          throw new Error(obtenerMensajeMotorNoDisponible(diagnostico))
+        }
+
         motorListoRef.current = true
-        await consultarEstadoMotor()
         setEstado("idle")
         await sincronizarCursorEventos()
         programarPollingEventos(0)
@@ -737,9 +845,7 @@ export default function AsistenciaHuellaPage() {
     } catch (err: any) {
       console.error("❌ Error inicializando motor:", err)
       if (isMounted.current) {
-        setEstado("no-device")
-        motorListoRef.current = false
-        setErrorMsg(
+        manejarMotorNoDisponible(
           err?.message?.includes("fetch")
             ? "Motor biométrico no disponible. Verifica que esté corriendo en el puerto 4000."
             : err?.message || "Error al inicializar el sistema biométrico."
@@ -878,18 +984,16 @@ export default function AsistenciaHuellaPage() {
           return
         }
 
-        setEstado("error")
-        setErrorMsg(mensajeNoCoincidencia)
+        setMensajeEscaneo(mensajeNoCoincidencia)
+        encolarNotificacion("error", mensajeNoCoincidencia, null)
         playWebAudioTone("error")
-        iniciarCountdown(5)
+        resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
       }
     } catch (err: any) {
       clearInterval(progressInterval)
       console.error("❌ Error en comparación:", err)
       if (err?.name === "AbortError") return
-      motorListoRef.current = false
-      setEstado("no-device")
-      setErrorMsg(
+      manejarMotorNoDisponible(
         err?.message?.includes("fetch")
           ? "Motor biométrico no disponible en el puerto 4000."
           : err?.message || "Error al comunicarse con el motor biométrico."
@@ -934,23 +1038,24 @@ export default function AsistenciaHuellaPage() {
       )
 
       if (resValidar.ok && dataValidar.success) {
-        setSocioData(socioValidado)
         const diasRestantes = calcularDiasRestantesMembresia(
           socioValidado?.socio?.fecha_fin_membresia || ""
         )
 
         if (diasRestantes < 0) {
-          setEstado("error")
+          encolarNotificacion("error", "Membresía vencida", socioValidado)
           setErrorMsg("Membresía vencida")
           playWebAudioTone("error")
         } else if (diasRestantes <= 3) {
           setEstado("warning")
+          encolarNotificacion("warning", "Tu membresía está próxima a vencer", socioValidado)
           safePlay(audioSuccessRef)
         } else {
           setEstado("success")
+          encolarNotificacion("success", "Acceso permitido", socioValidado)
           safePlay(audioSuccessRef)
         }
-        iniciarCountdown(5)
+        resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
       } else if (resValidar.status === 403) {
         const bloqueoPorVencimiento = esMembresiaVencida(
           String(dataValidar.message || ""),
@@ -966,22 +1071,31 @@ export default function AsistenciaHuellaPage() {
             ? "Membresía vencida"
             : dataValidar.message || "Membresía con restricciones."
         )
+        encolarNotificacion(
+          bloqueoPorVencimiento ? "error" : "warning",
+          bloqueoPorVencimiento
+            ? "Membresía vencida"
+            : dataValidar.message || "Membresía con restricciones.",
+          socioValidado
+        )
         playWebAudioTone(bloqueoPorVencimiento ? "error" : "warning")
-        iniciarCountdown(5)
+        resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
       } else {
         setSocioData(socioValidado)
         setEstado("error")
         setErrorMsg(dataValidar.message || "No se pudo registrar la asistencia.")
+        encolarNotificacion("error", dataValidar.message || "No se pudo registrar la asistencia.", socioValidado)
         playWebAudioTone("error")
-        iniciarCountdown(5)
+        resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
       }
     } catch (err: any) {
       console.error("❌ Error registrando asistencia:", err)
       if (isMounted.current) {
         setEstado("error")
         setErrorMsg("Error de conexión al validar membresía.")
+        encolarNotificacion("error", "Error de conexión al validar membresía.", null)
         playWebAudioTone("error")
-        iniciarCountdown(5)
+        resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
       }
     }
   }
@@ -1002,7 +1116,8 @@ export default function AsistenciaHuellaPage() {
     }, 1000)
   }
 
-  const resetear = () => {
+  const resetear = (delay = AUTO_RETRY_DELAY_MS) => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
     flujoAccesoActivoRef.current = false
     setEstado("idle")
     setProgress(0)
@@ -1013,7 +1128,7 @@ export default function AsistenciaHuellaPage() {
 
     if (arranqueEventoTimeoutRef.current) clearTimeout(arranqueEventoTimeoutRef.current)
     procesarSiguienteEvento()
-    programarEscuchaAutomatica(AUTO_RETRY_DELAY_MS)
+    programarEscuchaAutomatica(delay)
   }
 
   const formatTime = (date: Date): string =>
@@ -1031,6 +1146,8 @@ export default function AsistenciaHuellaPage() {
       month: "long",
       day: "numeric",
     })
+
+  const notificacionActiva = notificaciones[notificaciones.length - 1] ?? null
 
   // ============================================================================
   // RENDER
@@ -1080,81 +1197,73 @@ export default function AsistenciaHuellaPage() {
         <div className="w-full max-w-2xl">
           {(estado === "connecting") && <PantallaConectando />}
 
-          {estado === "idle" && (
-            <PantallaIdle />
+          {!notificacionActiva && (estado === "idle" || estado === "success" || estado === "warning" || estado === "error" || estado === "scanning" || estado === "validating") && (
+            <PantallaBaseHuella estado={estado} mensaje={mensajeEscaneo} />
           )}
 
           {estado === "no-device" && (
             <PantallaNoDevice mensaje={errorMsg} onRetry={inicializarMotor} />
           )}
 
-          {(estado === "scanning" || estado === "validating") && (
-            <PantallaScanning progress={progress} estado={estado} mensaje={mensajeEscaneo} />
-          )}
-
-          {estado === "success" && socioData && (
-            <PantallaSuccess socio={socioData} countdown={countdown} />
-          )}
-
-          {estado === "warning" && socioData && (
-            <PantallaWarning socio={socioData} countdown={countdown} />
-          )}
-
-          {estado === "error" && (
-            <PantallaError mensaje={errorMsg} countdown={countdown} socio={socioData} />
-          )}
-
-          <div className="mt-6 rounded-2xl border border-border/50 bg-card/40 px-5 py-4 text-sm text-muted-foreground">
-            <div className="grid gap-2 md:grid-cols-2">
-              <p>
-                <span className="font-semibold text-foreground">Ultimo callback:</span>{" "}
-                {ultimoCallbackAt
-                  ? new Date(ultimoCallbackAt).toLocaleTimeString("es-MX", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                      hour12: true,
-                    })
-                  : "Sin recibir aun"}
-              </p>
-              <p>
-                <span className="font-semibold text-foreground">Lector:</span>{" "}
-                {estadoMotor.lectorConectado === null
-                  ? "Sin dato"
-                  : estadoMotor.lectorConectado
-                  ? "Conectado"
-                  : "No conectado"}
-              </p>
-              <p>
-                <span className="font-semibold text-foreground">Detector continuo:</span>{" "}
-                {estadoMotor.detectorActivo === null
-                  ? "Sin dato"
-                  : estadoMotor.detectorActivo
-                  ? "Activo"
-                  : "Inactivo"}
-              </p>
-              <p>
-                <span className="font-semibold text-foreground">Cache cargada:</span>{" "}
-                {estadoMotor.cacheCargada === null
-                  ? "Sin dato"
-                  : estadoMotor.cacheCargada
-                  ? "Si"
-                  : "No"}
-              </p>
-              <p>
-                <span className="font-semibold text-foreground">Huellas en cache:</span>{" "}
-                {estadoMotor.huellasEnMemoria ?? "Sin dato"}
+          {!notificacionActiva && (
+            <div className="mt-6 rounded-2xl border border-border/50 bg-card/40 px-5 py-4 text-sm text-muted-foreground">
+              <div className="grid gap-2 md:grid-cols-2">
+                <p>
+                  <span className="font-semibold text-foreground">Ultimo callback:</span>{" "}
+                  {ultimoCallbackAt
+                    ? new Date(ultimoCallbackAt).toLocaleTimeString("es-MX", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        hour12: true,
+                      })
+                    : "Sin recibir aun"}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Lector:</span>{" "}
+                  {estadoMotor.lectorConectado === null
+                    ? "Sin dato"
+                    : estadoMotor.lectorConectado
+                    ? "Conectado"
+                    : "No conectado"}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Detector continuo:</span>{" "}
+                  {estadoMotor.detectorActivo === null
+                    ? "Sin dato"
+                    : estadoMotor.detectorActivo
+                    ? "Activo"
+                    : "Inactivo"}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Cache cargada:</span>{" "}
+                  {estadoMotor.cacheCargada === null
+                    ? "Sin dato"
+                    : estadoMotor.cacheCargada
+                    ? "Si"
+                    : "No"}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Huellas en cache:</span>{" "}
+                  {estadoMotor.huellasEnMemoria ?? "Sin dato"}
+                </p>
+              </div>
+              <p className="mt-3 border-t border-border/40 pt-3">
+                <span className="font-semibold text-foreground">Ultimo evento:</span>{" "}
+                {ultimoEventoMotor}
               </p>
             </div>
-            <p className="mt-3 border-t border-border/40 pt-3">
-              <span className="font-semibold text-foreground">Ultimo evento:</span>{" "}
-              {ultimoEventoMotor}
-            </p>
-          </div>
+          )}
         </div>
       </main>
 
       {/* Footer con métodos alternativos */}
+      {notificacionActiva && (
+        <NotificacionAccesoCard
+          notificacion={notificacionActiva}
+        />
+      )}
+
       <footer className="border-t border-border/50 bg-card/30 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
@@ -1187,8 +1296,11 @@ function PantallaConectando() {
     <div className="animate-fade-in">
       <div className="bg-gradient-to-br from-card to-card/50 rounded-3xl p-12 border-2 border-border/50 shadow-2xl">
         <div className="flex justify-center mb-8">
-          <div className="w-40 h-40 rounded-full bg-accent/10 border-4 border-accent/30 flex items-center justify-center">
-            <Loader2 className="h-20 w-20 text-accent animate-spin" />
+          <div className="relative">
+            <div className="w-40 h-40 rounded-full bg-accent/10 border-4 border-accent/30 flex items-center justify-center animate-pulse">
+              <Fingerprint className="h-20 w-20 text-accent" />
+            </div>
+            <div className="absolute inset-0 rounded-full border-4 border-accent/20 animate-ping" />
           </div>
         </div>
         <div className="text-center space-y-4">
@@ -1234,6 +1346,54 @@ function PantallaIdle() {
         <div className="mt-10 flex items-center justify-center gap-3 text-accent">
           <div className="h-3 w-3 rounded-full bg-accent animate-pulse" />
           <p className="text-lg font-semibold">Esperando huella...</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PantallaBaseHuella({
+  estado,
+  mensaje,
+}: {
+  estado: EstadoAsistencia
+  mensaje: string
+}) {
+  const estaValidando = estado === "validating"
+  const estaCapturando = estado === "scanning"
+  const titulo = estaValidando ? "Validando Identidad" : "Escuchando el lector"
+  const subtitulo = estaValidando
+    ? "Comparando con base de datos..."
+    : mensaje || "Coloca tu dedo en el sensor. La asistencia se registrara automaticamente."
+
+  return (
+    <div className="animate-fade-in">
+      <div className={`bg-gradient-to-br from-card to-card/50 rounded-3xl p-12 border-2 shadow-2xl ${
+        estaValidando || estaCapturando ? "border-accent/50" : "border-border/50"
+      }`}>
+        <div className="flex justify-center mb-8">
+          <div className="relative">
+            <div className={`w-40 h-40 rounded-full border-4 flex items-center justify-center ${
+              estaValidando || estaCapturando
+                ? "bg-accent/15 border-accent/40 shadow-[0_0_60px_rgba(245,158,11,0.18)] animate-pulse"
+                : "bg-accent/10 border-accent/30 animate-pulse-slow"
+            }`}>
+              <Fingerprint className="h-20 w-20 text-accent" />
+            </div>
+            <div className="absolute inset-0 rounded-full border-4 border-accent/20 animate-ping" />
+          </div>
+        </div>
+
+        <div className="text-center space-y-4">
+          <h2 className="text-4xl font-bold text-foreground">{titulo}</h2>
+          <p className="text-xl text-muted-foreground">{subtitulo}</p>
+        </div>
+
+        <div className="mt-10 flex items-center justify-center gap-3 text-accent">
+          <div className="h-3 w-3 rounded-full bg-accent animate-pulse" />
+          <p className="text-lg font-semibold">
+            {estaValidando ? "Validando..." : estaCapturando ? "Procesando huella..." : "Esperando huella..."}
+          </p>
         </div>
       </div>
     </div>
@@ -1368,7 +1528,117 @@ function PantallaScanning({
   )
 }
 
-function PantallaSuccess({ socio, countdown }: { socio: SocioData, countdown: number }) {
+function NotificacionAccesoCard({ notificacion }: { notificacion: NotificacionAcceso }) {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center px-4 py-6 md:px-8">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[2rem] border border-border/80 bg-card shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
+        {notificacion.tipo === "success" && notificacion.socio ? (
+          <PantallaSuccess socio={notificacion.socio} />
+        ) : notificacion.tipo === "warning" && notificacion.socio ? (
+          <PantallaWarning socio={notificacion.socio} />
+        ) : (
+          <PantallaError mensaje={notificacion.mensaje} socio={notificacion.socio} />
+        )}
+      </div>
+    </div>
+  )
+
+  const diasRestantes = notificacion.socio
+    ? calcularDiasRestantesMembresia(notificacion.socio.socio.fecha_fin_membresia)
+    : null
+  const precision = formatearNivelConfianza(notificacion.socio?.asistencia?.match_score)
+  const esVencida = notificacion.tipo === "error" && esMembresiaVencida(notificacion.mensaje, diasRestantes)
+
+  const config =
+    notificacion.tipo === "success"
+      ? {
+          Icon: CheckCircle2,
+          titulo: "Acceso permitido",
+          cardClass: "border-green-500/40 bg-green-500/12",
+          iconClass: "border-green-500/40 bg-green-500/15 text-green-400",
+          accentClass: "text-green-300",
+        }
+      : notificacion.tipo === "warning"
+      ? {
+          Icon: AlertTriangle,
+          titulo: "Acceso con aviso",
+          cardClass: "border-amber-500/40 bg-amber-500/12",
+          iconClass: "border-amber-500/40 bg-amber-500/15 text-amber-300",
+          accentClass: "text-amber-200",
+        }
+      : {
+          Icon: XCircle,
+          titulo: esVencida ? "Membresía vencida" : "Acceso denegado",
+          cardClass: "border-red-500/40 bg-red-500/12",
+          iconClass: "border-red-500/40 bg-red-500/15 text-red-300",
+          accentClass: "text-red-200",
+        }
+
+  const resumenVencimiento =
+    diasRestantes === null
+      ? null
+      : diasRestantes < 0
+      ? `Venció hace ${Math.abs(diasRestantes)} ${Math.abs(diasRestantes) === 1 ? "día" : "días"}`
+      : diasRestantes === 0
+      ? "Vence hoy"
+      : `Vence en ${diasRestantes} ${diasRestantes === 1 ? "día" : "días"}`
+
+  return (
+    <div className={`overflow-hidden rounded-2xl border px-4 py-4 shadow-2xl backdrop-blur-md ${config.cardClass}`}>
+      <div className="flex items-start gap-3">
+        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ${config.iconClass}`}>
+          <config.Icon className="h-5 w-5" />
+        </div>
+
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className={`text-sm font-semibold uppercase tracking-[0.18em] ${config.accentClass}`}>
+                {config.titulo}
+              </p>
+              <p className="mt-1 text-sm text-white/90">{notificacion.mensaje}</p>
+            </div>
+            <div className="h-2 w-2 shrink-0 rounded-full bg-white/70 animate-pulse" />
+          </div>
+
+          {notificacion.socio && (
+            <div className="rounded-xl border border-white/10 bg-black/10 px-3 py-3">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-12 w-12 border border-white/10">
+                  <AvatarImage src={notificacion.socio.socio.foto_perfil_url || undefined} />
+                  <AvatarFallback className="bg-white/10 text-sm text-white">
+                    {notificacion.socio.socio.nombre_completo.split(" ").map((nombre) => nombre[0]).join("").slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-white">
+                    {notificacion.socio.socio.nombre_completo}
+                  </p>
+                  <p className="truncate text-xs text-white/70">
+                    {notificacion.socio.socio.codigo_socio} · {obtenerNombreMembresia(notificacion.socio)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/70">
+                <p>Confianza: <span className="font-semibold text-white/90">{precision}</span></p>
+                <p>Vigencia: <span className="font-semibold text-white/90">{resumenVencimiento || "No disponible"}</span></p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 text-[11px] text-white/55">
+            <Clock className="h-3.5 w-3.5" />
+            <span>Se oculta sola y el lector sigue activo.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PantallaSuccess({ socio, countdown }: { socio: SocioData, countdown?: number }) {
   const horaEntrada = socio.asistencia?.timestamp
     ? new Date(socio.asistencia.timestamp).toLocaleTimeString("es-MX", {
         hour: "2-digit",
@@ -1382,7 +1652,7 @@ function PantallaSuccess({ socio, countdown }: { socio: SocioData, countdown: nu
 
   return (
     <div className="animate-scale-in">
-      <div className="bg-gradient-to-br from-green-500/10 to-card rounded-3xl p-12 border-2 border-green-500/50 shadow-2xl">
+      <div className="bg-gradient-to-br from-card via-card to-card rounded-3xl p-12 border-2 border-green-500/50 shadow-2xl">
         {/* Icono de éxito */}
         <div className="flex justify-center mb-6">
           <div className="w-32 h-32 rounded-full bg-green-500/20 border-4 border-green-500 flex items-center justify-center animate-bounce-once">
@@ -1396,7 +1666,7 @@ function PantallaSuccess({ socio, countdown }: { socio: SocioData, countdown: nu
         </h2>
 
         {/* Card del socio */}
-        <div className="bg-card/50 rounded-2xl p-8 space-y-6">
+        <div className="bg-background rounded-2xl p-8 space-y-6">
           {/* Foto y nombre */}
           <div className="flex items-center gap-6">
             <Avatar className="w-24 h-24 border-4 border-green-500/30">
@@ -1460,16 +1730,17 @@ function PantallaSuccess({ socio, countdown }: { socio: SocioData, countdown: nu
           </p>
         </div>
 
-        {/* Countdown */}
-        <p className="text-center text-muted-foreground mt-8 text-lg">
-          Auto-cierre en <span className="font-bold text-accent tabular-nums">{countdown}s</span>
-        </p>
+        {typeof countdown === "number" && countdown > 0 && (
+          <p className="text-center text-muted-foreground mt-8 text-lg">
+            Auto-cierre en <span className="font-bold text-accent tabular-nums">{countdown}s</span>
+          </p>
+        )}
       </div>
     </div>
   )
 }
 
-function PantallaWarning({ socio, countdown }: { socio: SocioData, countdown: number }) {
+function PantallaWarning({ socio, countdown }: { socio: SocioData, countdown?: number }) {
   const horaEntrada = socio.asistencia?.timestamp
     ? new Date(socio.asistencia.timestamp).toLocaleTimeString("es-MX", {
         hour: "2-digit",
@@ -1491,7 +1762,7 @@ function PantallaWarning({ socio, countdown }: { socio: SocioData, countdown: nu
 
   return (
     <div className="animate-scale-in">
-      <div className="bg-gradient-to-br from-amber-500/10 to-card rounded-3xl p-12 border-2 border-amber-500/50 shadow-2xl">
+      <div className="bg-gradient-to-br from-card via-card to-card rounded-3xl p-12 border-2 border-amber-500/50 shadow-2xl">
         {/* Icono de advertencia */}
         <div className="flex justify-center mb-6">
           <div className="w-32 h-32 rounded-full bg-amber-500/20 border-4 border-amber-500 flex items-center justify-center animate-pulse">
@@ -1508,7 +1779,7 @@ function PantallaWarning({ socio, countdown }: { socio: SocioData, countdown: nu
         </p>
 
         {/* Card del socio */}
-        <div className="bg-card/50 rounded-2xl p-8 space-y-6">
+        <div className="bg-background rounded-2xl p-8 space-y-6">
           {/* Foto y nombre */}
           <div className="flex items-center gap-6">
             <Avatar className="w-24 h-24 border-4 border-amber-500/30">
@@ -1569,16 +1840,17 @@ function PantallaWarning({ socio, countdown }: { socio: SocioData, countdown: nu
           </div>
         </div>
 
-        {/* Countdown */}
-        <p className="text-center text-muted-foreground mt-8 text-lg">
-          Auto-cierre en <span className="font-bold text-accent tabular-nums">{countdown}s</span>
-        </p>
+        {typeof countdown === "number" && countdown > 0 && (
+          <p className="text-center text-muted-foreground mt-8 text-lg">
+            Auto-cierre en <span className="font-bold text-accent tabular-nums">{countdown}s</span>
+          </p>
+        )}
       </div>
     </div>
   )
 }
 
-function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdown: number, socio: SocioData | null }) {
+function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdown?: number, socio: SocioData | null }) {
   const mensajesMotivacionales = {
     vencida: {
       titulo: "Membresía Vencida",
@@ -1615,7 +1887,7 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
 
   return (
     <div className="animate-scale-in">
-      <div className="bg-gradient-to-br from-red-500/10 to-card rounded-3xl p-12 border-2 border-red-500/50 shadow-2xl">
+      <div className="bg-gradient-to-br from-card via-card to-card rounded-3xl p-12 border-2 border-red-500/50 shadow-2xl">
         {/* Icono de error */}
         <div className="flex justify-center mb-6">
           <div className="w-32 h-32 rounded-full bg-red-500/20 border-4 border-red-500 flex items-center justify-center animate-shake">
@@ -1629,7 +1901,7 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
         </h2>
 
         {/* Mensaje */}
-        <div className="bg-card/50 rounded-2xl p-8 space-y-6">
+        <div className="bg-background rounded-2xl p-8 space-y-6">
           <div className="text-center space-y-4">
             <p className="text-xl text-foreground font-semibold">
               {mensajePrincipal}
@@ -1694,10 +1966,11 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
           )}
         </div>
 
-        {/* Countdown */}
-        <p className="text-center text-muted-foreground mt-8 text-lg">
-          Auto-cierre en <span className="font-bold text-accent tabular-nums">{countdown}s</span>
-        </p>
+        {typeof countdown === "number" && countdown > 0 && (
+          <p className="text-center text-muted-foreground mt-8 text-lg">
+            Auto-cierre en <span className="font-bold text-accent tabular-nums">{countdown}s</span>
+          </p>
+        )}
       </div>
     </div>
   )
