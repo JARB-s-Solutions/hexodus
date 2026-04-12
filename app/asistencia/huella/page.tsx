@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Fingerprint, CheckCircle2, XCircle, AlertTriangle, Clock, Wifi, WifiOff } from "lucide-react"
+import { Fingerprint, CheckCircle2, XCircle, AlertTriangle, Wifi, WifiOff } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar"
 import { AuthService } from "@/lib/auth"
 import { SociosService } from "@/lib/services/socios"
@@ -1543,6 +1543,7 @@ function NotificacionAccesoCard({ notificacion }: { notificacion: NotificacionAc
     </div>
   )
 
+  /*
   const diasRestantes = notificacion.socio
     ? calcularDiasRestantesMembresia(notificacion.socio.socio.fecha_fin_membresia)
     : null
@@ -1636,6 +1637,7 @@ function NotificacionAccesoCard({ notificacion }: { notificacion: NotificacionAc
       </div>
     </div>
   )
+  */
 }
 
 function PantallaSuccess({ socio, countdown }: { socio: SocioData, countdown?: number }) {
@@ -1975,3 +1977,4 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
     </div>
   )
 }
+
