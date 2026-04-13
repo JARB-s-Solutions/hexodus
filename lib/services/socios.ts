@@ -15,10 +15,33 @@ import type {
 } from '@/lib/types/socios'
 import { mapSocioFromAPI, mapSocioListItemFromAPI } from '@/lib/types/socios'
 
+const DEFAULT_DASHBOARD_STATS: DashboardStatsSocios = {
+  total_socios: { valor: 0, etiqueta: 'Total Socios' },
+  socios_activos: { valor: 0, etiqueta: 'Activos' },
+  vencidos: { valor: 0, etiqueta: 'Vencidos' },
+  vencen_en_7_dias: { valor: 0, etiqueta: 'Vencen en 7 días' },
+}
+
 /**
  * Servicio para gestionar socios
  */
 export class SociosService {
+  /**
+   * Obtener una sola página de socios con estadísticas globales.
+   */
+  static async getPage(
+    page: number = 1,
+    limit: number = 100
+  ): Promise<{ socios: Socio[]; stats: DashboardStatsSocios; pagination: GetSociosResponse['pagination'] }> {
+    const response = await apiGet<GetSociosResponse>(`/socios?page=${page}&limit=${limit}`)
+
+    return {
+      socios: Array.isArray(response.data) ? response.data.map(mapSocioListItemFromAPI) : [],
+      stats: response.dashboard_stats ?? DEFAULT_DASHBOARD_STATS,
+      pagination: response.pagination,
+    }
+  }
+
   /**
    * Obtener todos los socios con estadísticas del dashboard
    */
@@ -28,19 +51,17 @@ export class SociosService {
     const limitePorPagina = 100
     let paginaActual = 1
     let totalPaginas = 1
-    const sociosAcumulados: GetSociosResponse['data'] = []
+    const sociosAcumulados: Socio[] = []
     let dashboardStats: DashboardStatsSocios | undefined
 
     while (paginaActual <= totalPaginas) {
-      const response = await apiGet<GetSociosResponse>(`/socios?page=${paginaActual}&limit=${limitePorPagina}`)
+      const response = await this.getPage(paginaActual, limitePorPagina)
 
       if (!dashboardStats) {
-        dashboardStats = response.dashboard_stats
+        dashboardStats = response.stats
       }
 
-      if (Array.isArray(response.data)) {
-        sociosAcumulados.push(...response.data)
-      }
+      sociosAcumulados.push(...response.socios)
 
       const totalPaginasBackend = response.pagination?.total_pages
       totalPaginas = typeof totalPaginasBackend === 'number' && totalPaginasBackend > 0
@@ -71,11 +92,10 @@ export class SociosService {
       }
     }
 
-    const socios = sociosAcumulados.map(mapSocioListItemFromAPI)
-    console.log(`✅ ${socios.length} socios mapeados correctamente`)
+    console.log(`✅ ${sociosAcumulados.length} socios mapeados correctamente`)
 
     return {
-      socios,
+      socios: sociosAcumulados,
       stats
     }
   }
