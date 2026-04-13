@@ -1978,3 +1978,4 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
   )
 }
 
+
