@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect, useRef, startTransition } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { SociosHeader } from "@/components/socios/socios-header"
 import { KpiSocios } from "@/components/socios/kpi-socios"
@@ -13,7 +13,7 @@ import { CobrarMembresiaModal } from "@/components/socios/cobrar-membresia-modal
 import { RenovarMembresiaModal } from "@/components/socios/renovar-membresia-modal"
 import { SociosService } from "@/lib/services/socios"
 import { toast } from "@/hooks/use-toast"
-import type { Socio } from "@/lib/types/socios"
+import type { DashboardStatsSocios, Socio } from "@/lib/types/socios"
 import { extractYmd } from "@/lib/timezone"
 import {
   generateSocios,
@@ -27,10 +27,14 @@ import {
 
 // TODO: Eliminar esto una vez que el backend esté listo
 const useMockData = false // Cambiar a false para usar API real
+const PAGE_SIZE = 100
 
 export default function SociosPage() {
   const [socios, setSocios] = useState<(Socio | SocioMock)[]>(useMockData ? generateSocios(345) : [])
   const [cargando, setCargando] = useState(!useMockData)
+  const [cargandoMas, setCargandoMas] = useState(false)
+  const [dashboardStats, setDashboardStats] = useState<DashboardStatsSocios | null>(null)
+  const loadIdRef = useRef(0)
 
   // Filters
   const [busqueda, setBusqueda] = useState("")
@@ -57,29 +61,78 @@ export default function SociosPage() {
   const cargarSocios = useCallback(async () => {
     if (useMockData) return // No cargar si usamos mock data
     
+    const loadId = ++loadIdRef.current
     setCargando(true)
+    setCargandoMas(false)
     try {
-      const { socios: data, stats } = await SociosService.getAll()
-      console.log('📊 Socios cargados:', data.length, 'Stats:', stats)
-      setSocios(data)
-      
-      // Opcional: Podrías usar stats para mostrar en los KPIs reales del backend
-      // Por ahora solo cargamos los socios
-    } catch (error: any) {
-      console.error("Error cargando socios:", error)
-      toast({
-        title: "Error al cargar socios",
-        description: error.message || "No se pudieron cargar los socios",
-        variant: "destructive",
+      const primeraPagina = await SociosService.getPage(1, PAGE_SIZE)
+
+      if (loadIdRef.current !== loadId) return
+
+      startTransition(() => {
+        setSocios(primeraPagina.socios)
+        setDashboardStats(primeraPagina.stats)
       })
-    } finally {
+
       setCargando(false)
+
+      const totalPaginas = primeraPagina.pagination?.total_pages ?? 1
+      if (totalPaginas <= 1) {
+        setCargandoMas(false)
+        return
+      }
+
+      setCargandoMas(true)
+
+      const paginasRestantes = Array.from(
+        { length: totalPaginas - 1 },
+        (_, index) => index + 2
+      )
+      const tamanioLote = 4
+
+      void (async () => {
+        try {
+          for (let index = 0; index < paginasRestantes.length; index += tamanioLote) {
+            const lote = paginasRestantes.slice(index, index + tamanioLote)
+            const respuestas = await Promise.all(
+              lote.map((pagina) => SociosService.getPage(pagina, PAGE_SIZE))
+            )
+
+            if (loadIdRef.current !== loadId) return
+
+            const sociosNuevos = respuestas.flatMap((respuesta) => respuesta.socios)
+
+            if (sociosNuevos.length > 0) {
+              startTransition(() => {
+                setSocios((prev) => [...prev, ...sociosNuevos])
+              })
+            }
+          }
+        } catch (error) {
+          console.error("Error cargando socios en segundo plano:", error)
+        } finally {
+          if (loadIdRef.current === loadId) {
+            setCargandoMas(false)
+          }
+        }
+      })()
+    } catch (error: any) {
+      if (loadIdRef.current === loadId) {
+        console.error("Error cargando socios:", error)
+        toast({
+          title: "Error al cargar socios",
+          description: error.message || "No se pudieron cargar los socios",
+          variant: "destructive",
+        })
+        setCargando(false)
+        setCargandoMas(false)
+      }
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     cargarSocios()
-  }, [])
+  }, [cargarSocios])
 
   const normalizarTexto = (valor: string | undefined | null): string => {
     if (!valor) return ""
@@ -379,45 +432,84 @@ export default function SociosPage() {
         <SociosHeader />
 
         <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6 space-y-5">
-          {/* KPIs */}
-          {/* TODO: Actualizar KpiSocios para aceptar ambos tipos de Socio */}
-          <KpiSocios socios={socios as any} />
+          {cargando && socios.length === 0 ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="bg-card rounded-xl p-5 border border-border animate-pulse"
+                    style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
+                  >
+                    <div className="h-3 w-24 rounded-full bg-muted mb-4" />
+                    <div className="h-8 w-16 rounded-lg bg-muted mb-2" />
+                    <div className="h-3 w-28 rounded-full bg-muted" />
+                  </div>
+                ))}
+              </div>
 
-          {/* Toolbar: search + filters inline */}
-          <SociosToolbar
-            busqueda={busqueda}
-            onBusquedaChange={setBusqueda}
-            vigenciaFiltro={vigenciaFiltro}
-            onVigenciaChange={setVigenciaFiltro}
-            membresiaFiltro={membresiaFiltro}
-            onMembresiaChange={setMembresiaFiltro}
-            membresiaOpciones={membresiaOpciones}
-            generoFiltro={generoFiltro}
-            onGeneroChange={setGeneroFiltro}
-            contratoFirmaFiltro={contratoFirmaFiltro}
-            onContratoFirmaChange={setContratoFirmaFiltro}
-            contratoVigenciaFiltro={contratoVigenciaFiltro}
-            onContratoVigenciaChange={setContratoVigenciaFiltro}
-            fechaDesde={fechaDesde}
-            onFechaDesdeChange={setFechaDesde}
-            fechaHasta={fechaHasta}
-            onFechaHastaChange={setFechaHasta}
-            onLimpiar={handleLimpiar}
-            onNuevoSocio={handleNuevoSocio}
-            totalFiltrados={sociosFiltrados.length}
-            totalSocios={socios.length}
-          />
+              <div
+                className="bg-card rounded-xl p-6 border border-border"
+                style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-5 w-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Cargando socios</p>
+                    <p className="text-xs text-muted-foreground">
+                      Estamos trayendo la primera página para que la lista aparezca cuanto antes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {cargandoMas && (
+                <div className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-3 text-sm text-accent">
+                  Cargando más socios en segundo plano para completar la lista.
+                </div>
+              )}
 
-          {/* Table - full width */}
-          {/* TODO: Actualizar SociosTable para aceptar ambos tipos de Socio */}
-          <SociosTable
-            socios={sociosFiltrados as any}
-            onVerDetalle={(socio) => setDetalleSocioId(socio.id)}
-            onEditar={handleEditar}
-            onEliminar={handleEliminar}
-            onCobrar={handleCobrar}
-            onRenovar={handleRenovar}
-          />
+              {/* KPIs */}
+              <KpiSocios socios={socios as any} stats={dashboardStats} />
+
+              {/* Toolbar: search + filters inline */}
+              <SociosToolbar
+                busqueda={busqueda}
+                onBusquedaChange={setBusqueda}
+                vigenciaFiltro={vigenciaFiltro}
+                onVigenciaChange={setVigenciaFiltro}
+                membresiaFiltro={membresiaFiltro}
+                onMembresiaChange={setMembresiaFiltro}
+                membresiaOpciones={membresiaOpciones}
+                generoFiltro={generoFiltro}
+                onGeneroChange={setGeneroFiltro}
+                contratoFirmaFiltro={contratoFirmaFiltro}
+                onContratoFirmaChange={setContratoFirmaFiltro}
+                contratoVigenciaFiltro={contratoVigenciaFiltro}
+                onContratoVigenciaChange={setContratoVigenciaFiltro}
+                fechaDesde={fechaDesde}
+                onFechaDesdeChange={setFechaDesde}
+                fechaHasta={fechaHasta}
+                onFechaHastaChange={setFechaHasta}
+                onLimpiar={handleLimpiar}
+                onNuevoSocio={handleNuevoSocio}
+                totalFiltrados={sociosFiltrados.length}
+                totalSocios={socios.length}
+              />
+
+              {/* Table - full width */}
+              <SociosTable
+                socios={sociosFiltrados as any}
+                onVerDetalle={(socio) => setDetalleSocioId(socio.id)}
+                onEditar={handleEditar}
+                onEliminar={handleEliminar}
+                onCobrar={handleCobrar}
+                onRenovar={handleRenovar}
+              />
+            </>
+          )}
         </div>
       </main>
 
