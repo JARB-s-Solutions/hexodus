@@ -281,7 +281,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                 const vigencia = getVigenciaMembresia(fechaFinYmd || fechaFin)
                 const diffDias = getDiasParaVencimiento(fechaFinYmd || fechaFin)
                 const fechaVencimientoLabel = fechaFinYmd ? formatYmdForDisplay(fechaFinYmd) : "N/A"
-                const puedeMostrarRenovar = Boolean(fechaFinYmd) && diffDias <= 0
+                const puedeMostrarRenovar = Boolean(fechaFinYmd)
                 
                 // Para el estado del contrato, usar valor directo de firmoContrato
                 // true = "activo" (Firmado), false = "sin_contrato" (Pendiente)
@@ -387,7 +387,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                           <button
                             onClick={() => onRenovar(s)}
                             className="p-1.5 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-all"
-                            title="Renovar membresía (vence hoy)"
+                            title="Renovar membresía"
                           >
                             <RefreshCw className="h-4 w-4" />
                           </button>
