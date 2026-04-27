@@ -41,8 +41,10 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
 
   const fechaVencimientoYmd = extractYmd(socio?.fechaVencimientoMembresia || "")
   const diasHastaVencimiento = fechaVencimientoYmd ? getDaysUntilYmd(fechaVencimientoYmd) : Number.NaN
-  const puedeRenovarPorFecha =
-    !Number.isNaN(diasHastaVencimiento) && diasHastaVencimiento <= 0
+  const fechaInicioCotizacion =
+    !Number.isNaN(diasHastaVencimiento) && diasHastaVencimiento > 0
+      ? fechaVencimientoYmd || getTodayYmdInTimeZone()
+      : getTodayYmdInTimeZone()
 
   useEffect(() => {
     if (!open || !socio) return
@@ -113,19 +115,6 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
       return
     }
 
-    if (!puedeRenovarPorFecha) {
-      const detalleDias = Number.isNaN(diasHastaVencimiento)
-        ? "No se pudo determinar la fecha de vencimiento."
-        : `Faltan ${diasHastaVencimiento} dia(s) para el vencimiento.`
-
-      toast({
-        title: "Renovacion no disponible",
-        description: `${detalleDias} La renovacion se habilita cuando la membresia vence hoy o ya vencio.`,
-        variant: "destructive",
-      })
-      return
-    }
-
     try {
       setProcesando(true)
 
@@ -141,10 +130,9 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
       })
 
       try {
-        const today = getTodayYmdInTimeZone()
         const cotizacion = await SociosService.cotizar({
           plan_id: planSeleccionado,
-          fecha_inicio: today,
+          fecha_inicio: fechaInicioCotizacion,
         })
         const metodoPagoNombre =
           metodosPago.find((metodo) => metodo.metodo_pago_id === metodoPagoSeleccionado)?.nombre || "N/A"
@@ -292,19 +280,21 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
 
           <div className="rounded-lg border border-accent/20 bg-accent/10 p-3">
             <p className="text-xs text-accent">
-              <strong>Renovacion disponible:</strong> cuando la membresia vence hoy o ya vencio.
+              <strong>Renovación automática:</strong> si la membresía sigue vigente, los días se suman al final del ciclo actual; si ya venció, inicia hoy.
             </p>
           </div>
 
-          {!puedeRenovarPorFecha && (
-            <div className="rounded-lg border border-primary/25 bg-primary/10 p-3">
-              <p className="text-xs text-primary">
-                Renovacion bloqueada: {Number.isNaN(diasHastaVencimiento)
-                  ? "fecha de vencimiento no disponible."
-                  : `faltan ${diasHastaVencimiento} dia(s) para el vencimiento.`}
-              </p>
-            </div>
-          )}
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-xs text-muted-foreground">
+              {Number.isNaN(diasHastaVencimiento)
+                ? "La fecha de vencimiento no está disponible; el backend calculará automáticamente el inicio del nuevo ciclo."
+                : diasHastaVencimiento > 0
+                  ? `Renovación anticipada: faltan ${diasHastaVencimiento} día(s) para el vencimiento.`
+                  : diasHastaVencimiento === 0
+                    ? "Renovación inmediata: la membresía vence hoy."
+                    : `Renovación vencida: el socio venció hace ${Math.abs(diasHastaVencimiento)} día(s).`}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-3 border-t border-border bg-muted/30 px-6 py-4">
@@ -322,7 +312,6 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
             disabled={
               procesando ||
               cargandoDatos ||
-              !puedeRenovarPorFecha ||
               !metodoPagoSeleccionado ||
               !planSeleccionado ||
               metodosPago.length === 0 ||
