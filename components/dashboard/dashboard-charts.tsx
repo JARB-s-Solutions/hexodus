@@ -84,6 +84,11 @@ function stockCfg(item: StockCritico) {
 // Ventas vs. Periodo Anterior
 // ─────────────────────────────────────────────────────────────────────────────
 export function VentasChart({ data }: { data: { dia: string; actual: number; anterior: number }[] }) {
+  const chartData = data.map((item) => ({
+    ...item,
+    diaLabel: formatDayLabel(item.dia),
+  }))
+
   const totalActual = data.reduce((s, d) => s + d.actual, 0)
   const totalAnterior = data.reduce((s, d) => s + d.anterior, 0)
   const diff = totalAnterior > 0 ? ((totalActual - totalAnterior) / totalAnterior) * 100 : 0
@@ -122,10 +127,10 @@ export function VentasChart({ data }: { data: { dia: string; actual: number; ant
       <div className="px-3 pb-5 h-[260px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
-            data={data}
-            margin={{ top: 10, right: 8, left: -10, bottom: 0 }}
-            barCategoryGap="24%"
-            barGap={-28}
+            data={chartData}
+            margin={{ top: 10, right: 8, left: -6, bottom: 0 }}
+            barCategoryGap="34%"
+            barGap={8}
           >
             <defs>
               <linearGradient id="gActual" x1="0" y1="0" x2="0" y2="1">
@@ -139,7 +144,7 @@ export function VentasChart({ data }: { data: { dia: string; actual: number; ant
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
             <XAxis
-              dataKey="dia"
+              dataKey="diaLabel"
               axisLine={false}
               tickLine={false}
               tick={{ fill: "rgba(120,120,130,0.8)", fontSize: 10 }}
@@ -154,8 +159,8 @@ export function VentasChart({ data }: { data: { dia: string; actual: number; ant
                 name === "actual" ? "Actual" : "Anterior",
               ]}
             />
-            <Bar dataKey="anterior" fill="url(#gAnterior)" radius={[6, 6, 0, 0]} barSize={30} />
-            <Bar dataKey="actual" fill="url(#gActual)" radius={[6, 6, 0, 0]} barSize={30} />
+            <Bar dataKey="anterior" fill="url(#gAnterior)" radius={[6, 6, 0, 0]} barSize={22} />
+            <Bar dataKey="actual" fill="url(#gActual)" radius={[6, 6, 0, 0]} barSize={22} />
           </BarChart>
         </ResponsiveContainer>
       </div>
