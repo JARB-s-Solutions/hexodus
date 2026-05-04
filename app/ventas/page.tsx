@@ -326,7 +326,7 @@ export default function VentasPage() {
 
   // Handlers
   const handleNuevaVenta = useCallback(
-    async (data: { socio_id: number | null; metodo_pago_id: number; productos: { producto_id: number; cantidad: number }[] }) => {
+    async (data: { socio_id: number | null; pagos?: Array<{metodo_pago_id: number; monto: number}>; metodo_pago_id?: number; productos: { producto_id: number; cantidad: number }[] }) => {
       try {
         console.log('📤 Creando venta:', data)
         const resultado = await VentasService.create(data)
