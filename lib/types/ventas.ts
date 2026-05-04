@@ -81,11 +81,21 @@ export interface ProductoVentaRequest {
 }
 
 /**
+ * Pago para split payments
+ */
+export interface PagoVentaRequest {
+  metodo_pago_id: number
+  monto: number
+}
+
+/**
  * Request para crear una venta
+ * Soporta: metodo_pago_id (legado) O pagos[] (nuevo con split payments)
  */
 export interface CreateVentaRequest {
   socio_id: number | null  // null para público general
-  metodo_pago_id: number
+  metodo_pago_id?: number  // Backward compatibility (legado)
+  pagos?: PagoVentaRequest[]  // Nuevo: split payments
   productos: ProductoVentaRequest[]
 }
 
