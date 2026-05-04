@@ -6,6 +6,7 @@ import { Button } from "@/ui/button"
 import { Label } from "@/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { SociosService } from "@/lib/services/socios"
+import { DualPaymentSelector, type PagoSplitRequest } from "@/components/payment/dual-payment-selector"
 import type { Socio, MetodoPago, CotizacionResponse } from "@/lib/types/socios"
 import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 
@@ -18,7 +19,7 @@ interface CobrarMembresiaModalProps {
 
 export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: CobrarMembresiaModalProps) {
   const [cargandoMetodos, setCargandoMetodos] = useState(false)
-  const [metodoPagoSeleccionado, setMetodoPagoSeleccionado] = useState<number | null>(null)
+  const [pagosSeleccionados, setPagosSeleccionados] = useState<PagoSplitRequest[]>([])
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
   const [procesando, setProcesando] = useState(false)
   const [showImprimirTicket, setShowImprimirTicket] = useState(false)
@@ -39,11 +40,6 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
       const { MetodosPagoService } = await import("@/lib/services/socios")
       const metodos = await MetodosPagoService.getAll()
       setMetodosPago(metodos.filter(m => m.activo))
-      
-      // Seleccionar el primer método por defecto si existe
-      if (metodos.length > 0) {
-        setMetodoPagoSeleccionado(metodos[0].metodo_pago_id)
-      }
     } catch (error: any) {
       console.error("Error cargando métodos de pago:", error)
       toast({
@@ -57,10 +53,10 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
   }
 
   const handleConfirmar = async () => {
-    if (!socio || !metodoPagoSeleccionado) {
+    if (!socio || pagosSeleccionados.length === 0) {
       toast({
         title: "Error",
-        description: "Debe seleccionar un método de pago",
+        description: "Debe seleccionar al menos un método de pago",
         variant: "destructive",
       })
       return
@@ -70,12 +66,12 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
     console.log("💳 Cobrando membresía pendiente:")
     console.log("   Socio ID:", socio.id)
     console.log("   Plan ID:", socio.planId)
-    console.log("   Método de pago:", metodoPagoSeleccionado)
+    console.log("   Pagos:", pagosSeleccionados)
     console.log("   Estado actual:", socio.estadoPago)
 
     try {
-      // Endpoint dedicado para cobro de adeudo
-      const mensaje = await SociosService.pagarMembresiaPendiente(socio.id, metodoPagoSeleccionado)
+      // Endpoint dedicado para cobro de adeudo - ahora acepta pagos[]
+      const mensaje = await SociosService.pagarMembresiaPendiente(socio.id, pagosSeleccionados)
 
       console.log("✅ Membresía cobrada exitosamente")
       
@@ -101,10 +97,12 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
             plan_id: planId,
             fecha_inicio: fechaInicio.split('T')[0],
           })
-          const metodoPagoNombre = metodosPago.find(m => m.metodo_pago_id === metodoPagoSeleccionado)?.nombre || "N/A"
+          const metodoPagoNombre = pagosSeleccionados
+            .map(p => metodosPago.find(m => m.metodo_pago_id === p.metodo_pago_id)?.nombre || "N/A")
+            .join(" + ")
           setCotizacionParaTicket(cotizacion)
           setMetodoPagoParaTicket(metodoPagoNombre)
-          setMetodoPagoSeleccionado(null)
+          setPagosSeleccionados([])
           setShowImprimirTicket(true)
           return // El cierre real ocurre cuando se cierra el modal de impresión
         }
@@ -113,7 +111,7 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
       }
 
       // Fallback: cerrar normalmente si cotizar falla
-      setMetodoPagoSeleccionado(null)
+      setPagosSeleccionados([])
       onClose()
       if (onSuccess) onSuccess()
     } catch (error: any) {
@@ -130,7 +128,7 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
 
   const handleClose = () => {
     if (!procesando && !showImprimirTicket) {
-      setMetodoPagoSeleccionado(null)
+      setPagosSeleccionados([])
       onClose()
     }
   }
@@ -180,7 +178,7 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
         </div>
 
         {/* Contenido */}
-        <div className="px-6 py-6 space-y-6">
+        <div className="px-6 py-6 space-y-6 max-h-[70vh] overflow-y-auto">
           {/* Info del socio */}
           <div className="space-y-3">
             <div>
@@ -199,46 +197,41 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
                 {socio.estadoPago === 'sin_pagar' ? 'SIN PAGAR' : socio.estadoPago}
               </span>
             </div>
+
+            {/* Monto a cobrar */}
+            <div>
+              <p className="text-sm text-muted-foreground">Monto a Cobrar</p>
+              <p className="text-2xl font-bold text-accent">
+                ${socio.precioMembresia?.toFixed(2) || "0.00"}
+              </p>
+            </div>
           </div>
 
           {/* Separador */}
           <div className="border-t border-border"></div>
 
-          {/* Método de pago */}
-          <div className="space-y-3">
-            <Label htmlFor="metodo-pago" className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-accent" />
-              <span>Método de Pago</span>
-            </Label>
-            
-            {cargandoMetodos ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-accent" />
-              </div>
-            ) : metodosPago.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hay métodos de pago disponibles</p>
-            ) : (
-              <select
-                id="metodo-pago"
-                value={metodoPagoSeleccionado || ""}
-                onChange={(e) => setMetodoPagoSeleccionado(Number(e.target.value))}
-                disabled={procesando}
-                className="w-full px-3 py-2 bg-background border border-border rounded text-foreground text-sm disabled:opacity-50"
-              >
-                {metodosPago.map((metodo) => (
-                  <option key={metodo.metodo_pago_id} value={metodo.metodo_pago_id}>
-                    {metodo.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+          {/* Método de pago - Ahora con selector dual */}
+          {cargandoMetodos ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-accent" />
+            </div>
+          ) : metodosPago.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No hay métodos de pago disponibles</p>
+          ) : (
+            <DualPaymentSelector
+              total={socio.precioMembresia || 0}
+              metodosPago={metodosPago}
+              onPagosChange={setPagosSeleccionados}
+              disabled={procesando}
+              labelText="Formas de Pago"
+            />
+          )}
 
           {/* Nota informativa */}
           <div className="bg-accent/10 border border-accent/20 rounded-lg p-3">
             <p className="text-xs text-accent">
               <strong>Nota:</strong> Al confirmar, se registrará el pago de la membresía y el estado
-              cambiará a "PAGADO".
+              cambiará a "PAGADO". Puedes dividir el pago entre hasta 2 métodos diferentes.
             </p>
           </div>
         </div>
@@ -256,7 +249,7 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
           <Button
             type="button"
             onClick={handleConfirmar}
-            disabled={procesando || !metodoPagoSeleccionado || cargandoMetodos}
+            disabled={procesando || pagosSeleccionados.length === 0 || cargandoMetodos}
             className="bg-accent hover:bg-accent/90 text-accent-foreground"
           >
             {procesando ? (
