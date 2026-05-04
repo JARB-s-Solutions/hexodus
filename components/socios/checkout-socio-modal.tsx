@@ -3,13 +3,15 @@
 import { useState, useEffect } from "react"
 import { X, DollarSign, CreditCard, AlertCircle, CheckCircle, Calendar, Tag } from "lucide-react"
 import type { CotizacionResponse, MetodoPago } from "@/lib/types/socios"
+import { DualPaymentSelector, type PagoSplitRequest } from "@/components/payment/dual-payment-selector"
 import { MetodosPagoService } from "@/lib/services/socios"
 
 interface CheckoutSocioModalProps {
   open: boolean
   onClose: () => void
   cotizacion: CotizacionResponse['data'] | null
-  onConfirmarPago: (metodoPagoId: number, nombreMetodoPago: string) => void
+  // Accept either a single metodoPagoId or an array of pagos (split payment)
+  onConfirmarPago: (metodoPagoIdOrPagos: number | PagoSplitRequest[], nombreMetodoPago?: string) => void
   onInscribirSinPago: () => void
   loading?: boolean
 }
@@ -25,6 +27,7 @@ export function CheckoutSocioModal({
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
   const [metodoPagoSeleccionado, setMetodoPagoSeleccionado] = useState<number | null>(null)
   const [cargandoMetodos, setCargandoMetodos] = useState(false)
+  const [pagosSeleccionados, setPagosSeleccionados] = useState<PagoSplitRequest[]>([])
 
   useEffect(() => {
     if (open) {
@@ -220,7 +223,7 @@ export function CheckoutSocioModal({
             </div>
           </div>
 
-          {/* Selector de Método de Pago */}
+          {/* Selector de Método de Pago (soporta split payments) */}
           <div>
             <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">
               Método de Pago
@@ -230,34 +233,12 @@ export function CheckoutSocioModal({
                 <div className="animate-spin rounded-full h-6 w-6 border-2 border-accent border-t-transparent" />
               </div>
             ) : (
-              <select
-                value={metodoPagoSeleccionado ?? ''}
-                onChange={(e) => {
-                  const value = e.target.value
-                  const nuevoValor = value ? Number(value) : null
-                  console.log('📋 Selección cambiada:', { value, nuevoValor })
-                  setMetodoPagoSeleccionado(nuevoValor)
-                }}
-                disabled={loading}
-                className="w-full px-4 py-3 rounded-xl border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50 transition-all"
-                style={{
-                  background: metodoPagoSeleccionado ? 'rgba(0,191,255,0.05)' : undefined,
-                  borderColor: metodoPagoSeleccionado ? 'var(--accent)' : undefined,
-                }}
-              >
-                <option value="">Seleccionar método...</option>
-                {metodosPago.map((metodo) => {
-                  console.log('📋 Renderizando opción:', metodo)
-                  return (
-                    <option 
-                      key={`metodo-${metodo.metodo_pago_id}`} 
-                      value={metodo.metodo_pago_id}
-                    >
-                      {metodo.nombre}
-                    </option>
-                  )
-                })}
-              </select>
+              <DualPaymentSelector
+                total={desglose_cobro.total_a_pagar}
+                metodosPago={metodosPago}
+                onPagosChange={setPagosSeleccionados}
+                labelText="Seleccionar método(es) de pago"
+              />
             )}
           </div>
 
@@ -284,18 +265,33 @@ export function CheckoutSocioModal({
           {/* Botón Principal: Cobrar y Registrar */}
           <button
             onClick={() => {
+              // Priorizar pagosSeleccionados (split payments) si son válidos
+              if (pagosSeleccionados && pagosSeleccionados.length > 0) {
+                const totalPagado = pagosSeleccionados.reduce((s, p) => s + (p.monto || 0), 0)
+                const diferencia = Math.abs(totalPagado - desglose_cobro.total_a_pagar)
+                if (diferencia < 0.01 && totalPagado > 0) {
+                  const nombres = pagosSeleccionados
+                    .map(p => metodosPago.find(m => m.metodo_pago_id === p.metodo_pago_id)?.nombre || 'N/A')
+                    .join(' + ')
+                  onConfirmarPago(pagosSeleccionados, nombres)
+                  return
+                }
+                return
+              }
+
+              // Fallback: si no hay split, usar metodoPagoSeleccionado
               if (metodoPagoSeleccionado) {
                 const metodoPago = metodosPago.find(m => m.metodo_pago_id === metodoPagoSeleccionado)
                 onConfirmarPago(metodoPagoSeleccionado, metodoPago?.nombre || "Desconocido")
               }
             }}
-            disabled={!metodoPagoSeleccionado || loading}
+            disabled={loading || (pagosSeleccionados.length === 0 && !metodoPagoSeleccionado)}
             className="w-full px-6 py-3 text-sm font-bold text-white transition-all rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              background: metodoPagoSeleccionado && !loading
+              background: (pagosSeleccionados.length > 0 || metodoPagoSeleccionado) && !loading
                 ? "linear-gradient(135deg, #4BB543, #45a839)"
                 : "rgba(75, 181, 67, 0.3)",
-              boxShadow: metodoPagoSeleccionado && !loading 
+              boxShadow: (pagosSeleccionados.length > 0 || metodoPagoSeleccionado) && !loading 
                 ? "0 4px 16px rgba(75,181,67,0.4)"
                 : "none",
             }}

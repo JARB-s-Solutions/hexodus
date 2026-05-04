@@ -5,6 +5,7 @@ import { X, Search, Plus, Minus, Trash2, User, Package, PlusCircle, Users, Shopp
 import { SociosService } from "@/lib/services/socios"
 import { ProductosService } from "@/lib/services/productos"
 import { MetodosPagoService } from "@/lib/services/socios"
+import { DualPaymentSelector, type PagoSplitRequest } from "@/components/payment/dual-payment-selector"
 import type { Socio } from "@/lib/types/socios"
 import type { ProductoExtendido } from "@/lib/types/productos"
 import type { MetodoPago } from "@/lib/types/socios"
@@ -20,7 +21,8 @@ interface NuevaVentaModalProps {
   onClose: () => void
   onConfirm: (data: {
     socio_id: number | null
-    metodo_pago_id: number
+    pagos?: PagoSplitRequest[]
+    metodo_pago_id?: number  // Legacy support
     productos: { producto_id: number; cantidad: number }[]
   }) => void
 }
@@ -33,7 +35,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
   
   // Estados del formulario
   const [socioSeleccionado, setSocioSeleccionado] = useState<Socio | null>(null)
-  const [metodoPagoId, setMetodoPagoId] = useState<number | "">("")
+  const [pagosSeleccionados, setPagosSeleccionados] = useState<PagoSplitRequest[]>([])
   const [productosSeleccionados, setProductosSeleccionados] = useState<ProductoSeleccionado[]>([])
   
   // Estados de búsqueda
@@ -168,14 +170,14 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     
-    if (!metodoPagoId || productosSeleccionados.length === 0) {
-      alert('Debes seleccionar un método de pago y al menos un producto')
+    if (pagosSeleccionados.length === 0 || productosSeleccionados.length === 0) {
+      alert('Debes seleccionar al menos un método de pago y un producto')
       return
     }
 
     onConfirm({
       socio_id: socioSeleccionado?.id || null,
-      metodo_pago_id: metodoPagoId as number,
+      pagos: pagosSeleccionados,
       productos: productosSeleccionados.map(item => ({
         producto_id: item.producto.id,
         cantidad: item.cantidad
@@ -188,7 +190,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
 
   function resetForm() {
     setSocioSeleccionado(null)
-    setMetodoPagoId("")
+    setPagosSeleccionados([])
     setProductosSeleccionados([])
     setBusquedaSocio("")
     setBusquedaProducto("")
@@ -224,7 +226,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Sección 1: Cliente y Método de Pago */}
+            {/* Sección 1: Cliente y Métodos de Pago */}
             <div className="grid grid-cols-2 gap-6">
               {/* Cliente */}
               <div className="space-y-3">
@@ -299,32 +301,27 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
                 </div>
               </div>
 
-              {/* Método de Pago */}
+              {/* Métodos de Pago - Nuevo componente dual */}
               <div className="space-y-3">
                 <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
                   <Package className="h-4 w-4 text-accent" />
-                  Método de Pago
+                  Pago
                 </h4>
 
-                <div>
-                  <label htmlFor="metodo-pago" className="block text-xs font-medium mb-1.5 text-muted-foreground">
-                    Método de Pago <span className="text-destructive">*</span>
-                  </label>
-                  <select
-                    id="metodo-pago"
-                    value={metodoPagoId}
-                    onChange={(e) => setMetodoPagoId(Number(e.target.value))}
-                    required
-                    className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm appearance-none focus:border-accent focus:ring-0 focus:outline-none transition-colors cursor-pointer"
-                  >
-                    <option value="">Selecciona un método...</option>
-                    {metodosPago.map((metodo) => (
-                      <option key={metodo.metodo_pago_id} value={metodo.metodo_pago_id}>
-                        {metodo.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {productosSeleccionados.length > 0 ? (
+                  <DualPaymentSelector
+                    total={total}
+                    metodosPago={metodosPago}
+                    onPagosChange={setPagosSeleccionados}
+                    labelText="Métodos de Pago"
+                  />
+                ) : (
+                  <div className="p-4 bg-muted/50 border border-border rounded-lg text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Agrega productos primero para configurar el pago
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -466,7 +463,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
               </button>
               <button
                 type="submit"
-                disabled={!metodoPagoId || productosSeleccionados.length === 0}
+                disabled={pagosSeleccionados.length === 0 || productosSeleccionados.length === 0}
                 className="flex-1 px-4 py-3 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Registrar Venta

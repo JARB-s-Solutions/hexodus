@@ -219,14 +219,21 @@ export class SociosService {
   /**
    * Registrar pago de membresía pendiente en caja
    * POST /api/socios/:id/pagar-membresia
+   * Soporta pagos simples (metodo_pago_id) o split (pagos[])
    */
-  static async pagarMembresiaPendiente(id: number, metodoPagoId: number): Promise<string> {
+  static async pagarMembresiaPendiente(
+    id: number, 
+    metodoPagoIdOPagos: number | Array<{ metodo_pago_id: number; monto: number }>
+  ): Promise<string> {
     console.log(`💰 POST /api/socios/${id}/pagar-membresia - Registrando pago de adeudo`)
-    console.log('📤 metodo_pago_id:', metodoPagoId)
+    
+    const body = Array.isArray(metodoPagoIdOPagos)
+      ? { pagos: metodoPagoIdOPagos }
+      : { metodo_pago_id: metodoPagoIdOPagos }
+    
+    console.log('📤 Payload:', body)
 
-    const response = await apiPost<{ message?: string }>(`/socios/${id}/pagar-membresia`, {
-      metodo_pago_id: metodoPagoId,
-    })
+    const response = await apiPost<{ message?: string }>(`/socios/${id}/pagar-membresia`, body)
 
     const mensaje = response?.message || 'Pago registrado correctamente en caja.'
     console.log('✅ Pago de adeudo registrado:', mensaje)
@@ -236,16 +243,23 @@ export class SociosService {
   /**
    * Renovar membresía vencida
    * POST /api/socios/:id/renovar
+   * Soporta renovación simple (metodo_pago_id) o split (pagos[])
    */
-  static async renovarMembresia(id: number, planId: number, metodoPagoId: number): Promise<string> {
+  static async renovarMembresia(
+    id: number, 
+    planId: number, 
+    metodoPagoIdOPagos: number | Array<{ metodo_pago_id: number; monto: number }>
+  ): Promise<string> {
     console.log(`🔄 POST /api/socios/${id}/renovar - Renovando membresía`)
     console.log('📤 plan_id:', planId)
-    console.log('📤 metodo_pago_id:', metodoPagoId)
+    
+    const body = Array.isArray(metodoPagoIdOPagos)
+      ? { plan_id: planId, pagos: metodoPagoIdOPagos }
+      : { plan_id: planId, metodo_pago_id: metodoPagoIdOPagos }
+    
+    console.log('📤 Payload:', body)
 
-    const response = await apiPost<{ message?: string }>(`/socios/${id}/renovar`, {
-      plan_id: planId,
-      metodo_pago_id: metodoPagoId,
-    })
+    const response = await apiPost<{ message?: string }>(`/socios/${id}/renovar`, body)
 
     const mensaje = response?.message || 'Membresía renovada correctamente.'
     console.log('✅ Renovación completada:', mensaje)
