@@ -7,6 +7,7 @@ import { Label } from "@/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { SociosService, MetodosPagoService } from "@/lib/services/socios"
 import { MembresiasService } from "@/lib/services/membresias"
+import { DualPaymentSelector, type PagoSplitRequest } from "@/components/payment/dual-payment-selector"
 import type { Socio, MetodoPago, CotizacionResponse } from "@/lib/types/socios"
 import type { Membresia } from "@/lib/types/membresias"
 import { extractYmd, getDaysUntilYmd, getTodayYmdInTimeZone } from "@/lib/timezone"
@@ -31,8 +32,9 @@ function normalizarNombrePlan(valor?: string | null): string {
 export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: RenovarMembresiaModalProps) {
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
   const [membresias, setMembresias] = useState<Membresia[]>([])
-  const [metodoPagoSeleccionado, setMetodoPagoSeleccionado] = useState<number | null>(null)
+  const [pagosSeleccionados, setPagosSeleccionados] = useState<PagoSplitRequest[]>([])
   const [planSeleccionado, setPlanSeleccionado] = useState<number | null>(null)
+  const [planPrecio, setPlanPrecio] = useState(0)
   const [cargandoDatos, setCargandoDatos] = useState(false)
   const [procesando, setProcesando] = useState(false)
   const [showImprimirTicket, setShowImprimirTicket] = useState(false)
@@ -63,10 +65,6 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
         setMetodosPago(metodosActivos)
         setMembresias(membresiasActivas)
 
-        if (metodosActivos.length > 0) {
-          setMetodoPagoSeleccionado(metodosActivos[0].metodo_pago_id)
-        }
-
         let planId = socio.planId
         let nombrePlanActual = socio.nombrePlan || (socio as any).membresia
 
@@ -82,13 +80,22 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
 
         if (planId && planId > 0) {
           setPlanSeleccionado(planId)
+          const plan = membresiasActivas.find(p => p.id === planId)
+          if (plan) {
+            const precioFinal = plan.esOferta && plan.precioOferta ? plan.precioOferta : plan.precioBase
+            setPlanPrecio(precioFinal || 0)
+          }
         } else {
           const nombreNormalizado = normalizarNombrePlan(nombrePlanActual)
           const planCoincidente = membresiasActivas.find(
             (plan) => normalizarNombrePlan(plan.nombre) === nombreNormalizado
           )
 
-          setPlanSeleccionado(planCoincidente?.id ?? null)
+          if (planCoincidente) {
+            setPlanSeleccionado(planCoincidente.id)
+            const precioFinal = planCoincidente.esOferta && planCoincidente.precioOferta ? planCoincidente.precioOferta : planCoincidente.precioBase
+            setPlanPrecio(precioFinal || 0)
+          }
         }
       } catch (error: any) {
         console.error("Error cargando datos para renovacion:", error)
@@ -106,10 +113,10 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
   }, [open, socio])
 
   const handleConfirmar = async () => {
-    if (!socio || !planSeleccionado || !metodoPagoSeleccionado) {
+    if (!socio || !planSeleccionado || pagosSeleccionados.length === 0) {
       toast({
         title: "Datos incompletos",
-        description: "Selecciona un plan y un metodo de pago para renovar",
+        description: "Selecciona un plan y al menos un método de pago para renovar",
         variant: "destructive",
       })
       return
@@ -121,7 +128,7 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
       const mensaje = await SociosService.renovarMembresia(
         socio.id,
         planSeleccionado,
-        metodoPagoSeleccionado,
+        pagosSeleccionados,
       )
 
       toast({
@@ -134,13 +141,14 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
           plan_id: planSeleccionado,
           fecha_inicio: fechaInicioCotizacion,
         })
-        const metodoPagoNombre =
-          metodosPago.find((metodo) => metodo.metodo_pago_id === metodoPagoSeleccionado)?.nombre || "N/A"
+        const metodoPagoNombre = pagosSeleccionados
+          .map(p => metodosPago.find(m => m.metodo_pago_id === p.metodo_pago_id)?.nombre || "N/A")
+          .join(" + ")
 
         setCotizacionParaTicket(cotizacion)
         setMetodoPagoParaTicket(metodoPagoNombre)
         setPlanSeleccionado(null)
-        setMetodoPagoSeleccionado(null)
+        setPagosSeleccionados([])
         setShowImprimirTicket(true)
         return
       } catch (cotizError) {
@@ -148,7 +156,7 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
       }
 
       setPlanSeleccionado(null)
-      setMetodoPagoSeleccionado(null)
+      setPagosSeleccionados([])
       onClose()
       onSuccess?.()
     } catch (error: any) {
@@ -166,7 +174,7 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
   const handleClose = () => {
     if (procesando || showImprimirTicket) return
     setPlanSeleccionado(null)
-    setMetodoPagoSeleccionado(null)
+    setPagosSeleccionados([])
     onClose()
   }
 
@@ -213,7 +221,7 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
           </button>
         </div>
 
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 px-6 py-6 max-h-[70vh] overflow-y-auto">
           <div className="space-y-3">
             <div>
               <p className="text-sm text-muted-foreground">Socio</p>
@@ -241,7 +249,13 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
                 <select
                   id="plan-renovacion"
                   value={planSeleccionado || ""}
-                  onChange={(e) => setPlanSeleccionado(Number(e.target.value))}
+                  onChange={(e) => {
+                    const newPlanId = Number(e.target.value)
+                    setPlanSeleccionado(newPlanId)
+                    const plan = membresias.find(p => p.id === newPlanId)
+                    const precioFinal = plan ? (plan.esOferta && plan.precioOferta ? plan.precioOferta : plan.precioBase) : 0
+                    setPlanPrecio(precioFinal || 0)
+                  }}
                   disabled={procesando || membresias.length === 0}
                   className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-50"
                 >
@@ -250,37 +264,35 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
                   </option>
                   {membresias.map((membresia) => (
                     <option key={membresia.id} value={membresia.id}>
-                      {membresia.nombre}
+                      {membresia.nombre} (${((membresia.esOferta && membresia.precioOferta) ? membresia.precioOferta : membresia.precioBase).toFixed(2)})
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="space-y-3">
-                <Label htmlFor="metodo-pago-renovacion" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-accent" />
-                  <span>Metodo de pago</span>
-                </Label>
-                <select
-                  id="metodo-pago-renovacion"
-                  value={metodoPagoSeleccionado || ""}
-                  onChange={(e) => setMetodoPagoSeleccionado(Number(e.target.value))}
-                  disabled={procesando || metodosPago.length === 0}
-                  className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-50"
-                >
-                  {metodosPago.map((metodo) => (
-                    <option key={metodo.metodo_pago_id} value={metodo.metodo_pago_id}>
-                      {metodo.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {planSeleccionado && (
+                <div className="space-y-3">
+                  {planPrecio > 0 ? (
+                    <DualPaymentSelector
+                      total={planPrecio}
+                      metodosPago={metodosPago}
+                      onPagosChange={setPagosSeleccionados}
+                      disabled={procesando}
+                      labelText="Métodos de Pago"
+                    />
+                  ) : (
+                    <div className="p-3 rounded-lg border border-border bg-muted/10 text-sm text-muted-foreground">
+                      Precio del plan no disponible. Elige otro plan o consulta el detalle.
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
           <div className="rounded-lg border border-accent/20 bg-accent/10 p-3">
             <p className="text-xs text-accent">
-              <strong>Renovación automática:</strong> si la membresía sigue vigente, los días se suman al final del ciclo actual; si ya venció, inicia hoy.
+              <strong>Renovación automática:</strong> si la membresía sigue vigente, los días se suman al final del ciclo actual; si ya venció, inicia hoy. Puedes pagar con hasta 2 métodos diferentes.
             </p>
           </div>
 
@@ -312,7 +324,7 @@ export function RenovarMembresiaModal({ open, onClose, socio, onSuccess }: Renov
             disabled={
               procesando ||
               cargandoDatos ||
-              !metodoPagoSeleccionado ||
+              pagosSeleccionados.length === 0 ||
               !planSeleccionado ||
               metodosPago.length === 0 ||
               membresias.length === 0
