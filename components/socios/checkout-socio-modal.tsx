@@ -114,7 +114,7 @@ export function CheckoutSocioModal({
                 <h2 className="text-xl font-extrabold text-foreground leading-tight">
                   Procesar Pago
                 </h2>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-1 mb-6">
                   Confirma el método de pago para inscribir al socio
                 </p>
               </div>
@@ -237,7 +237,7 @@ export function CheckoutSocioModal({
                 total={desglose_cobro.total_a_pagar}
                 metodosPago={metodosPago}
                 onPagosChange={setPagosSeleccionados}
-                labelText="Seleccionar método(es) de pago"
+                labelText="Seleccionar método(s) de pago"
               />
             )}
           </div>
