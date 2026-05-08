@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Receipt, Loader2, Printer } from "lucide-react"
+import { X, Receipt, Loader2, Printer, Ban, CheckCircle2, Clock3 } from "lucide-react"
 import { VentasService } from "@/lib/services/ventas"
-import type { DetalleVenta } from "@/lib/types/ventas"
+import type { DetalleVenta, StatusVenta, Venta } from "@/lib/types/ventas"
 import { formatCurrency, formatDateTime } from "@/lib/types/ventas"
 
 interface DetalleVentaModalProps {
@@ -11,9 +11,23 @@ interface DetalleVentaModalProps {
   open: boolean
   onClose: () => void
   onPrintInvoice?: (detalleVenta: DetalleVenta) => void
+  ventaContexto?: Venta | null
+  onSolicitarCancelacion?: (venta: Venta) => void
 }
 
-export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice }: DetalleVentaModalProps) {
+const statusStyles: Record<StatusVenta, string> = {
+  exitosa: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  cancelada: "bg-destructive/15 text-destructive border-destructive/30",
+  pendiente: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+}
+
+const statusLabels: Record<StatusVenta, string> = {
+  exitosa: "Exitosa",
+  cancelada: "Cancelada",
+  pendiente: "Pendiente",
+}
+
+export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice, ventaContexto, onSolicitarCancelacion }: DetalleVentaModalProps) {
   const [detalleVenta, setDetalleVenta] = useState<DetalleVenta | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,6 +64,7 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice }: De
 
   if (!open) return null
 
+  const statusVenta = ventaContexto?.status
   const { fecha, hora } = detalleVenta?.fechaHora 
     ? formatDateTime(detalleVenta.fechaHora) 
     : { fecha: '', hora: '' }
@@ -144,9 +159,14 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice }: De
                 </div>
 
                 {/* Status Card */}
-                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-center">
-                  <p className="text-xs text-emerald-400 uppercase tracking-wider mb-2">ESTADO</p>
-                  <p className="text-lg font-bold text-emerald-400">COMPLETADO</p>
+                <div className={`border rounded-xl p-4 text-center ${statusVenta ? statusStyles[statusVenta] : 'bg-slate-800/50 border-slate-700/50 text-slate-300'}`}>
+                  <p className="text-xs uppercase tracking-wider mb-2">ESTADO</p>
+                  <p className="text-lg font-bold flex items-center justify-center gap-2">
+                    {statusVenta === 'exitosa' && <CheckCircle2 className="h-4 w-4" />}
+                    {statusVenta === 'pendiente' && <Clock3 className="h-4 w-4" />}
+                    {statusVenta === 'cancelada' && <Ban className="h-4 w-4" />}
+                    {statusVenta ? statusLabels[statusVenta] : 'No disponible'}
+                  </p>
                 </div>
 
                 {/* Total Amount Card */}
@@ -206,15 +226,26 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice }: De
 
               {/* Footer Actions */}
               <div className="flex justify-between items-center gap-4">
-                {onPrintInvoice && (
-                  <button
-                    onClick={() => onPrintInvoice(detalleVenta)}
-                    className="flex items-center gap-2 px-6 py-3 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-medium text-white transition-colors"
-                  >
-                    <Printer className="h-4 w-4" />
-                    Imprimir Ticket
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  {onPrintInvoice && (
+                    <button
+                      onClick={() => onPrintInvoice(detalleVenta)}
+                      className="flex items-center gap-2 px-6 py-3 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-medium text-white transition-colors"
+                    >
+                      <Printer className="h-4 w-4" />
+                      Imprimir Ticket
+                    </button>
+                  )}
+                  {ventaContexto && ventaContexto.status !== 'cancelada' && onSolicitarCancelacion && (
+                    <button
+                      onClick={() => onSolicitarCancelacion(ventaContexto)}
+                      className="flex items-center gap-2 px-6 py-3 bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 rounded-lg text-sm font-medium text-destructive transition-colors"
+                    >
+                      <Ban className="h-4 w-4" />
+                      Cancelar venta
+                    </button>
+                  )}
+                </div>
                 <button
                   onClick={onClose}
                   className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 rounded-lg text-sm font-medium text-white transition-colors"

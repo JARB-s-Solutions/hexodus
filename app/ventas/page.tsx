@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/ui/dialog"
 import { Sidebar } from "@/components/sidebar"
 import { VentasHeader } from "@/components/ventas/ventas-header"
 import { KpiCards } from "@/components/ventas/kpi-cards"
@@ -66,8 +67,11 @@ export default function VentasPage() {
   // Modals
   const [modalNuevaVenta, setModalNuevaVenta] = useState(false)
   const [detalleVentaId, setDetalleVentaId] = useState<number | null>(null)
+  const [ventaSeleccionada, setVentaSeleccionada] = useState<Venta | null>(null)
   const [modalImprimirTicket, setModalImprimirTicket] = useState(false)
   const [detalleVentaParaImprimir, setDetalleVentaParaImprimir] = useState<DetalleVenta | null>(null)
+  const [ventaParaCancelar, setVentaParaCancelar] = useState<Venta | null>(null)
+  const [cancelandoVenta, setCancelandoVenta] = useState(false)
 
   // Active tab — inicializa desde query param ?tab=caja|analytics|historial
   const initialTab = ((): VentasTabKey => {
@@ -88,6 +92,7 @@ export default function VentasPage() {
     tienePermiso("ventas", "crearCorte") ||
     tienePermiso("ventas", "verCortesAnteriores")
   const puedeCrearCorte = tienePermiso("ventas", "crearCorte")
+  const puedeCancelarVenta = tienePermiso("ventas", "eliminar")
 
   const tabsDisponibles = useMemo<Array<{ key: VentasTabKey; label: string }>>(() => {
     const tabs: Array<{ key: VentasTabKey; label: string }> = [{ key: "historial", label: "Historial" }]
@@ -424,6 +429,41 @@ export default function VentasPage() {
     setDetalleVentaId(null) // Cerrar modal de detalle
   }, [])
 
+  const handleSolicitarCancelacion = useCallback((venta: Venta) => {
+    if (!puedeCancelarVenta) return
+    if (venta.status === 'cancelada') return
+    setVentaParaCancelar(venta)
+  }, [puedeCancelarVenta])
+
+  const handleConfirmarCancelacion = useCallback(async () => {
+    if (!ventaParaCancelar) return
+
+    try {
+      setCancelandoVenta(true)
+      const response = await VentasService.cancelar(ventaParaCancelar.id)
+
+      toast({
+        title: 'Venta cancelada',
+        description: response.message || `La venta ${ventaParaCancelar.idVenta} fue cancelada correctamente.`,
+      })
+
+      setVentaSeleccionada((prev) => prev && prev.id === ventaParaCancelar.id ? { ...prev, status: 'cancelada' } : prev)
+      setVentas((prev) => prev.map((v) => v.id === ventaParaCancelar.id ? { ...v, status: 'cancelada' } : v))
+      setVentaParaCancelar(null)
+
+      await cargarVentas(pagination.currentPage, pagination.limit)
+    } catch (error: any) {
+      console.error('❌ Error al cancelar venta:', error)
+      toast({
+        title: 'No se pudo cancelar',
+        description: error.message || 'No fue posible cancelar la venta seleccionada',
+        variant: 'destructive',
+      })
+    } finally {
+      setCancelandoVenta(false)
+    }
+  }, [ventaParaCancelar, pagination.currentPage, pagination.limit, toast])
+
   if (loading) {
     return (
       <div className="flex h-screen overflow-hidden bg-background">
@@ -522,7 +562,12 @@ export default function VentasPage() {
                   pagination={pagination}
                   onPageChange={handlePageChange}
                   onLimitChange={handleLimitChange}
-                  onVerDetalle={(venta) => setDetalleVentaId(venta.id)}
+                  onVerDetalle={(venta) => {
+                    setVentaSeleccionada(venta)
+                    setDetalleVentaId(venta.id)
+                  }}
+                  onCancelarVenta={handleSolicitarCancelacion}
+                  puedeCancelarVenta={puedeCancelarVenta}
                 />
               </>
             )}
@@ -585,8 +630,13 @@ export default function VentasPage() {
       <DetalleVentaModal
         ventaId={detalleVentaId}
         open={!!detalleVentaId}
-        onClose={() => setDetalleVentaId(null)}
+        onClose={() => {
+          setDetalleVentaId(null)
+          setVentaSeleccionada(null)
+        }}
         onPrintInvoice={puedeImprimirTicket ? handlePrintInvoice : undefined}
+        ventaContexto={ventaSeleccionada}
+        onSolicitarCancelacion={handleSolicitarCancelacion}
       />
 
       {puedeImprimirTicket && (
@@ -599,6 +649,56 @@ export default function VentasPage() {
           detalleVenta={detalleVentaParaImprimir}
         />
       )}
+
+      <Dialog open={!!ventaParaCancelar} onOpenChange={(open) => !open && setVentaParaCancelar(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Cancelar venta</DialogTitle>
+            <DialogDescription>
+              Esta acción revertirá stock y caja. Solo debe hacerse si realmente necesitas anular la venta.
+            </DialogDescription>
+          </DialogHeader>
+
+          {ventaParaCancelar && (
+            <div className="space-y-3 rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Venta</span>
+                <span className="font-semibold text-foreground">{ventaParaCancelar.idVenta}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Cliente</span>
+                <span className="font-medium text-foreground text-right">{ventaParaCancelar.cliente}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Total</span>
+                <span className="font-semibold text-foreground">{formatCurrency(ventaParaCancelar.total)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Se generarán movimientos de reversión en inventario y caja. Si el corte asociado ya fue cerrado, el backend rechazará la operación.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setVentaParaCancelar(null)}
+              className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted transition-colors"
+              disabled={cancelandoVenta}
+            >
+              No, volver
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmarCancelacion}
+              className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-60"
+              disabled={cancelandoVenta}
+            >
+              {cancelandoVenta ? 'Cancelando...' : 'Sí, cancelar venta'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
