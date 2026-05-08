@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from '@/lib/api'
+import { apiDelete, apiGet, apiPost } from '@/lib/api'
 import type {
   GetVentasResponse,
   VentasData,
@@ -110,6 +110,18 @@ export class VentasService {
     console.log('🎫 ID venta:', response.data.venta_id)
     
     return response.data
+  }
+
+  /**
+   * Cancelar una venta existente
+   */
+  static async cancelar(id: number): Promise<{ message: string }> {
+    console.log(`🗑️ DELETE /api/ventas/${id} - Cancelando venta`)
+
+    const response = await apiDelete<{ message: string }>(`/ventas/${id}`)
+    console.log('✅ Venta cancelada:', response)
+
+    return response
   }
 
   /**
