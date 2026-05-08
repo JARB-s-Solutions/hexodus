@@ -63,7 +63,7 @@ const MODULOS_SISTEMA = [
   { id: 'membresias', nombre: 'Membresías', icono: '🎫', acciones: ['ver', 'crear', 'editar', 'eliminar', 'activar', 'desactivar'] },
   { id: 'socios', nombre: 'Socios', icono: '👥', acciones: ['ver', 'crear', 'editar', 'eliminar', 'verHistorial', 'pagar', 'renovar', 'imprimirTicket'] },
   { id: 'asistencia', nombre: 'Asistencia', icono: '📝', acciones: ['ver', 'crear', 'editar', 'eliminar', 'registrarManual', 'verHistorial', 'exportar'] },
-  { id: 'ventas', nombre: 'Ventas', icono: '💰', acciones: ['ver', 'crear', 'verAnalisis', 'crearCorte', 'verCortesAnteriores', 'imprimirTicket', 'exportar'] },
+  { id: 'ventas', nombre: 'Ventas', icono: '💰', acciones: ['ver', 'crear', 'editar', 'eliminar', 'verAnalisis', 'crearCorte', 'verCortesAnteriores', 'imprimirTicket', 'exportar'] },
   { id: 'inventario', nombre: 'Inventario', icono: '📦', acciones: ['ver', 'crear', 'editar', 'eliminar', 'gestionarCompras', 'ajustarStock', 'gestionarCategorias'] },
   { id: 'movimientos', nombre: 'Movimientos', icono: '💸', acciones: ['ver', 'crear', 'editar', 'eliminar', 'verComparaciones', 'verConceptos', 'crearConcepto', 'editarConcepto', 'eliminarConcepto', 'exportar'] },
   { id: 'reportes', nombre: 'Reportes', icono: '📈', acciones: ['ver', 'verGraficas', 'verComparaciones', 'verHistorial', 'generar', 'exportar', 'eliminar'] },
@@ -590,7 +590,7 @@ export function RolesTab({}: RolesTabProps) {
                             checked={nuevoRol.permisos[modulo.id]?.[accion] || false}
                             onCheckedChange={() => togglePermiso(modulo.id, accion)}
                           />
-                          <span className="text-sm">{ACTION_LABELS[accion] || accion}</span>
+                          <span className="text-sm">{modulo.id === 'ventas' && accion === 'eliminar' ? 'Cancelar venta' : (ACTION_LABELS[accion] || accion)}</span>
                         </label>
                       ))}
                     </div>
@@ -671,7 +671,7 @@ export function RolesTab({}: RolesTabProps) {
                             checked={rolEditable.permisos[modulo.id]?.[accion] || false}
                             onCheckedChange={() => togglePermisoEdicion(modulo.id, accion)}
                           />
-                          <span className="text-sm">{ACTION_LABELS[accion] || accion}</span>
+                          <span className="text-sm">{modulo.id === 'ventas' && accion === 'eliminar' ? 'Cancelar venta' : (ACTION_LABELS[accion] || accion)}</span>
                         </label>
                       ))}
                     </div>
