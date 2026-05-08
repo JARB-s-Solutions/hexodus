@@ -5,6 +5,7 @@ import {
   ShoppingCart,
   ChevronsUpDown,
   Eye,
+  Ban,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -19,6 +20,8 @@ interface VentasTableProps {
   onPageChange: (page: number) => void
   onLimitChange: (limit: number) => void
   onVerDetalle: (venta: Venta) => void
+  onCancelarVenta: (venta: Venta) => void
+  puedeCancelarVenta: boolean
 }
 
 const metodoPagoStyles: Record<string, string> = {
@@ -28,7 +31,19 @@ const metodoPagoStyles: Record<string, string> = {
   "Digital": "bg-warning/20 text-warning",
 }
 
-export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, onVerDetalle }: VentasTableProps) {
+const statusStyles: Record<string, string> = {
+  exitosa: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  cancelada: "bg-destructive/15 text-destructive border-destructive/30",
+  pendiente: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+}
+
+const statusLabels: Record<string, string> = {
+  exitosa: "Exitosa",
+  cancelada: "Cancelada",
+  pendiente: "Pendiente",
+}
+
+export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, onVerDetalle, onCancelarVenta, puedeCancelarVenta }: VentasTableProps) {
   const [sortField, setSortField] = useState<"idVenta" | "fechaHora" | "total">("fechaHora")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
 
@@ -149,6 +164,9 @@ export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, o
                 Metodo Pago
               </th>
               <th className="px-3 py-2.5 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Estado
+              </th>
+              <th className="px-3 py-2.5 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Acciones
               </th>
             </tr>
@@ -156,22 +174,23 @@ export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, o
           <tbody className="divide-y divide-border/50">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground text-sm">
+                <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground text-sm">
                   No se encontraron ventas con los filtros seleccionados.
                 </td>
               </tr>
             ) : (
               sorted.map((venta, idx) => {
                 const { fecha, hora } = formatDateTime(venta.fechaHora)
+                const cancelada = venta.status === 'cancelada'
                 return (
                   <tr
                     key={venta.id}
-                    className="hover:bg-muted/30 transition-colors animate-fade-in-up"
+                    className={`transition-colors animate-fade-in-up ${cancelada ? 'bg-destructive/5' : 'hover:bg-muted/30'}`}
                     style={{ animationDelay: `${idx * 30}ms` }}
                   >
                     <td className="px-3 py-2.5 text-sm font-mono text-accent">{venta.idVenta}</td>
-                    <td className="px-3 py-2.5 text-sm text-foreground">{venta.cliente}</td>
-                    <td className="px-3 py-2.5 text-sm text-muted-foreground">
+                    <td className={`px-3 py-2.5 text-sm text-foreground ${cancelada ? 'line-through decoration-destructive/60' : ''}`}>{venta.cliente}</td>
+                    <td className={`px-3 py-2.5 text-sm text-muted-foreground ${cancelada ? 'line-through decoration-destructive/60' : ''}`}>
                       {venta.productosResumen}
                     </td>
                     <td className="px-3 py-2.5 text-sm font-semibold text-primary">
@@ -191,13 +210,31 @@ export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, o
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-center">
-                    <button
-                      onClick={() => onVerDetalle(venta)}
-                      className="p-1.5 rounded-md text-accent hover:bg-accent/10 transition-all duration-200 hover:scale-110"
-                      title="Ver detalle"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
+                    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border ${statusStyles[venta.status] || 'bg-muted text-muted-foreground border-border'}`}>
+                      {statusLabels[venta.status] || venta.status}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <div className="inline-flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onVerDetalle(venta)}
+                        className="p-1.5 rounded-md text-accent hover:bg-accent/10 transition-all duration-200 hover:scale-110"
+                        title="Ver detalle"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                      {puedeCancelarVenta && venta.status !== 'cancelada' && (
+                        <button
+                          type="button"
+                          onClick={() => onCancelarVenta(venta)}
+                          className="p-1.5 rounded-md text-destructive hover:bg-destructive/10 transition-all duration-200 hover:scale-110"
+                          title="Cancelar venta"
+                        >
+                          <Ban className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )
