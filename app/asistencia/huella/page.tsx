@@ -13,6 +13,7 @@ import type { HuellaMotorEvent, HuellaMotorEventsResponse } from "@/lib/types/as
 // ============================================================================
 
 const MOTOR_URL = process.env.NEXT_PUBLIC_MOTOR_URL || "http://localhost:4000"
+const MOTOR_EVENTOS_URL = `${MOTOR_URL}/eventos`
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://hexodusapi.vercel.app/api"
 const AUTO_RETRY_DELAY_MS = 800
 const EVENT_POLL_INTERVAL_MS = 750
@@ -499,7 +500,7 @@ export default function AsistenciaHuellaPage() {
 
   const sincronizarCursorEventos = async () => {
     try {
-      const response = await fetch("/api/asistencia/huella/eventos?take=0", {
+      const response = await fetch(`${MOTOR_EVENTOS_URL}?take=0`, {
         cache: "no-store",
       })
 
@@ -720,10 +721,6 @@ export default function AsistenciaHuellaPage() {
     autoRetryTimeoutRef.current = setTimeout(() => {
       if (!isMounted.current) return
       programarPollingEventos(0)
-
-      if (!callbackActivoRef.current && !verificacionEnCursoRef.current && !flujoAccesoActivoRef.current) {
-        void iniciarVerificacion(true)
-      }
     }, delay)
   }
 
@@ -734,7 +731,7 @@ export default function AsistenciaHuellaPage() {
     const after = ultimoEventoIdRef.current
 
     try {
-      const response = await fetch(`/api/asistencia/huella/eventos?after=${after}`, {
+      const response = await fetch(`${MOTOR_EVENTOS_URL}?after=${after}`, {
         cache: "no-store",
       })
 
@@ -771,7 +768,7 @@ export default function AsistenciaHuellaPage() {
         }
       }
     } catch (error) {
-      console.warn("[Huella] Error leyendo eventos del callback:", error)
+      console.warn("[Huella] Error leyendo eventos locales del motor:", error)
     } finally {
       pollingEnCursoRef.current = false
       if (isMounted.current) {
@@ -1209,7 +1206,7 @@ export default function AsistenciaHuellaPage() {
             <div className="mt-6 rounded-2xl border border-border/50 bg-card/40 px-5 py-4 text-sm text-muted-foreground">
               <div className="grid gap-2 md:grid-cols-2">
                 <p>
-                  <span className="font-semibold text-foreground">Ultimo callback:</span>{" "}
+                  <span className="font-semibold text-foreground">Ultimo evento local:</span>{" "}
                   {ultimoCallbackAt
                     ? new Date(ultimoCallbackAt).toLocaleTimeString("es-MX", {
                         hour: "2-digit",
