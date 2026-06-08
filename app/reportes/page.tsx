@@ -587,7 +587,7 @@ export default function ReportesPage() {
         formato: formatoExportacion,
         fechaInicio: inicio,
         fechaFin: fin,
-        incluirGraficos: true,
+        incluirGraficos: false,
         incluirDetalles: true,
       })
 
@@ -629,7 +629,7 @@ export default function ReportesPage() {
         formato: config.formato,
         fechaInicio: config.fechaInicio,
         fechaFin: config.fechaFin,
-        incluirGraficos: config.incluirGraficos,
+        incluirGraficos: false,
         incluirDetalles: config.incluirDetalles,
       })
 
