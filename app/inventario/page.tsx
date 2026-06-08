@@ -26,7 +26,7 @@ import { CategoriasService } from "@/lib/services/categorias"
 import type { ProductoExtendido, CreateProductoRequest } from "@/lib/types/productos"
 import { extenderProducto, mapProductoToAPI, mapProductoToUpdateAPI, calcularEstadoStock, formatPrecio } from "@/lib/types/productos"
 import type { Categoria as CategoriaAPI } from "@/lib/types/categorias"
-import type { Categoria, EstadoStock, CompraItem } from "@/lib/inventario-data"
+import type { EstadoStock, CompraItem } from "@/lib/inventario-data"
 import { useAuthContext } from "@/lib/contexts/auth-context"
 import { AlertTriangle, Package, Tag, Trash2 } from "lucide-react"
 
@@ -54,7 +54,7 @@ export default function InventarioPage() {
 
   // Filters
   const [busqueda, setBusqueda] = useState("")
-  const [categoriaFiltro, setCategoriaFiltro] = useState<Categoria | "todas">("todas")
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string | "todas">("todas")
   const [stockFiltro, setStockFiltro] = useState<EstadoStock | "todos">("todos")
 
   // Modals
@@ -370,6 +370,7 @@ export default function InventarioPage() {
                 onBusquedaChange={setBusqueda}
                 categoriaFiltro={categoriaFiltro}
                 onCategoriaChange={setCategoriaFiltro}
+                categorias={categorias}
                 stockFiltro={stockFiltro}
                 onStockChange={setStockFiltro}
                 onLimpiar={limpiarFiltros}
@@ -400,7 +401,7 @@ export default function InventarioPage() {
               onVerProductos={(categoria) => {
                 // Cambiar al tab de productos y filtrar por la categoría
                 setActiveTab('productos')
-                setCategoriaFiltro(categoria.nombre as Categoria)
+                setCategoriaFiltro(categoria.nombre)
               }}
             />
           )}

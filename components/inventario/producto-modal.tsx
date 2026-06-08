@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { X, Save, Info, DollarSign, RefreshCw, Plus } from "lucide-react"
 import type { ProductoExtendido } from "@/lib/types/productos"
 import type { Categoria as CategoriaAPI } from "@/lib/types/categorias"
-import type { Categoria } from "@/lib/inventario-data"
+import { toast } from "@/hooks/use-toast"
 import { CategoriaModal } from "./categoria-modal"
 
 interface ProductoModalProps {
@@ -30,7 +30,7 @@ export function ProductoModal({
   const [nombre, setNombre] = useState("")
   const [codigo, setCodigo] = useState("")
   const [categoriaId, setCategoriaId] = useState<number | "">("")
-  const [categoria, setCategoria] = useState<Categoria | "">("")
+  const [categoria, setCategoria] = useState("")
   const [marca, setMarca] = useState("")
   const [precioCompra, setPrecioCompra] = useState("")
   const [precioVenta, setPrecioVenta] = useState("")
@@ -122,9 +122,9 @@ export function ProductoModal({
 
     onSave({
       ...(producto ? { id: producto.id } : {}),
-      nombre, 
+      nombre,
       codigo,
-      categoria: categoria as Categoria,
+      categoria,
       categoriaId: typeof categoriaId === 'number' ? categoriaId : undefined,
       marca: marca || "Sin marca",
       precioCompra: parseFloat(precioCompra),
@@ -236,7 +236,7 @@ export function ProductoModal({
                       const id = e.target.value ? parseInt(e.target.value) : ""
                       setCategoriaId(id)
                       const cat = categorias.find(c => c.id === id)
-                      setCategoria((cat?.nombre as Categoria) || "")
+                      setCategoria(cat?.nombre || "")
                       
                       if (!codigoEditado && !isEdit && cat) {
                         const prefijo = generarPrefijo(cat.nombre)
@@ -401,7 +401,7 @@ export function ProductoModal({
           onSuccess={async (nuevaCategoria) => {
             // Auto-seleccionar la categoría recién creada
             setCategoriaId(nuevaCategoria.id)
-            setCategoria(nuevaCategoria.nombre as Categoria)
+            setCategoria(nuevaCategoria.nombre)
             
             // Auto-generar código con el nuevo prefijo si aplica
             if (!codigoEditado && !isEdit && nuevaCategoria.prefijo) {

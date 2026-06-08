@@ -1,15 +1,17 @@
 "use client"
 
 import { Search, Filter, PackagePlus, ShoppingCart, X, RotateCcw } from "lucide-react"
-import type { Categoria, EstadoStock } from "@/lib/inventario-data"
+import type { EstadoStock } from "@/lib/inventario-data"
+import type { Categoria as CategoriaAPI } from "@/lib/types/categorias"
 
 interface InventarioToolbarProps {
   busqueda: string
   onBusquedaChange: (v: string) => void
-  categoriaFiltro: Categoria | "todas"
-  onCategoriaChange: (v: Categoria | "todas") => void
+  categoriaFiltro: string | "todas"
+  onCategoriaChange: (v: string | "todas") => void
   stockFiltro: EstadoStock | "todos"
   onStockChange: (v: EstadoStock | "todos") => void
+  categorias: CategoriaAPI[]
   onLimpiar: () => void
   onNuevoProducto: () => void
   onNuevaCompra: () => void
@@ -26,6 +28,7 @@ export function InventarioToolbar({
   onCategoriaChange,
   stockFiltro,
   onStockChange,
+  categorias,
   onLimpiar,
   onNuevoProducto,
   onNuevaCompra,
@@ -96,16 +99,15 @@ export function InventarioToolbar({
         {/* Categoria */}
         <select
           value={categoriaFiltro}
-          onChange={(e) => onCategoriaChange(e.target.value as Categoria | "todas")}
+          onChange={(e) => onCategoriaChange(e.target.value)}
           className="flex-1 min-w-0 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 transition-all appearance-none cursor-pointer"
         >
           <option value="todas">Todas las categorias</option>
-          <option value="suplementos">Suplementos</option>
-          <option value="accesorios">Accesorios</option>
-          <option value="ropa">Ropa Deportiva</option>
-          <option value="equipamiento">Equipamiento</option>
-          <option value="bebidas">Bebidas</option>
-          <option value="otros">Otros</option>
+          {categorias.map((categoria) => (
+            <option key={categoria.id} value={categoria.nombre}>
+              {categoria.nombre}
+            </option>
+          ))}
         </select>
 
         {/* Estado Stock */}
