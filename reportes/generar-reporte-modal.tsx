@@ -6,7 +6,6 @@ import {
   Info,
   Settings,
   Database,
-  Sliders,
   FileText,
   Download,
   Loader2,
@@ -39,7 +38,6 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
   const [formato, setFormato] = useState<FormatoReporte>("XLSX")
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
-  const [incluirGraficos, setIncluirGraficos] = useState(true)
   const [incluirDetalles, setIncluirDetalles] = useState(true)
   const [generando, setGenerando] = useState(false)
 
@@ -59,7 +57,7 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
         formato,
         fechaInicio,
         fechaFin,
-        incluirGraficos,
+        incluirGraficos: false,
         incluirDetalles,
       })
 
@@ -233,19 +231,10 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
           {/* Section 4: Advanced options */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <Sliders className="h-4 w-4 text-accent" />
+              <FileText className="h-4 w-4 text-accent" />
               <h4 className="text-sm font-semibold text-muted-foreground">Opciones Avanzadas</h4>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={incluirGraficos}
-                  onChange={(e) => setIncluirGraficos(e.target.checked)}
-                  className="rounded border-border bg-background text-accent focus:ring-accent focus:ring-0 h-4 w-4"
-                />
-                <span className="text-sm text-muted-foreground">Incluir graficos y visualizaciones</span>
-              </label>
+            <div className="grid grid-cols-1 gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
