@@ -6,6 +6,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  compiler: {
+    removeConsole: {
+      exclude: ["error", "warn"],
+    },
+  },
   // Configuración de Turbopack (Next.js 16+)
   turbopack: {
     resolveAlias: {
