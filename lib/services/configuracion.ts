@@ -120,6 +120,8 @@ function validarBase64Logo(campo: 'logoSistema' | 'gimnasioLogo', value?: string
 export class ConfiguracionService {
   /**
    * GET /configuracion/sistema
+   * Lectura administrativa del módulo de configuración.
+   * Requiere permiso configuracion.ver en backend.
    */
   static async obtenerConfiguracionUnificada(): Promise<ConfiguracionSistemaResponse> {
     try {
@@ -134,10 +136,41 @@ export class ConfiguracionService {
   }
 
   /**
-   * Compatibilidad con consumidores que solo necesitan datos de ticket/gimnasio.
+   * GET /configuracion/sistema/runtime
+   * Lectura global para tema, logos y datos de ticket.
+   * Requiere sesión, pero no permiso de administración de configuración.
+   */
+  static async obtenerConfiguracionRuntimeUnificada(): Promise<ConfiguracionSistemaResponse> {
+    try {
+      const response = await apiGet<ConfiguracionSistemaResponse>('/configuracion/sistema/runtime')
+      return {
+        ...response,
+        data: normalizarConfiguracion(response.data),
+      }
+    } catch (error) {
+      throw mapearErrorConfiguracion(error, 'No se pudo obtener la configuración global del sistema')
+    }
+  }
+
+  /**
+   * Compatibilidad con consumidores administrativos que solo necesitan datos de ticket/gimnasio.
    */
   static async obtenerConfiguracion(): Promise<ConfiguracionResponse> {
     const response = await this.obtenerConfiguracionUnificada()
+    return this.mapearConfiguracionGimnasio(response)
+  }
+
+  /**
+   * Datos de ticket/gimnasio disponibles para cualquier usuario autenticado.
+   */
+  static async obtenerConfiguracionRuntime(): Promise<ConfiguracionResponse> {
+    const response = await this.obtenerConfiguracionRuntimeUnificada()
+    return this.mapearConfiguracionGimnasio(response)
+  }
+
+  private static mapearConfiguracionGimnasio(
+    response: ConfiguracionSistemaResponse
+  ): ConfiguracionResponse {
     const data = response.data
 
     return {
