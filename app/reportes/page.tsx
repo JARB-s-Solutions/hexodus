@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { ReportesHeader } from "@/reportes/reportes-header"
 import { KpiReportes } from "@/reportes/kpi-reportes"
@@ -12,9 +12,12 @@ import { DesgloseIngresos } from "@/reportes/desglose-ingresos"
 import { HistorialReportes, type ReporteHistorial } from "@/reportes/historial-reportes"
 import { GenerarReporteModal, type ReporteConfig } from "@/reportes/generar-reporte-modal"
 import { ReportePreviewModal } from "@/reportes/reporte-preview-modal"
+import { VentasProductoReport } from "@/reportes/ventas-producto-report"
 import { type TipoReporte } from "@/lib/reportes-data"
 import { getTodayYmdInTimeZone, startOfMonthYmd, startOfWeekYmd } from "@/lib/timezone"
 import { ReportesService } from "@/lib/services/reportes"
+import { VentasService } from "@/lib/services/ventas"
+import type { AnalisisVentasData } from "@/lib/types/ventas"
 import { useToast } from "@/hooks/use-toast"
 import { useAuthContext } from "@/lib/contexts/auth-context"
 
@@ -32,7 +35,7 @@ function getPeriodoLabel(periodo: string): string {
 }
 
 type FormatoExportacion = "XLSX" | "PDF" | "CSV"
-type ReportesTabKey = "resumen" | "graficas" | "comparaciones" | "historial"
+type ReportesTabKey = "resumen" | "productos" | "graficas" | "comparaciones" | "historial"
 
 function formatUtcYmd(date: Date): string {
   const y = date.getUTCFullYear()
@@ -88,6 +91,20 @@ function getRangoPorPeriodo(periodo: string, fechaInicio: string, fechaFin: stri
   return { inicio: hoy, fin: hoy }
 }
 
+function mapPeriodoVentasBackend(periodo: string): string {
+  const mapper: Record<string, string> = {
+    dia: "Hoy",
+    semana: "Esta Semana",
+    mes: "Este Mes",
+    trimestre: "Este Trimestre",
+    semestre: "Este Semestre",
+    anual: "Este Año",
+    personalizado: "Personalizado",
+  }
+
+  return mapper[periodo] ?? "Hoy"
+}
+
 export default function ReportesPage() {
   const { toast } = useToast()
   const { tienePermiso } = useAuthContext()
@@ -126,6 +143,11 @@ export default function ReportesPage() {
   const [pageHistorial, setPageHistorial] = useState(1)
   const [limitHistorial] = useState(10)
   const [refreshHistorial, setRefreshHistorial] = useState(0) // Para forzar recarga
+
+  // Estados para ventas por producto
+  const [ventasProductoData, setVentasProductoData] = useState<AnalisisVentasData | null>(null)
+  const [loadingVentasProducto, setLoadingVentasProducto] = useState(false)
+  const [errorVentasProducto, setErrorVentasProducto] = useState<string | null>(null)
   const puedeVerGraficas = tienePermiso("reportes", "verGraficas")
   const puedeVerComparaciones = tienePermiso("reportes", "verComparaciones")
   const puedeVerHistorial = tienePermiso("reportes", "verHistorial")
@@ -133,18 +155,58 @@ export default function ReportesPage() {
   const puedeGenerar = tienePermiso("reportes", "generar")
   const puedeEliminarHistorial = tienePermiso("reportes", "eliminar")
 
-  const tabsDisponibles: Array<{ key: ReportesTabKey; label: string }> = [
-    { key: "resumen", label: "Resumen General" },
-  ]
-  if (puedeVerGraficas) tabsDisponibles.push({ key: "graficas", label: "Graficas" })
-  if (puedeVerComparaciones) tabsDisponibles.push({ key: "comparaciones", label: "Comparaciones" })
-  if (puedeVerHistorial) tabsDisponibles.push({ key: "historial", label: "Historial" })
+  const tabsDisponibles = useMemo<Array<{ key: ReportesTabKey; label: string }>>(() => {
+    const tabs: Array<{ key: ReportesTabKey; label: string }> = [
+      { key: "resumen", label: "Resumen General" },
+      { key: "productos", label: "Ventas por Producto" },
+    ]
+    if (puedeVerGraficas) tabs.push({ key: "graficas", label: "Graficas" })
+    if (puedeVerComparaciones) tabs.push({ key: "comparaciones", label: "Comparaciones" })
+    if (puedeVerHistorial) tabs.push({ key: "historial", label: "Historial" })
+    return tabs
+  }, [puedeVerComparaciones, puedeVerGraficas, puedeVerHistorial])
 
   useEffect(() => {
     if (!tabsDisponibles.some((tab) => tab.key === activeTab)) {
       setActiveTab("resumen")
     }
   }, [activeTab, tabsDisponibles])
+
+  const cargarVentasPorProducto = useCallback(async () => {
+    if (periodo === "personalizado" && (!fechaInicio || !fechaFin)) {
+      setVentasProductoData(null)
+      setErrorVentasProducto("Selecciona fecha inicio y fecha fin en el panel de configuracion para ver ventas por producto.")
+      setLoadingVentasProducto(false)
+      return
+    }
+
+    setLoadingVentasProducto(true)
+    setErrorVentasProducto(null)
+
+    try {
+      const params: {
+        periodo?: string
+        fecha_inicio?: string
+        fecha_fin?: string
+      } = {
+        periodo: mapPeriodoVentasBackend(periodo),
+      }
+
+      if (periodo === "personalizado") {
+        params.fecha_inicio = fechaInicio
+        params.fecha_fin = fechaFin
+      }
+
+      const data = await VentasService.getAnalysis(params)
+      setVentasProductoData(data)
+    } catch (error: any) {
+      console.error("Error cargando ventas por producto:", error)
+      setVentasProductoData(null)
+      setErrorVentasProducto(error.message || "No se pudieron cargar las ventas por producto")
+    } finally {
+      setLoadingVentasProducto(false)
+    }
+  }, [periodo, fechaInicio, fechaFin])
 
   // ------ Debug: Verificar token al montar componente ------
   useEffect(() => {
@@ -292,6 +354,12 @@ export default function ReportesPage() {
 
     cargarResumen()
   }, [periodo, tipoReporte, fechaInicio, fechaFin])
+
+  useEffect(() => {
+    if (activeTab === "productos") {
+      cargarVentasPorProducto()
+    }
+  }, [activeTab, cargarVentasPorProducto])
 
   // ------ Effect para cargar comparaciones desde backend ------
   useEffect(() => {
@@ -671,6 +739,24 @@ export default function ReportesPage() {
             />
           )}
 
+          <ReportesFilters
+            periodo={periodo}
+            onPeriodoChange={setPeriodo}
+            tipoReporte={tipoReporte}
+            onTipoReporteChange={setTipoReporte}
+            formatoExportacion={formatoExportacion}
+            onFormatoExportacionChange={setFormatoExportacion}
+            fechaInicio={fechaInicio}
+            onFechaInicioChange={setFechaInicio}
+            fechaFin={fechaFin}
+            onFechaFinChange={setFechaFin}
+            onLimpiar={handleLimpiar}
+            onExportar={handleExportar}
+            onNuevoReporte={puedeGenerar ? () => setModalGenerar(true) : undefined}
+            canExportar={puedeExportar}
+            showTipoReporte={activeTab !== "productos"}
+          />
+
           {/* Tabs */}
           <div
             className="flex items-center gap-1 bg-card rounded-lg p-1 w-fit overflow-x-auto"
@@ -691,110 +777,98 @@ export default function ReportesPage() {
             ))}
           </div>
 
-          {/* Content layout: 1/4 filters + 3/4 main */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
-            {/* Left - Filters */}
-            <div className="lg:col-span-1">
-              <ReportesFilters
-                periodo={periodo}
-                onPeriodoChange={setPeriodo}
-                tipoReporte={tipoReporte}
-                onTipoReporteChange={setTipoReporte}
-                formatoExportacion={formatoExportacion}
-                onFormatoExportacionChange={setFormatoExportacion}
-                fechaInicio={fechaInicio}
-                onFechaInicioChange={setFechaInicio}
-                fechaFin={fechaFin}
-                onFechaFinChange={setFechaFin}
-                onLimpiar={handleLimpiar}
-                onExportar={handleExportar}
-                onNuevoReporte={puedeGenerar ? () => setModalGenerar(true) : undefined}
-                canExportar={puedeExportar}
-              />
-            </div>
-
-            {/* Right - Main content */}
-            <div className="lg:col-span-3">
-              {/* ====== RESUMEN GENERAL TAB ====== */}
-              {activeTab === "resumen" && (
-                <div className="space-y-5">
-                  {loadingResumen || loadingGraficas ? (
-                    <div className="flex items-center justify-center py-20">
-                      <div className="text-center space-y-3">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                        <p className="text-sm text-muted-foreground">Cargando resumen...</p>
-                      </div>
+          <div>
+            {/* ====== RESUMEN GENERAL TAB ====== */}
+            {activeTab === "resumen" && (
+              <div className="space-y-5">
+                {loadingResumen || loadingGraficas ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="text-center space-y-3">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                      <p className="text-sm text-muted-foreground">Cargando resumen...</p>
                     </div>
-                  ) : resumenData ? (
-                    <>
-                      <DesgloseIngresos
-                        totalVentas={resumenData.ventas_actual ?? 0}
-                        totalMembresias={resumenData.membresias_actual ?? 0}
-                        totalVentasAnt={resumenData.ventas_anterior ?? 0}
-                        totalMembresiasAnt={resumenData.membresias_anterior ?? 0}
-                        totalGastos={resumenData.gastos_actual ?? 0}
-                        labelAnterior="Período anterior"
-                      />
-                      <InsightsReportes
-                        ventas={resumenData.ventas_actual ?? 0}
-                        ventasAnterior={resumenData.ventas_anterior ?? 0}
-                        gastos={resumenData.gastos_actual ?? 0}
-                        gastosAnterior={resumenData.gastos_anterior ?? 0}
-                        utilidad={resumenData.utilidad_actual ?? 0}
-                        utilidadAnterior={resumenData.utilidad_anterior ?? 0}
-                        membresias={resumenData.membresias_actual ?? 0}
-                        membresiasAnterior={resumenData.membresias_anterior ?? 0}
-                        socios={resumenData.socios_activos ?? 0}
-                        topGasto={graficasData?.gastosPorCategoria?.[0]?.categoria ?? ""}
-                        topGastoMonto={graficasData?.gastosPorCategoria?.[0]?.total ?? 0}
-                        topPlan={graficasData?.membresiasPorPlan?.[0]?.plan ?? ""}
-                        topPlanSocios={graficasData?.membresiasPorPlan?.[0]?.cantidad ?? 0}
-                        periodo={getPeriodoLabel(periodo)}
-                      />
-                    </>
-                  ) : (
-                    <div className="bg-card rounded-xl p-8 text-center" style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}>
-                      <p className="text-sm text-muted-foreground">No hay datos disponibles para el período seleccionado.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ====== GRAFICAS TAB ====== */}
-              {activeTab === "graficas" && puedeVerGraficas && (
-                <div>
-                  {loadingGraficas ? (
-                    <div className="flex items-center justify-center py-20">
-                      <div className="text-center space-y-3">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                        <p className="text-sm text-muted-foreground">Cargando gráficas...</p>
-                      </div>
-                    </div>
-                  ) : errorGraficas ? (
-                    <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-6">
-                      <p className="text-sm text-destructive font-medium mb-2">Error al cargar gráficas</p>
-                      <p className="text-xs text-muted-foreground">{errorGraficas}</p>
-                    </div>
-                  ) : graficasData ? (
-                    <GraficasReportes
-                      ventasPorMes={graficasData.ventasPorMes}
-                      gastosPorMes={graficasData.gastosPorMes}
-                      membresiasPorMes={graficasData.membresiasPorMes}
-                      gastosPorCategoria={graficasData.gastosPorCategoria}
-                      membresiasPorPlan={graficasData.membresiasPorPlan}
-                      tipoReporte={tipoReporte}
+                  </div>
+                ) : resumenData ? (
+                  <>
+                    <DesgloseIngresos
+                      totalVentas={resumenData.ventas_actual ?? 0}
+                      totalMembresias={resumenData.membresias_actual ?? 0}
+                      totalVentasAnt={resumenData.ventas_anterior ?? 0}
+                      totalMembresiasAnt={resumenData.membresias_anterior ?? 0}
+                      totalGastos={resumenData.gastos_actual ?? 0}
+                      labelAnterior="Período anterior"
                     />
-                  ) : (
-                    <div className="text-center py-20">
-                      <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                    <InsightsReportes
+                      ventas={resumenData.ventas_actual ?? 0}
+                      ventasAnterior={resumenData.ventas_anterior ?? 0}
+                      gastos={resumenData.gastos_actual ?? 0}
+                      gastosAnterior={resumenData.gastos_anterior ?? 0}
+                      utilidad={resumenData.utilidad_actual ?? 0}
+                      utilidadAnterior={resumenData.utilidad_anterior ?? 0}
+                      membresias={resumenData.membresias_actual ?? 0}
+                      membresiasAnterior={resumenData.membresias_anterior ?? 0}
+                      socios={resumenData.socios_activos ?? 0}
+                      topGasto={graficasData?.gastosPorCategoria?.[0]?.categoria ?? ""}
+                      topGastoMonto={graficasData?.gastosPorCategoria?.[0]?.total ?? 0}
+                      topPlan={graficasData?.membresiasPorPlan?.[0]?.plan ?? ""}
+                      topPlanSocios={graficasData?.membresiasPorPlan?.[0]?.cantidad ?? 0}
+                      periodo={getPeriodoLabel(periodo)}
+                    />
+                  </>
+                ) : (
+                  <div className="bg-card rounded-xl p-8 text-center" style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}>
+                    <p className="text-sm text-muted-foreground">No hay datos disponibles para el período seleccionado.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
-              {/* ====== COMPARACIONES TAB ====== */}
-              {activeTab === "comparaciones" && puedeVerComparaciones && (
-                <div className="space-y-5">
+            {/* ====== VENTAS POR PRODUCTO TAB ====== */}
+            {activeTab === "productos" && (
+              <VentasProductoReport
+                productos={ventasProductoData?.topProductos ?? []}
+                periodoLabel={getPeriodoLabel(periodo)}
+                loading={loadingVentasProducto}
+                error={errorVentasProducto}
+                onRetry={cargarVentasPorProducto}
+              />
+            )}
+
+            {/* ====== GRAFICAS TAB ====== */}
+            {activeTab === "graficas" && puedeVerGraficas && (
+              <div>
+                {loadingGraficas ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="text-center space-y-3">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                      <p className="text-sm text-muted-foreground">Cargando gráficas...</p>
+                    </div>
+                  </div>
+                ) : errorGraficas ? (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-6">
+                    <p className="text-sm text-destructive font-medium mb-2">Error al cargar gráficas</p>
+                    <p className="text-xs text-muted-foreground">{errorGraficas}</p>
+                  </div>
+                ) : graficasData ? (
+                  <GraficasReportes
+                    ventasPorMes={graficasData.ventasPorMes}
+                    gastosPorMes={graficasData.gastosPorMes}
+                    membresiasPorMes={graficasData.membresiasPorMes}
+                    gastosPorCategoria={graficasData.gastosPorCategoria}
+                    membresiasPorPlan={graficasData.membresiasPorPlan}
+                    tipoReporte={tipoReporte}
+                  />
+                ) : (
+                  <div className="text-center py-20">
+                    <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ====== COMPARACIONES TAB ====== */}
+            {activeTab === "comparaciones" && puedeVerComparaciones && (
+              <div className="space-y-5">
                   {loadingComparaciones ? (
                     <div className="flex items-center justify-center py-20">
                       <div className="text-center space-y-3">
@@ -847,12 +921,12 @@ export default function ReportesPage() {
                       <p className="text-sm text-muted-foreground">No hay datos de comparaciones disponibles</p>
                     </div>
                   )}
-                </div>
-              )}
+              </div>
+            )}
 
-              {/* ====== HISTORIAL TAB ====== */}
-              {activeTab === "historial" && puedeVerHistorial && (
-                <div>
+            {/* ====== HISTORIAL TAB ====== */}
+            {activeTab === "historial" && puedeVerHistorial && (
+              <div>
                   {loadingHistorial ? (
                     <div className="flex items-center justify-center py-20">
                       <div className="text-center space-y-3">
@@ -875,9 +949,8 @@ export default function ReportesPage() {
                       canEliminar={puedeEliminarHistorial}
                     />
                   )}
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
         </div>
