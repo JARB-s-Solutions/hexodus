@@ -234,7 +234,7 @@ export class ThemeService {
     if (!token) return null
 
     try {
-      const response = await ConfiguracionService.obtenerConfiguracionUnificada()
+      const response = await ConfiguracionService.obtenerConfiguracionRuntimeUnificada()
       const data = response.data
       const remoteTheme: ThemeConfig = {
         colorPrincipal: data.colorPrincipal,

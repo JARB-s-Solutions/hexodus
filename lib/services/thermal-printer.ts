@@ -343,7 +343,7 @@ export class ThermalPrinter {
     }
     
     try {
-      const response = await ConfiguracionService.obtenerConfiguracion()
+      const response = await ConfiguracionService.obtenerConfiguracionRuntime()
       this.configuracionGimnasio = response.data
       return this.configuracionGimnasio
     } catch (error) {
