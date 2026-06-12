@@ -151,14 +151,19 @@ export function getDaysUntilYmd(targetYmd: string, timeZone = getAppTimeZone()):
   return diffDaysBetweenYmd(getTodayYmdInTimeZone(timeZone), ymd)
 }
 
-export function formatYmdForDisplay(ymd: string, locale = "es-MX"): string {
+export function formatYmdForDisplay(
+  ymd: string,
+  locale = "es-MX",
+  options?: Intl.DateTimeFormatOptions
+): string {
   const parsed = parseYmdAsUtcDate(ymd)
   if (!parsed) return ymd
 
   return parsed.toLocaleDateString(locale, {
+    day: options?.day ?? "2-digit",
+    month: options?.month ?? "2-digit",
+    year: options?.year ?? "numeric",
+    ...options,
     timeZone: "UTC",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
   })
 }
