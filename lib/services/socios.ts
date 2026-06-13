@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api'
+import { apiGet, apiPost, apiPut, apiDelete, apiDownload } from '@/lib/api'
 import { getMetodosPago as getMetodosPagoConfiguracion } from '@/lib/services/metodos-pago'
 import type {
   Socio,
@@ -98,6 +98,42 @@ export class SociosService {
       socios: sociosAcumulados,
       stats
     }
+  }
+
+  static async exportarSocios(filtros: {
+    busqueda?: string
+    vigencia?: string
+    membresia?: string
+    genero?: string
+    contratoFirma?: string
+    contratoVigencia?: string
+    fechaDesde?: string
+    fechaHasta?: string
+  } = {}): Promise<void> {
+    const params = new URLSearchParams()
+
+    if (filtros.busqueda?.trim()) params.set('search', filtros.busqueda.trim())
+    if (filtros.vigencia && filtros.vigencia !== 'todos') params.set('vigencia', filtros.vigencia)
+    if (filtros.membresia && filtros.membresia !== 'todos') params.set('membresia', filtros.membresia)
+    if (filtros.genero && filtros.genero !== 'todos') params.set('genero', filtros.genero)
+    if (filtros.contratoFirma && filtros.contratoFirma !== 'todos') params.set('contrato_firma', filtros.contratoFirma)
+    if (filtros.contratoVigencia && filtros.contratoVigencia !== 'todos') params.set('contrato_vigencia', filtros.contratoVigencia)
+    if (filtros.fechaDesde) params.set('fecha_desde', filtros.fechaDesde)
+    if (filtros.fechaHasta) params.set('fecha_hasta', filtros.fechaHasta)
+
+    const query = params.toString()
+    const { blob, filename } = await apiDownload(`/socios/exportar${query ? `?${query}` : ''}`, {
+      timeout: 30000,
+    })
+
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
   }
 
   /**
