@@ -1,6 +1,6 @@
 "use client"
 
-import { Search, UserPlus, Filter, X, Calendar } from "lucide-react"
+import { Search, UserPlus, Filter, X, Calendar, Download } from "lucide-react"
 import type { Genero } from "@/lib/socios-data"
 
 interface SociosToolbarProps {
@@ -23,6 +23,9 @@ interface SociosToolbarProps {
   onFechaHastaChange: (v: string) => void
   onLimpiar: () => void
   onNuevoSocio: () => void
+  onExportar: () => void
+  exportando?: boolean
+  canExportar?: boolean
   totalFiltrados: number
   totalSocios: number
 }
@@ -47,6 +50,9 @@ export function SociosToolbar({
   onFechaHastaChange,
   onLimpiar,
   onNuevoSocio,
+  onExportar,
+  exportando = false,
+  canExportar = true,
   totalFiltrados,
   totalSocios,
 }: SociosToolbarProps) {
@@ -96,6 +102,16 @@ export function SociosToolbar({
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap shrink-0">
+          {canExportar && (
+            <button
+              onClick={onExportar}
+              disabled={exportando}
+              className="flex items-center gap-2 h-10 px-4 text-sm font-bold rounded-lg text-accent border border-accent/30 bg-accent/10 hover:bg-accent/20 transition-all uppercase tracking-wide whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Download className="h-4 w-4" />
+              {exportando ? "Exportando..." : "Exportar Excel"}
+            </button>
+          )}
           {hasFilters && (
             <button
               onClick={onLimpiar}

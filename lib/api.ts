@@ -139,6 +139,54 @@ export async function apiGet<T>(
 }
 
 /**
+ * Descargar archivo desde la API conservando autenticación y manejo de errores.
+ */
+export async function apiDownload(
+  endpoint: string,
+  options: FetchOptions = {}
+): Promise<{ blob: Blob; filename: string }> {
+  const token = localStorage.getItem('auth_token')
+  const url = `${API_BASE_URL}${endpoint}`
+
+  const response = await fetchWithTimeout(url, {
+    method: 'GET',
+    headers: {
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    },
+    ...options,
+  })
+
+  if (!response.ok) {
+    const responseText = await response.text().catch(() => '')
+    let error: Record<string, any> = {}
+
+    if (responseText) {
+      try {
+        error = JSON.parse(responseText)
+      } catch {
+        error = { message: responseText }
+      }
+    }
+
+    const message = error.error || error.message || 'Error al descargar el archivo'
+    handleHttpError(response.status, message)
+    throw new ApiError(response.status, message, error.errors)
+  }
+
+  const disposition = response.headers.get('content-disposition') || ''
+  const filenameMatch = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(disposition)
+  const filename = filenameMatch
+    ? decodeURIComponent(filenameMatch[1].replace(/"/g, ''))
+    : `descarga_${new Date().toISOString().split('T')[0]}.xlsx`
+
+  return {
+    blob: await response.blob(),
+    filename,
+  }
+}
+
+/**
  * Realizar petición POST a la API
  */
 export async function apiPost<T>(

@@ -12,6 +12,7 @@ import { EliminarSocioModal } from "@/components/socios/eliminar-socio-modal"
 import { CobrarMembresiaModal } from "@/components/socios/cobrar-membresia-modal"
 import { RenovarMembresiaModal } from "@/components/socios/renovar-membresia-modal"
 import { SociosService } from "@/lib/services/socios"
+import { AuthService } from "@/lib/auth"
 import { toast } from "@/hooks/use-toast"
 import type { DashboardStatsSocios, Socio } from "@/lib/types/socios"
 import { extractYmd } from "@/lib/timezone"
@@ -34,6 +35,8 @@ export default function SociosPage() {
   const [cargando, setCargando] = useState(!useMockData)
   const [cargandoMas, setCargandoMas] = useState(false)
   const [dashboardStats, setDashboardStats] = useState<DashboardStatsSocios | null>(null)
+  const [exportando, setExportando] = useState(false)
+  const [puedeExportar, setPuedeExportar] = useState(false)
   const loadIdRef = useRef(0)
 
   // Filters
@@ -133,6 +136,10 @@ export default function SociosPage() {
   useEffect(() => {
     cargarSocios()
   }, [cargarSocios])
+
+  useEffect(() => {
+    setPuedeExportar(AuthService.hasPermission("socios", "exportar"))
+  }, [])
 
   const normalizarTexto = (valor: string | undefined | null): string => {
     if (!valor) return ""
@@ -349,6 +356,49 @@ export default function SociosPage() {
     setModalOpen(true)
   }, [])
 
+  const handleExportar = useCallback(async () => {
+    if (useMockData || exportando) return
+
+    setExportando(true)
+    try {
+      await SociosService.exportarSocios({
+        busqueda,
+        vigencia: vigenciaFiltro,
+        membresia: membresiaFiltro,
+        genero: generoFiltro,
+        contratoFirma: contratoFirmaFiltro,
+        contratoVigencia: contratoVigenciaFiltro,
+        fechaDesde,
+        fechaHasta,
+      })
+
+      toast({
+        title: "Exportación lista",
+        description: "Se descargó el Excel de socios y membresías.",
+      })
+    } catch (error: any) {
+      console.error("Error exportando socios:", error)
+      toast({
+        title: "No se pudo exportar",
+        description: error.message || "Intenta nuevamente en unos segundos.",
+        variant: "destructive",
+      })
+    } finally {
+      setExportando(false)
+    }
+  }, [
+    busqueda,
+    vigenciaFiltro,
+    membresiaFiltro,
+    generoFiltro,
+    contratoFirmaFiltro,
+    contratoVigenciaFiltro,
+    fechaDesde,
+    fechaHasta,
+    exportando,
+    toast,
+  ])
+
   const handleEditar = useCallback((s: Socio | SocioMock) => {
     console.log('📝 Editando socio:', s)
     setEditandoSocio(s as Socio)
@@ -495,6 +545,9 @@ export default function SociosPage() {
                 onFechaHastaChange={setFechaHasta}
                 onLimpiar={handleLimpiar}
                 onNuevoSocio={handleNuevoSocio}
+                onExportar={handleExportar}
+                exportando={exportando}
+                canExportar={puedeExportar}
                 totalFiltrados={sociosFiltrados.length}
                 totalSocios={socios.length}
               />
