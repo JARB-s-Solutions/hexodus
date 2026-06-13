@@ -17,6 +17,7 @@ import type { ConfigRegistro, Socio, EstadoMembresia } from "@/lib/asistencia-da
 import { DEFAULT_CONFIG } from "@/lib/asistencia-data"
 import { AsistenciaService } from "@/lib/services/asistencia"
 import { SociosService } from "@/lib/services/socios"
+import { extractYmd, formatYmdForDisplay, getDaysUntilYmd } from "@/lib/timezone"
 
 // Declare face-api on window
 declare global {
@@ -126,9 +127,9 @@ function inferirEstadoMembresia(response: any): EstadoMembresia {
 
 function calcularDiasRestantes(fechaISO?: string): number {
   if (!fechaISO) return 0
-  const fecha = new Date(fechaISO)
-  if (Number.isNaN(fecha.getTime())) return 0
-  return Math.ceil((fecha.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  const fechaYmd = extractYmd(fechaISO)
+  if (!fechaYmd) return 0
+  return getDaysUntilYmd(fechaYmd)
 }
 
 function guardarOverrideDenegacion(
@@ -471,7 +472,7 @@ export default function EscaneoPage() {
             confianza: confianzaResultado,
             membresia: socio.membresia,
             vencimiento: socio.fecha_fin_membresia
-              ? new Date(socio.fecha_fin_membresia).toLocaleDateString('es-MX')
+              ? formatYmdForDisplay(extractYmd(socio.fecha_fin_membresia))
               : '',
             diasRestantes,
             motivoDenegacion: contextoAlerta.motivoDenegacion,

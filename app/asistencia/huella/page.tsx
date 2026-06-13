@@ -7,6 +7,7 @@ import { AuthService } from "@/lib/auth"
 import { SociosService } from "@/lib/services/socios"
 import { sincronizarCacheMotorHuella } from "@/lib/motor-huella"
 import type { HuellaMotorEvent, HuellaMotorEventsResponse } from "@/lib/types/asistencia-huella"
+import { extractYmd, formatYmdForDisplay, getDaysUntilYmd } from "@/lib/timezone"
 
 // ============================================================================
 // CONSTANTES
@@ -118,10 +119,9 @@ const ESTADO_MOTOR_INICIAL: EstadoMotorDiagnostico = {
 const calcularDiasRestantesMembresia = (fechaFin: string): number => {
   if (!fechaFin) return 999
 
-  const hoy = new Date()
-  const fin = new Date(fechaFin)
-  const diff = fin.getTime() - hoy.getTime()
-  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+  const fechaFinYmd = extractYmd(fechaFin)
+  if (!fechaFinYmd) return 999
+  return getDaysUntilYmd(fechaFinYmd)
 }
 
 const normalizarMatchScore = (valor: number | null | undefined) => {
@@ -194,10 +194,10 @@ const formatearFechaMembresia = (
 ) => {
   if (!tieneTexto(fecha)) return "No disponible"
 
-  const parsed = new Date(fecha)
-  if (Number.isNaN(parsed.getTime())) return "No disponible"
+  const fechaYmd = extractYmd(fecha)
+  if (!fechaYmd) return "No disponible"
 
-  return parsed.toLocaleDateString("es-MX", options)
+  return formatYmdForDisplay(fechaYmd, "es-MX", options)
 }
 
 const safePlay = (audioRef: React.RefObject<HTMLAudioElement | null>) => {
