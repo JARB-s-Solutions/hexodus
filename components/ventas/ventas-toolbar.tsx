@@ -26,6 +26,7 @@ interface VentasToolbarProps {
   totalVentas: number
   canCrearVenta?: boolean
   canExportar?: boolean
+  exportando?: boolean
 }
 
 export function VentasToolbar({
@@ -48,6 +49,7 @@ export function VentasToolbar({
   totalVentas,
   canCrearVenta = true,
   canExportar = true,
+  exportando = false,
 }: VentasToolbarProps) {
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
   const [loadingMetodos, setLoadingMetodos] = useState(true)
@@ -188,7 +190,8 @@ export function VentasToolbar({
                 <select
                   value={formatoExportacion}
                   onChange={(e) => onFormatoExportacionChange(e.target.value as FormatoExportacionVentas)}
-                  className="min-w-[210px] pl-2 pr-8 py-1.5 bg-background border border-border rounded-md text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat"
+                  disabled={exportando}
+                  className="min-w-[210px] pl-2 pr-8 py-1.5 bg-background border border-border rounded-md text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Formato de exportacion"
                 >
                   <option value="XLSX">Excel (.xlsx) - Recomendado</option>
@@ -198,12 +201,14 @@ export function VentasToolbar({
 
                 <button
                   onClick={onExportar}
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap"
+                  disabled={exportando}
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Download className="h-4 w-4" />
-                  {formatoExportacion === "XLSX" && "Exportar Excel"}
-                  {formatoExportacion === "PDF" && "Exportar PDF"}
-                  {formatoExportacion === "CSV" && "Exportar CSV"}
+                  {exportando && "Exportando..."}
+                  {!exportando && formatoExportacion === "XLSX" && "Exportar Excel"}
+                  {!exportando && formatoExportacion === "PDF" && "Exportar PDF"}
+                  {!exportando && formatoExportacion === "CSV" && "Exportar CSV"}
                 </button>
               </div>
             )}

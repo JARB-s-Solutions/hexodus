@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost } from '@/lib/api'
+import { apiDelete, apiDownload, apiGet, apiPost } from '@/lib/api'
 import type {
   GetVentasResponse,
   VentasData,
@@ -27,6 +27,31 @@ export interface GetVentasParams {
   search?: string
   page?: number
   limit?: number
+}
+
+export type FormatoExportacionVentas = 'XLSX' | 'PDF' | 'CSV'
+
+export interface ExportarVentasParams extends Omit<GetVentasParams, 'page' | 'limit'> {
+  formato?: FormatoExportacionVentas
+}
+
+function descargarBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+function getNombreArchivoVentas(formato: FormatoExportacionVentas, filename?: string): string {
+  if (filename && !filename.startsWith('descarga_')) return filename
+
+  const extension = formato === 'PDF' ? 'pdf' : formato === 'CSV' ? 'csv' : 'xlsx'
+  const fecha = new Date().toISOString().split('T')[0]
+  return `ventas_${fecha}.${extension}`
 }
 
 /**
@@ -95,6 +120,26 @@ export class VentasService {
     console.log('✅ Datos mapeados al frontend:', ventasData)
     
     return ventasData
+  }
+
+  /**
+   * Exportar todas las ventas filtradas desde el backend.
+   * No depende de la página visible del paginador.
+   */
+  static async exportar(params?: ExportarVentasParams): Promise<void> {
+    const queryParams = new URLSearchParams()
+
+    if (params?.periodo) queryParams.append('periodo', params.periodo)
+    if (params?.fecha_inicio) queryParams.append('fecha_inicio', params.fecha_inicio)
+    if (params?.fecha_fin) queryParams.append('fecha_fin', params.fecha_fin)
+    if (params?.metodo_pago && params.metodo_pago !== 'todos') queryParams.append('metodo_pago', params.metodo_pago)
+    if (params?.search) queryParams.append('search', params.search)
+    queryParams.append('formato', params?.formato || 'XLSX')
+
+    const queryString = queryParams.toString()
+    const endpoint = `/ventas/exportar${queryString ? `?${queryString}` : ''}`
+    const { blob, filename } = await apiDownload(endpoint, { timeout: 60000 })
+    descargarBlob(blob, getNombreArchivoVentas(params?.formato || 'XLSX', filename))
   }
 
   /**

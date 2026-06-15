@@ -14,9 +14,8 @@ import { CorteCaja } from "@/components/ventas/corte-caja"
 import { NuevaVentaModal } from "@/components/ventas/nueva-venta-modal"
 import { DetalleVentaModal } from "@/components/ventas/detalle-venta-modal"
 import { ImprimirTicketVentaModal } from "@/components/ventas/imprimir-ticket-venta-modal"
-import { VentasService } from "@/lib/services/ventas"
+import { VentasService, type ExportarVentasParams, type FormatoExportacionVentas } from "@/lib/services/ventas"
 import { getMetodosPago, type MetodoPago } from "@/lib/services/metodos-pago"
-import { exportarVentasArchivo, type FormatoExportacionVentas } from "@/lib/export-ventas"
 import type { 
   Venta, 
   VentasData, 
@@ -61,6 +60,7 @@ export default function VentasPage() {
   const [periodo, setPeriodo] = useState("hoy")
   const [metodoPagoFiltro, setMetodoPagoFiltro] = useState("todos")
   const [formatoExportacion, setFormatoExportacion] = useState<FormatoExportacionVentas>("XLSX")
+  const [exportandoVentas, setExportandoVentas] = useState(false)
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
 
@@ -381,25 +381,67 @@ export default function VentasPage() {
     setFechaFin("")
   }, [])
 
-  const handleExportar = useCallback(() => {
+  const handleExportar = useCallback(async () => {
     if (!puedeExportarVentas) {
       return
     }
 
-    if (ventas.length === 0) {
+    if (periodo === "personalizado" && (!fechaInicio || !fechaFin)) {
+      toast({
+        title: "Completa el rango de fechas",
+        description: "Selecciona fecha inicio y fecha fin para exportar ventas personalizadas.",
+      })
+      return
+    }
+
+    if (pagination.totalRecords === 0) {
       toast({
         title: "Sin datos",
-        description: "No hay ventas para exportar con los filtros actuales",
+        description: "No hay ventas para exportar con los filtros actuales.",
       })
       return
     }
 
     try {
-      exportarVentasArchivo({ ventas, formato: formatoExportacion })
+      setExportandoVentas(true)
+      const periodoMap: Record<string, string> = {
+        hoy: "Hoy",
+        ayer: "Ayer",
+        semana: "Esta Semana",
+        mes: "Este Mes",
+        trimestre: "Este Trimestre",
+        anio: "Este Año",
+        personalizado: "Personalizado",
+      }
+
+      const params: ExportarVentasParams = {
+        formato: formatoExportacion,
+      }
+
+      if (periodo === "personalizado") {
+        params.periodo = "Personalizado"
+        params.fecha_inicio = fechaInicio
+        params.fecha_fin = fechaFin
+      } else if (periodo !== "todo") {
+        params.periodo = periodoMap[periodo] || periodo
+      }
+
+      if (metodoPagoFiltro && metodoPagoFiltro !== "todos") {
+        const nombreMetodo = obtenerNombreMetodoPago(metodoPagoFiltro)
+        if (nombreMetodo && nombreMetodo !== "todos") {
+          params.metodo_pago = nombreMetodo
+        }
+      }
+
+      if (busqueda.trim()) {
+        params.search = busqueda.trim()
+      }
+
+      await VentasService.exportar(params)
 
       toast({
-        title: "Exportacion completada",
-        description: `Se exportaron ${ventas.length} ventas en formato ${formatoExportacion}`,
+        title: "Exportación completada",
+        description: `Se exportaron ${pagination.totalRecords} ventas con los filtros actuales.`,
       })
     } catch (error) {
       console.error("Error al exportar ventas:", error)
@@ -408,8 +450,21 @@ export default function VentasPage() {
         description: "No se pudo exportar el archivo seleccionado",
         variant: "destructive",
       })
+    } finally {
+      setExportandoVentas(false)
     }
-  }, [ventas, formatoExportacion, toast, puedeExportarVentas])
+  }, [
+    puedeExportarVentas,
+    periodo,
+    fechaInicio,
+    fechaFin,
+    pagination.totalRecords,
+    formatoExportacion,
+    metodoPagoFiltro,
+    busqueda,
+    toast,
+    metodosPago,
+  ])
 
   const handleAplicarFiltros = useCallback(() => {
     if (periodo === "personalizado" && fechaInicio && fechaFin) {
@@ -554,6 +609,7 @@ export default function VentasPage() {
                   totalVentas={pagination.totalRecords}
                   canCrearVenta={puedeCrearVenta}
                   canExportar={puedeExportarVentas}
+                  exportando={exportandoVentas}
                 />
 
                 {/* Table */}
