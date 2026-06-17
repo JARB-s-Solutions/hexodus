@@ -10,6 +10,8 @@ interface UsuariosToolbarProps {
   onActivoChange: (v: boolean | "todos") => void
   rolFiltro: string
   onRolChange: (v: string) => void
+  roles: Array<{ id: string; nombre: string }>
+  rolesLoading?: boolean
   onLimpiar: () => void
   onNuevoUsuario: () => void
   loading?: boolean
@@ -23,6 +25,8 @@ export function UsuariosToolbar({
   onActivoChange,
   rolFiltro,
   onRolChange,
+  roles,
+  rolesLoading = false,
   onLimpiar,
   onNuevoUsuario,
   loading,
@@ -107,15 +111,19 @@ export function UsuariosToolbar({
         <select
           value={rolFiltro}
           onChange={(e) => onRolChange(e.target.value)}
-          disabled={loading}
+          disabled={loading || rolesLoading}
           className="flex-1 min-w-0 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 transition-all appearance-none cursor-pointer disabled:opacity-50"
         >
           <option value="todos">Todos los Roles</option>
-          <option value="admin">Administrador</option>
-          <option value="recepcionista">Recepcionista</option>
-          <option value="moderador">Moderador</option>
-          <option value="empleado">Empleado</option>
-          <option value="invitado">Invitado</option>
+          {rolesLoading ? (
+            <option disabled>Cargando roles...</option>
+          ) : (
+            roles.map((rol) => (
+              <option key={rol.id} value={rol.id}>
+                {rol.nombre}
+              </option>
+            ))
+          )}
         </select>
 
         {/* Clear filters */}
