@@ -27,10 +27,44 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
   const [cotizacionParaTicket, setCotizacionParaTicket] = useState<CotizacionResponse['data'] | null>(null)
   const [metodoPagoParaTicket, setMetodoPagoParaTicket] = useState("")
   const [montoACobrar, setMontoACobrar] = useState(0)
+  const [socioIdCobro, setSocioIdCobro] = useState<number | null>(null)
 
   const normalizarMonto = (value: unknown): number => {
     const parsed = typeof value === 'number' ? value : Number(value)
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  }
+
+  const normalizarId = (value: unknown): number | null => {
+    const parsed = typeof value === 'number' ? value : Number(value)
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+  }
+
+  const resolverSocioId = async (): Promise<number | null> => {
+    if (!socio) return null
+
+    const idDirecto =
+      normalizarId(socio.id) ||
+      normalizarId((socio as any).socioDbId) ||
+      normalizarId((socio as any).socio_id)
+
+    if (idDirecto) return idDirecto
+
+    const codigo = String(
+      socio.codigoSocio ||
+      (socio as any).codigo_socio ||
+      (socio as any).clave ||
+      (socio as any).socioId ||
+      ''
+    ).trim()
+
+    if (codigo.length >= 2) {
+      const resultados = await SociosService.buscar(codigo)
+      const exacto = resultados.find((item) => item.codigo === codigo)
+      const match = exacto || resultados[0]
+      if (match?.id) return match.id
+    }
+
+    return null
   }
 
   // Cargar métodos de pago al abrir el modal
@@ -45,8 +79,12 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
     if (!socio) return
 
     setPagosSeleccionados([])
+    setSocioIdCobro(null)
 
     const montoInicial = normalizarMonto(socio.montoPendiente ?? socio.precioMembresia)
+    const idResuelto = await resolverSocioId()
+    setSocioIdCobro(idResuelto)
+
     if (montoInicial > 0) {
       setMontoACobrar(montoInicial)
       return
@@ -54,7 +92,11 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
 
     setCargandoAdeudo(true)
     try {
-      const socioCompleto = await SociosService.getById(socio.id)
+      if (!idResuelto) {
+        throw new Error("No se pudo identificar el ID del socio para consultar el adeudo.")
+      }
+
+      const socioCompleto = await SociosService.getById(idResuelto)
       const montoDetalle = normalizarMonto(socioCompleto.montoPendiente ?? socioCompleto.precioMembresia)
 
       if (montoDetalle > 0) {
@@ -114,16 +156,27 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
       return
     }
 
+    const idParaCobro = socioIdCobro || await resolverSocioId()
+
+    if (!idParaCobro) {
+      toast({
+        title: "No se pudo cobrar membresía",
+        description: "No se pudo identificar el socio correcto para registrar el pago.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setProcesando(true)
     console.log("💳 Cobrando membresía pendiente:")
-    console.log("   Socio ID:", socio.id)
+    console.log("   Socio ID:", idParaCobro)
     console.log("   Plan ID:", socio.planId)
     console.log("   Pagos:", pagosSeleccionados)
     console.log("   Estado actual:", socio.estadoPago)
 
     try {
       // Endpoint dedicado para cobro de adeudo - ahora acepta pagos[]
-      const mensaje = await SociosService.pagarMembresiaPendiente(socio.id, pagosSeleccionados)
+      const mensaje = await SociosService.pagarMembresiaPendiente(idParaCobro, pagosSeleccionados)
 
       console.log("✅ Membresía cobrada exitosamente")
       
@@ -139,7 +192,7 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
 
         // Si los datos no vienen en la lista, buscar el socio completo
         if (!planId || planId <= 0 || !fechaInicio) {
-          const socioActualizado = await SociosService.getById(socio.id)
+          const socioActualizado = await SociosService.getById(idParaCobro)
           planId = socioActualizado.planId
           fechaInicio = socioActualizado.fechaInicioMembresia
         }
@@ -182,6 +235,7 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
     if (!procesando && !showImprimirTicket) {
       setPagosSeleccionados([])
       setMontoACobrar(0)
+      setSocioIdCobro(null)
       onClose()
     }
   }

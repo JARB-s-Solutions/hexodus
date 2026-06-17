@@ -415,12 +415,24 @@ export default function AsistenciaPage() {
 
   // Listen for messages from scanner window
   useEffect(() => {
-    const abrirCobroAdeudo = async (registro: RegistroAcceso) => {
-      const socioId = registro.socioDbId
+    const resolverSocioIdRegistro = async (registro: RegistroAcceso): Promise<number | null> => {
+      const idDirecto = Number(registro.socioDbId)
+      if (Number.isInteger(idDirecto) && idDirecto > 0) return idDirecto
 
+      const codigo = String(registro.socioId || '').trim()
+      if (codigo.length < 2 || /^\d+$/.test(codigo)) return null
+
+      const resultados = await SociosService.buscar(codigo)
+      const exacto = resultados.find((item) => item.codigo === codigo)
+      return exacto?.id || resultados[0]?.id || null
+    }
+
+    const abrirCobroAdeudo = async (registro: RegistroAcceso) => {
       if (!puedeCobrarAdeudos) return
 
-      if (!socioId || Number.isNaN(Number(socioId))) {
+      const socioId = await resolverSocioIdRegistro(registro)
+
+      if (!socioId) {
         toast({
           title: "No se pudo abrir cobro",
           description: "No se recibió el ID del socio para registrar el pago pendiente.",
@@ -430,7 +442,7 @@ export default function AsistenciaPage() {
       }
 
       try {
-        const socioCompleto = await SociosService.getById(Number(socioId))
+        const socioCompleto = await SociosService.getById(socioId)
         setSocioAdeudo(socioCompleto)
         setModalCobroAdeudoOpen(true)
       } catch (error: any) {
