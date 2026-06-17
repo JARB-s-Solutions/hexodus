@@ -19,19 +19,71 @@ interface CobrarMembresiaModalProps {
 
 export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: CobrarMembresiaModalProps) {
   const [cargandoMetodos, setCargandoMetodos] = useState(false)
+  const [cargandoAdeudo, setCargandoAdeudo] = useState(false)
   const [pagosSeleccionados, setPagosSeleccionados] = useState<PagoSplitRequest[]>([])
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
   const [procesando, setProcesando] = useState(false)
   const [showImprimirTicket, setShowImprimirTicket] = useState(false)
   const [cotizacionParaTicket, setCotizacionParaTicket] = useState<CotizacionResponse['data'] | null>(null)
   const [metodoPagoParaTicket, setMetodoPagoParaTicket] = useState("")
+  const [montoACobrar, setMontoACobrar] = useState(0)
+
+  const normalizarMonto = (value: unknown): number => {
+    const parsed = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  }
 
   // Cargar métodos de pago al abrir el modal
   useEffect(() => {
     if (open && socio) {
       cargarMetodosPago()
+      resolverMontoPendiente()
     }
   }, [open, socio])
+
+  const resolverMontoPendiente = async () => {
+    if (!socio) return
+
+    setPagosSeleccionados([])
+
+    const montoInicial = normalizarMonto(socio.montoPendiente ?? socio.precioMembresia)
+    if (montoInicial > 0) {
+      setMontoACobrar(montoInicial)
+      return
+    }
+
+    setCargandoAdeudo(true)
+    try {
+      const socioCompleto = await SociosService.getById(socio.id)
+      const montoDetalle = normalizarMonto(socioCompleto.montoPendiente ?? socioCompleto.precioMembresia)
+
+      if (montoDetalle > 0) {
+        setMontoACobrar(montoDetalle)
+        return
+      }
+
+      const historial = await SociosService.getHistorialPagos(socio.id)
+      const membresiaPendiente = historial.historial.find((entrada) => entrada.estado_pago === 'sin_pagar')
+      const montoHistorial = normalizarMonto(membresiaPendiente?.precio_cobrado)
+
+      if (montoHistorial > 0) {
+        setMontoACobrar(montoHistorial)
+        return
+      }
+
+      setMontoACobrar(0)
+    } catch (error: any) {
+      console.error("Error obteniendo monto pendiente:", error)
+      setMontoACobrar(0)
+      toast({
+        title: "No se pudo obtener el monto pendiente",
+        description: error.message || "Intenta abrir el cobro nuevamente.",
+        variant: "destructive",
+      })
+    } finally {
+      setCargandoAdeudo(false)
+    }
+  }
 
   const cargarMetodosPago = async () => {
     setCargandoMetodos(true)
@@ -129,6 +181,7 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
   const handleClose = () => {
     if (!procesando && !showImprimirTicket) {
       setPagosSeleccionados([])
+      setMontoACobrar(0)
       onClose()
     }
   }
@@ -202,7 +255,7 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
             <div>
               <p className="text-sm text-muted-foreground">Monto a Cobrar</p>
               <p className="text-2xl font-bold text-accent">
-                ${socio.precioMembresia?.toFixed(2) || "0.00"}
+                ${montoACobrar.toFixed(2)}
               </p>
             </div>
           </div>
@@ -211,15 +264,22 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
           <div className="border-t border-border"></div>
 
           {/* Método de pago - Ahora con selector dual */}
-          {cargandoMetodos ? (
+          {cargandoMetodos || cargandoAdeudo ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-accent" />
+            </div>
+          ) : montoACobrar <= 0 ? (
+            <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
+              <p className="text-sm font-medium text-amber-500">No se encontró un monto pendiente válido.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Revisa el historial de membresías del socio antes de registrar el cobro.
+              </p>
             </div>
           ) : metodosPago.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No hay métodos de pago disponibles</p>
           ) : (
             <DualPaymentSelector
-              total={socio.precioMembresia || 0}
+              total={montoACobrar}
               metodosPago={metodosPago}
               onPagosChange={setPagosSeleccionados}
               disabled={procesando}
@@ -249,7 +309,7 @@ export function CobrarMembresiaModal({ open, onClose, socio, onSuccess }: Cobrar
           <Button
             type="button"
             onClick={handleConfirmar}
-            disabled={procesando || pagosSeleccionados.length === 0 || cargandoMetodos}
+            disabled={procesando || pagosSeleccionados.length === 0 || cargandoMetodos || cargandoAdeudo || montoACobrar <= 0}
             className="bg-accent hover:bg-accent/90 text-accent-foreground"
           >
             {procesando ? (
