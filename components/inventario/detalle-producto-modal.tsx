@@ -48,13 +48,28 @@ export function DetalleProductoModal({ open, onClose, producto, loading }: Detal
   const est = estadoStockInfo[producto.estadoStock]
   
   // Usar los márgenes del API si están disponibles, sino calcularlos
-  const margenMonetario = producto.margenMonetario !== undefined 
-    ? producto.margenMonetario 
+  const margenMonetario = producto.margenMonetario !== undefined
+    ? producto.margenMonetario
     : producto.precioVenta - producto.precioCompra
-  
-  const margenPorcentaje = producto.margenPorcentaje !== undefined
-    ? producto.margenPorcentaje
-    : (producto.precioCompra > 0 ? ((margenMonetario / producto.precioCompra) * 100) : 0)
+
+  const margenSobreVenta =
+    producto.precioVenta > 0
+      ? (margenMonetario / producto.precioVenta) * 100
+      : null
+  const margenEsGanancia = margenMonetario >= 0
+  const margenColor = margenEsGanancia ? "text-[#22C55E]" : "text-[#EF4444]"
+  const margenCardClass = margenEsGanancia
+    ? "from-[#22C55E]/10 to-[#22C55E]/5 border-[#22C55E]/20"
+    : "from-[#EF4444]/10 to-[#EF4444]/5 border-[#EF4444]/20"
+  const margenTexto = (() => {
+    if (producto.precioVenta <= 0) return "Sin precio de venta"
+    if (producto.precioCompra <= 0) return "Costo no registrado"
+
+    const porcentaje = Math.abs(margenSobreVenta ?? 0)
+    return margenEsGanancia
+      ? `${porcentaje.toFixed(1)}% de margen sobre venta`
+      : `${porcentaje.toFixed(1)}% de pérdida sobre venta`
+  })()
 
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -135,13 +150,13 @@ export function DetalleProductoModal({ open, onClose, producto, loading }: Detal
                 <p className="text-xs text-muted-foreground mb-1">Precio de Compra</p>
                 <p className="text-2xl font-bold text-foreground">{formatPrecio(producto.precioCompra)}</p>
               </div>
-              <div className="bg-gradient-to-br from-[#22C55E]/10 to-[#22C55E]/5 rounded-lg p-4 border border-[#22C55E]/20">
+              <div className={`bg-gradient-to-br ${margenCardClass} rounded-lg p-4 border`}>
                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                   <TrendingUp className="h-3 w-3" />
                   Margen de Ganancia
                 </p>
-                <p className="text-2xl font-bold text-[#22C55E]">{formatPrecio(margenMonetario)}</p>
-                <p className="text-xs text-[#22C55E] mt-1">{margenPorcentaje.toFixed(1)}% de ganancia</p>
+                <p className={`text-2xl font-bold ${margenColor}`}>{formatPrecio(margenMonetario)}</p>
+                <p className={`text-xs ${margenColor} mt-1`}>{margenTexto}</p>
               </div>
             </div>
           </div>
