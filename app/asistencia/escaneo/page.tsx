@@ -41,6 +41,10 @@ interface ResultadoEscaneo {
   accionSugerida?: string
 }
 
+const FACE_SCAN_INTERVAL_MS = 1500
+const FACE_SCAN_MIN_SCORE = 0.55
+const FACE_SCAN_WARMUP_DETECTIONS = 1
+
 function construirContextoAlerta(
   estado: EstadoMembresia,
   diasRestantes: number,
@@ -191,6 +195,7 @@ export default function EscaneoPage() {
   const [audioDesbloqueado, setAudioDesbloqueado] = useState(false)
   const [faceapiReady, setFaceapiReady] = useState(false)
   const [statusMsg, setStatusMsg] = useState("Cargando libreria...")
+  const [scanHint, setScanHint] = useState("Esperando...")
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -198,6 +203,8 @@ export default function EscaneoPage() {
   const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const warmupDetectionsRef = useRef(0)
+  const hasCompletedWarmupRef = useRef(false)
   const estadoRef = useRef(estado)
   estadoRef.current = estado
   const configRef = useRef(config)
@@ -356,6 +363,7 @@ export default function EscaneoPage() {
     }
 
     console.log("[v0] Starting face scan interval...")
+    setScanHint(hasCompletedWarmupRef.current ? "Esperando..." : "Calibrando camara...")
     setEstado("escaneando")
 
     scanIntervalRef.current = setInterval(async () => {
@@ -368,7 +376,10 @@ export default function EscaneoPage() {
 
       try {
         const detection = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({
+            inputSize: 224,
+            scoreThreshold: 0.5,
+          }))
           .withFaceLandmarks()
           .withFaceDescriptor()
 
@@ -385,6 +396,21 @@ export default function EscaneoPage() {
         }
 
         if (detection) {
+          const score = detection.detection.score || 0
+
+          if (score < FACE_SCAN_MIN_SCORE) {
+            setScanHint("Ajusta tu rostro frente a la camara")
+            return
+          }
+
+          if (!hasCompletedWarmupRef.current && warmupDetectionsRef.current < FACE_SCAN_WARMUP_DETECTIONS) {
+            warmupDetectionsRef.current += 1
+            setScanHint("Preparando reconocimiento...")
+            return
+          }
+
+          hasCompletedWarmupRef.current = true
+          setScanHint("Validando rostro...")
           console.log("[v0] Face detected! Processing...")
           // Stop scanning during processing
           if (scanIntervalRef.current) {
@@ -392,11 +418,13 @@ export default function EscaneoPage() {
             scanIntervalRef.current = null
           }
           await buscarSocio(detection.descriptor)
+        } else {
+          setScanHint(hasCompletedWarmupRef.current ? "Esperando..." : "Calibrando camara...")
         }
       } catch (err) {
         console.error("[v0] Detection error:", err)
       }
-    }, 1500)
+    }, FACE_SCAN_INTERVAL_MS)
   }, [])
 
   // ============================================================================
@@ -499,19 +527,25 @@ export default function EscaneoPage() {
           return
         }
 
-        console.log("[Escaneo] ❌ No se pudo validar:", response.error || response.message || "Desconocido")
+        const mensajeDenegacion =
+          response.data?.motivo_texto ||
+          response.error ||
+          response.message ||
+          "No se encontro un rostro registrado para este escaneo"
+
+        console.log("[Escaneo] ❌ No se pudo validar:", mensajeDenegacion)
 
         const contextoAlerta = construirContextoAlerta(
           estadoAcceso,
           0,
-          response.error || response.message || "Sin registro en el sistema",
+          mensajeDenegacion,
         )
 
         mostrarResultado({
           socio: null,
           estado: estadoAcceso,
           confianza: "0",
-          membresia: response.error || response.message || "Sin registro en el sistema",
+          membresia: "Sin registro biometrico",
           vencimiento: "",
           diasRestantes: 0,
           motivoDenegacion: contextoAlerta.motivoDenegacion,
@@ -758,6 +792,8 @@ export default function EscaneoPage() {
 
     // Activate camera
     await activarCamara()
+    warmupDetectionsRef.current = 0
+    hasCompletedWarmupRef.current = false
 
     // Start auto-scan after camera stabilizes
     if (configRef.current.deteccionAutomatica) {
@@ -941,7 +977,7 @@ export default function EscaneoPage() {
                     <p className="text-slate-400">Posiciona tu rostro frente a la camara</p>
                     <div className="mt-4 flex items-center justify-center gap-2">
                       <div className="h-3 w-3 rounded-full bg-cyan-400 animate-pulse" />
-                      <span className="text-slate-400 text-sm">Esperando...</span>
+                      <span className="text-slate-400 text-sm">{scanHint}</span>
                     </div>
                   </div>
                 </div>

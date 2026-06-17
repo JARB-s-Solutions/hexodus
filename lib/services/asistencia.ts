@@ -45,14 +45,15 @@ export interface RegistroAsistenciaResponse {
       fecha_fin_membresia: string
       vigencia_membresia?: string
       estado_pago?: 'pagado' | 'sin_pagar' | 'pendiente' | string
-    }
+    } | null
     asistencia: {
       id: number
       tipo: 'IN' | 'OUT'
       timestamp: string
       confidence: string
-    }
+    } | null
     motivo_codigo?: string
+    motivo_texto?: string
     sugerencia?: string
   }
   error?: string
