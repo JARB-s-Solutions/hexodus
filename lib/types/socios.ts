@@ -149,6 +149,10 @@ export interface SocioListItemAPI {
   vencimiento: string // ISO date
   vigencia: string // "Activa" | "Vencida" | etc.
   estado_contrato: boolean // true = firmado, false = pendiente
+  precio_membresia?: number | string | null
+  precio_congelado?: number | string | null
+  monto_pendiente?: number | string | null
+  plan_id?: number | string | null
 }
 
 /**
@@ -184,6 +188,9 @@ export interface SocioAPI {
   telefono: string
   membresia: string
   plan_id?: number // ID del plan de membresía
+  precio_membresia?: number | string | null
+  precio_congelado?: number | string | null
+  monto_pendiente?: number | string | null
   vigencia_membresia: string
   fecha_inicio_membresia: string
   fecha_fin_membresia: string
@@ -220,6 +227,8 @@ export interface Socio {
   nombrePlan?: string
   fechaInicioMembresia: string
   fechaVencimientoMembresia: string
+  precioMembresia?: number
+  montoPendiente?: number
   estadoPago: EstadoPago
   estadoSocio: EstadoSocio
   createdAt?: string
@@ -261,6 +270,12 @@ function parseNumericArray(value: unknown): number[] | undefined {
   return undefined
 }
 
+function parseMoney(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 /**
  * Mapear socio de API a Frontend
  */
@@ -268,6 +283,9 @@ export function mapSocioFromAPI(api: SocioAPI): Socio {
   const faceEncoding = parseNumericArray(api.face_encoding ?? api.face_descriptor)
   const vigenciaMembresia = String(api.vigencia_membresia || '').toLowerCase()
   const estadoSocio: EstadoSocio = vigenciaMembresia.includes('vencid') ? 'inactivo' : 'activo'
+  const precioMembresia = parseMoney(
+    api.precio_membresia ?? api.precio_congelado ?? api.monto_pendiente ?? (api as any).precioMembresia
+  )
 
   return {
     id: api.id || (api as any).socio_id || 0,
@@ -288,6 +306,8 @@ export function mapSocioFromAPI(api: SocioAPI): Socio {
     nombrePlan: api.membresia,
     fechaInicioMembresia: api.fecha_inicio_membresia,
     fechaVencimientoMembresia: api.fecha_fin_membresia,
+    precioMembresia,
+    montoPendiente: parseMoney(api.monto_pendiente) ?? precioMembresia,
     // Mapear estado de pago si viene en la respuesta (por ejemplo: estado_pago)
     // Si no viene (o viene null/undefined), asumimos que el pago está pendiente para evitar marcar al socio como pagado accidentalmente.
     estadoPago: ((api as any).estado_pago ?? (api as any).estadoPago) as EstadoPago || 'sin_pagar',
@@ -313,7 +333,10 @@ export function mapSocioListItemFromAPI(api: SocioListItemAPI): Socio {
   // Determinar estado del socio según vigencia
   let estadoSocio: EstadoSocio = 'activo'
   if (api.vigencia.toLowerCase().includes('vencida')) estadoSocio = 'inactivo'
-  
+  const precioMembresia = parseMoney(
+    api.precio_membresia ?? api.precio_congelado ?? api.monto_pendiente ?? (api as any).precioMembresia
+  )
+
   return {
     id: api.socio_id,
     codigoSocio: api.clave,
@@ -327,7 +350,9 @@ export function mapSocioListItemFromAPI(api: SocioListItemAPI): Socio {
     fechaInicioMembresia: '', // No viene en la lista
     estadoSocio: estadoSocio,
     firmoContrato: api.estado_contrato, // true = firmado, false = pendiente
-    planId: 0, // No viene en la lista
+    planId: parseMoney(api.plan_id) || 0,
+    precioMembresia,
+    montoPendiente: parseMoney(api.monto_pendiente) ?? precioMembresia,
     // Mapear estado de pago si viene en la respuesta de la API
     // Si no viene, asumimos que el pago está pendiente para no mostrarlo como pagado.
     estadoPago: (((api as any).estado_pago ?? (api as any).estadoPago) as EstadoPago) || 'sin_pagar',

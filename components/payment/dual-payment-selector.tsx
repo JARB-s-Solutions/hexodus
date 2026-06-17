@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { CreditCard, AlertCircle, CheckCircle2 } from "lucide-react"
 import { Label } from "@/ui/label"
 import type { MetodoPago } from "@/lib/types/socios"
@@ -45,6 +45,24 @@ export function DualPaymentSelector({
     { metodo_pago_id: 0, monto: total }, // En modo simple, el monto ya está al 100%
     { metodo_pago_id: 0, monto: 0 }
   ])
+
+  useEffect(() => {
+    setPagos((current) => {
+      if (enableMultiple) {
+        return current.map((pago, index) => {
+          if (index === 0 && pago.metodo_pago_id > 0 && current[1]?.metodo_pago_id === 0) {
+            return { ...pago, monto: total }
+          }
+          return pago
+        }) as PagoSplitRequest[]
+      }
+
+      return [
+        { metodo_pago_id: current[0]?.metodo_pago_id || 0, monto: total },
+        { metodo_pago_id: 0, monto: 0 },
+      ]
+    })
+  }, [total, enableMultiple])
 
   // Calcular totales
   const totalPagado = useMemo(() => {
