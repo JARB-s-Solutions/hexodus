@@ -1046,7 +1046,11 @@ export default function EscaneoPage() {
                         {resultado.estado === "proximo_vencer" && (
                           <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 mb-4">
                             <p className="text-yellow-400 text-sm font-semibold">
-                              Tu membresia vence en {resultado.diasRestantes} dia(s)
+                              {resultado.diasRestantes === 0
+                                ? "Tu membresía vence hoy"
+                                : `Tu membresía vence en ${resultado.diasRestantes} ${
+                                    resultado.diasRestantes === 1 ? "día" : "días"
+                                  }`}
                             </p>
                           </div>
                         )}
