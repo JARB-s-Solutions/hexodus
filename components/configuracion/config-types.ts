@@ -15,6 +15,7 @@ export interface ConfigState {
   gimnasioDomicilio: string
   gimnasioTelefono: string
   gimnasioRFC: string
+  mostrarRFCEnTicket: boolean
   gimnasioLogo: string  // URL del logo
   ticketFooter: string
   ticketMensajeAgradecimiento: string
@@ -34,6 +35,7 @@ export const defaultConfig: ConfigState = {
   gimnasioDomicilio: "Av. Principal #123, Col. Centro, CP 12345",
   gimnasioTelefono: "+52 123 456 7890",
   gimnasioRFC: "GYM123456ABC",
+  mostrarRFCEnTicket: true,
   gimnasioLogo: "/assets/images/icon.png",
   ticketFooter: "¡Gracias por tu visita!",
   ticketMensajeAgradecimiento: "Te esperamos pronto",
