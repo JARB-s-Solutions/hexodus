@@ -354,6 +354,7 @@ export class ThermalPrinter {
         gimnasioDomicilio: 'Av. Principal #123',
         gimnasioTelefono: '+52 123 456 7890',
         gimnasioRFC: 'GYM123456ABC',
+        mostrarRFCEnTicket: true,
         gimnasioLogo: '/assets/images/icon-printers.png',
         ticketFooter: '¡Gracias por tu visita!',
         ticketMensajeAgradecimiento: 'Te esperamos pronto'
@@ -716,7 +717,7 @@ export class ThermalPrinter {
       if (config.gimnasioTelefono) {
         await this.printCentered(`Tel: ${config.gimnasioTelefono}`)
       }
-      if (config.gimnasioRFC) {
+      if (config.mostrarRFCEnTicket && config.gimnasioRFC) {
         await this.printCentered(`RFC: ${config.gimnasioRFC}`)
       }
       
@@ -829,7 +830,7 @@ export class ThermalPrinter {
       if (config.gimnasioTelefono) {
         await this.printCentered(`Tel: ${config.gimnasioTelefono}`)
       }
-      if (config.gimnasioRFC) {
+      if (config.mostrarRFCEnTicket && config.gimnasioRFC) {
         await this.printCentered(`RFC: ${config.gimnasioRFC}`)
       }
       

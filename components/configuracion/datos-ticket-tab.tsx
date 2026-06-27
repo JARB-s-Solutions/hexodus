@@ -28,6 +28,7 @@ export function DatosTicketTab({ config, onChange }: DatosTicketTabProps) {
         gimnasioDomicilio: data.gimnasioDomicilio,
         gimnasioTelefono: data.gimnasioTelefono,
         gimnasioRFC: data.gimnasioRFC,
+        mostrarRFCEnTicket: data.mostrarRFCEnTicket,
         gimnasioLogo: data.gimnasioLogo || "",
         ticketFooter: data.ticketFooter,
         ticketMensajeAgradecimiento: data.ticketMensajeAgradecimiento,
@@ -114,19 +115,37 @@ export function DatosTicketTab({ config, onChange }: DatosTicketTabProps) {
             </div>
 
             {/* RFC */}
-            <div>
-              <label className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5" />
-                RFC
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={config.mostrarRFCEnTicket}
+                  onChange={(e) => onChange({ mostrarRFCEnTicket: e.target.checked })}
+                  className="h-4 w-4 rounded border-border accent-accent"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-foreground">Imprimir RFC en tickets</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Desactivalo si el gimnasio aun no requiere mostrar datos fiscales.
+                  </span>
+                </span>
               </label>
-              <input
-                type="text"
-                value={config.gimnasioRFC}
-                onChange={(e) => onChange({ gimnasioRFC: e.target.value.toUpperCase() })}
-                placeholder="Ej: GYM123456ABC"
-                maxLength={13}
-                className="w-full px-4 py-3 bg-muted/50 border border-border rounded-lg text-foreground text-sm focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all uppercase"
-              />
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" />
+                  RFC
+                </label>
+                <input
+                  type="text"
+                  value={config.gimnasioRFC}
+                  onChange={(e) => onChange({ gimnasioRFC: e.target.value.toUpperCase() })}
+                  placeholder="Ej: GYM123456ABC"
+                  maxLength={13}
+                  disabled={!config.mostrarRFCEnTicket}
+                  className="w-full px-4 py-3 bg-muted/50 border border-border rounded-lg text-foreground text-sm focus:border-accent focus:ring-1 focus:ring-accent/50 outline-none transition-all uppercase disabled:cursor-not-allowed disabled:opacity-55"
+                />
+              </div>
             </div>
 
             {/* Logo */}
@@ -290,9 +309,11 @@ export function DatosTicketTab({ config, onChange }: DatosTicketTabProps) {
               </div>
               
               {/* RFC - Centrado */}
-              <div className="text-center text-[9px] mb-2">
-                RFC: {config.gimnasioRFC || 'GYM123456ABC'}
-              </div>
+              {config.mostrarRFCEnTicket && (
+                <div className="text-center text-[9px] mb-2">
+                  RFC: {config.gimnasioRFC || 'GYM123456ABC'}
+                </div>
+              )}
               
               {/* Domicilio - Centrado */}
               <div className="text-center text-[9px] mb-0.5">
@@ -305,9 +326,11 @@ export function DatosTicketTab({ config, onChange }: DatosTicketTabProps) {
               </div>
               
               {/* RFC - Centrado */}
-              <div className="text-center text-[9px] mb-2">
-                RFC: {config.gimnasioRFC || 'GYM123456ABC'}
-              </div>
+              {config.mostrarRFCEnTicket && (
+                <div className="text-center text-[9px] mb-2">
+                  RFC: {config.gimnasioRFC || 'GYM123456ABC'}
+                </div>
+              )}
               
               {/* Línea separadora */}
               <div className="text-center mb-2">{'='.repeat(32)}</div>

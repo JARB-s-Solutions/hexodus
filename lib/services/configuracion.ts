@@ -19,6 +19,7 @@ export interface ConfiguracionGimnasio {
   gimnasioDomicilio: string
   gimnasioTelefono: string
   gimnasioRFC: string
+  mostrarRFCEnTicket: boolean
   gimnasioLogo: string
   ticketFooter: string
   ticketMensajeAgradecimiento: string
@@ -29,6 +30,7 @@ export interface ConfiguracionSistemaData extends ConfiguracionApariencia {
   gimnasioDomicilio: string
   gimnasioTelefono: string
   gimnasioRFC: string
+  mostrarRFCEnTicket: boolean
   gimnasioLogo: string | null
   ticketFooter: string
   ticketMensajeAgradecimiento: string
@@ -56,6 +58,7 @@ const DEFAULT_CONFIG_SISTEMA: ConfiguracionSistemaData = {
   gimnasioDomicilio: 'Av. Principal #123, Col. Centro, CP 12345',
   gimnasioTelefono: '+52 123 456 7890',
   gimnasioRFC: 'XAXX010101000',
+  mostrarRFCEnTicket: true,
   gimnasioLogo: null,
   ticketFooter: '¡Gracias por tu visita!',
   ticketMensajeAgradecimiento: 'Te esperamos pronto',
@@ -77,6 +80,7 @@ function normalizarConfiguracion(data?: Partial<ConfiguracionSistemaData>): Conf
     gimnasioDomicilio: data?.gimnasioDomicilio || DEFAULT_CONFIG_SISTEMA.gimnasioDomicilio,
     gimnasioTelefono: data?.gimnasioTelefono || DEFAULT_CONFIG_SISTEMA.gimnasioTelefono,
     gimnasioRFC: data?.gimnasioRFC || DEFAULT_CONFIG_SISTEMA.gimnasioRFC,
+    mostrarRFCEnTicket: data?.mostrarRFCEnTicket ?? DEFAULT_CONFIG_SISTEMA.mostrarRFCEnTicket,
     gimnasioLogo: data?.gimnasioLogo ?? DEFAULT_CONFIG_SISTEMA.gimnasioLogo,
     ticketFooter: data?.ticketFooter || DEFAULT_CONFIG_SISTEMA.ticketFooter,
     ticketMensajeAgradecimiento:
@@ -180,6 +184,7 @@ export class ConfiguracionService {
         gimnasioDomicilio: data.gimnasioDomicilio,
         gimnasioTelefono: data.gimnasioTelefono,
         gimnasioRFC: data.gimnasioRFC,
+        mostrarRFCEnTicket: data.mostrarRFCEnTicket,
         gimnasioLogo: data.gimnasioLogo || '',
         ticketFooter: data.ticketFooter,
         ticketMensajeAgradecimiento: data.ticketMensajeAgradecimiento,
@@ -265,6 +270,7 @@ export class ConfiguracionService {
         gimnasioDomicilio: data.gimnasioDomicilio,
         gimnasioTelefono: data.gimnasioTelefono,
         gimnasioRFC: data.gimnasioRFC,
+        mostrarRFCEnTicket: data.mostrarRFCEnTicket,
         gimnasioLogo: data.gimnasioLogo || '',
         ticketFooter: data.ticketFooter,
         ticketMensajeAgradecimiento: data.ticketMensajeAgradecimiento,
@@ -365,6 +371,7 @@ export class ConfiguracionService {
         gimnasioDomicilio: data.gimnasioDomicilio,
         gimnasioTelefono: data.gimnasioTelefono,
         gimnasioRFC: data.gimnasioRFC,
+        mostrarRFCEnTicket: data.mostrarRFCEnTicket,
         gimnasioLogo: data.gimnasioLogo || '',
         ticketFooter: data.ticketFooter,
         ticketMensajeAgradecimiento: data.ticketMensajeAgradecimiento,
