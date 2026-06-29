@@ -72,9 +72,9 @@ export function VentasToolbar({
   }, [])
 
   return (
-    <div className="bg-card rounded-xl p-3 border border-border shadow-sm">
+    <div className="min-w-0 bg-card rounded-xl p-3 border border-border shadow-sm">
       <div className="space-y-3">
-        <div className="flex flex-col xl:flex-row xl:items-center gap-2.5">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
           {/* Search */}
           <div className="flex-1 min-w-0">
             <div className="relative">
@@ -84,20 +84,20 @@ export function VentasToolbar({
                 value={busqueda}
                 onChange={(e) => onBusquedaChange(e.target.value)}
                 placeholder="Buscar por ID, cliente o producto..."
-                className="w-full pl-9 pr-3 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all"
+                className="w-full pl-9 pr-3 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all"
               />
             </div>
           </div>
 
           {/* Filtros principales */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center">
             {/* Period Filter */}
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <select
                 value={periodo}
                 onChange={(e) => onPeriodoChange(e.target.value)}
-                className="min-w-[140px] pl-2 pr-8 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat"
+                className="min-w-0 flex-1 pl-2 pr-8 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat xl:min-w-[140px]"
               >
                 <option value="todo">Todo</option>
                 <option value="hoy">Hoy</option>
@@ -115,18 +115,18 @@ export function VentasToolbar({
                   type="date"
                   value={fechaInicio}
                   onChange={(e) => onFechaInicioChange(e.target.value)}
-                  className="px-3 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all"
+                  className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all"
                 />
                 <input
                   type="date"
                   value={fechaFin}
                   onChange={(e) => onFechaFinChange(e.target.value)}
-                  className="px-3 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all"
+                  className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all"
                 />
                 {fechaInicio && fechaFin && (
                   <button
                     onClick={onAplicarFiltros}
-                    className="px-3 py-1.5 bg-accent hover:bg-accent/90 text-accent-foreground rounded-lg text-sm font-medium transition-all flex items-center gap-1.5"
+                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-accent hover:bg-accent/90 text-accent-foreground rounded-lg text-sm font-medium transition-all"
                     title="Aplicar filtros de fecha"
                   >
                     <CalendarCheck className="h-4 w-4" />
@@ -142,7 +142,7 @@ export function VentasToolbar({
                 value={metodoPago}
                 onChange={(e) => onMetodoPagoChange(e.target.value)}
                 disabled={loadingMetodos}
-                className="min-w-[130px] pl-2 pr-8 py-1.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-w-0 flex-1 pl-2 pr-8 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed xl:min-w-[130px]"
               >
                 <option value="todos">Todos</option>
                 {loadingMetodos ? (
@@ -160,7 +160,7 @@ export function VentasToolbar({
             {/* Clear Filters */}
             <button
               onClick={onLimpiar}
-              className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-all"
+              className="flex items-center justify-center p-2.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-all"
               title="Limpiar filtros"
             >
               <XCircle className="h-4 w-4" />
@@ -174,11 +174,11 @@ export function VentasToolbar({
             <span className="text-sm font-medium text-foreground whitespace-nowrap">{totalVentas} ventas</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
             {canCrearVenta && (
               <button
                 onClick={onNuevaVenta}
-                className="px-4 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium transition-all whitespace-nowrap"
               >
                 <Plus className="h-4 w-4" />
                 Nueva Venta
@@ -186,12 +186,12 @@ export function VentasToolbar({
             )}
 
             {canExportar && (
-              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 p-1">
+              <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/20 p-1 sm:flex sm:items-center">
                 <select
                   value={formatoExportacion}
                   onChange={(e) => onFormatoExportacionChange(e.target.value as FormatoExportacionVentas)}
                   disabled={exportando}
-                  className="min-w-[210px] pl-2 pr-8 py-1.5 bg-background border border-border rounded-md text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full min-w-0 pl-2 pr-8 py-2.5 bg-background border border-border rounded-md text-sm text-foreground focus:border-accent focus:ring-1 focus:ring-accent/20 focus:outline-none transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:16px] bg-[right_0.5rem_center] bg-no-repeat disabled:opacity-50 disabled:cursor-not-allowed sm:min-w-[210px]"
                   title="Formato de exportacion"
                 >
                   <option value="XLSX">Excel (.xlsx) - Recomendado</option>
@@ -202,7 +202,7 @@ export function VentasToolbar({
                 <button
                   onClick={onExportar}
                   disabled={exportando}
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm font-medium transition-all whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Download className="h-4 w-4" />
                   {exportando && "Exportando..."}
