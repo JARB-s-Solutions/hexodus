@@ -79,15 +79,15 @@ export function MembresiasGrid({
 
   return (
     <div
-      className="bg-card rounded-xl overflow-hidden"
+      className="min-w-0 bg-card rounded-xl overflow-hidden"
       style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
     >
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-5 py-4 border-b border-border">
-        <div className="flex items-center gap-2 mb-2 sm:mb-0">
+      <div className="flex flex-col gap-3 px-4 py-4 border-b border-border sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <CreditCard className="h-5 w-5 text-accent" />
-          <h2 className="text-lg font-semibold text-foreground">Tipos de Membresias</h2>
-          <span className="ml-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-accent/15 text-accent">
+          <h2 className="min-w-0 text-lg font-semibold text-foreground">Tipos de Membresias</h2>
+          <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-accent/15 text-accent">
             {membresias.length} membresias
           </span>
         </div>
@@ -110,7 +110,7 @@ export function MembresiasGrid({
       </div>
 
       {/* Grid */}
-      <div className="p-5">
+      <div className="p-4 sm:p-5">
         {paginated.length === 0 ? (
           <div className="text-center py-16">
             <CreditCard className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
@@ -120,7 +120,7 @@ export function MembresiasGrid({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
             {paginated.map((m, index) => (
               <MembresiaCard
                 key={`membresia-${m.id}-${index}`}
@@ -136,12 +136,12 @@ export function MembresiasGrid({
       </div>
 
       {/* Pagination */}
-      <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-3 border-t border-border">
-        <span className="text-sm text-muted-foreground mb-2 sm:mb-0">
+      <div className="mobile-safe-pagination flex flex-col items-stretch justify-between gap-3 px-4 py-3 border-t border-border sm:flex-row sm:items-center sm:px-5">
+        <span className="text-center text-sm text-muted-foreground sm:text-left">
           Mostrando {membresias.length > 0 ? start + 1 : 0} a{" "}
           {Math.min(start + perPage, membresias.length)} de {membresias.length} membresias
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-1 overflow-x-auto">
           <button
             onClick={() => setPage(1)}
             disabled={page === 1}
@@ -160,7 +160,7 @@ export function MembresiasGrid({
             <button
               key={n}
               onClick={() => setPage(n)}
-              className={`px-3 py-1.5 text-sm border border-border transition ${
+              className={`mobile-page-number px-3 py-1.5 text-sm border border-border transition ${
                 n === page
                   ? "bg-primary text-primary-foreground font-bold"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -215,7 +215,7 @@ function MembresiaCard({
 
   return (
     <div
-      className="group relative flex flex-col rounded-xl border border-border/50 overflow-hidden transition-all duration-300 hover:border-accent/50 hover:shadow-xl animate-fade-in-up"
+      className="group relative flex min-w-0 flex-col rounded-xl border border-border/50 overflow-hidden transition-all duration-300 hover:border-accent/50 hover:shadow-xl animate-fade-in-up"
       style={{
         background: m.esOferta 
           ? "linear-gradient(135deg, #2A1F1F 0%, #252529 100%)"
@@ -271,7 +271,7 @@ function MembresiaCard({
       )}
 
       {/* Header */}
-      <div className="px-5 pt-5 pb-4 border-b border-border/30">
+      <div className="px-4 pt-5 pb-4 border-b border-border/30 sm:px-5">
         {/* Badges superiores */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           {/* Badge Estado */}
@@ -316,9 +316,9 @@ function MembresiaCard({
           {m.esOferta && m.precioOferta ? (
             /* Mostrar Precio Promocional */
             <>
-              <div className="flex items-baseline gap-2">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-2">
                 <span
-                  className="text-3xl font-extrabold"
+                  className="max-w-full truncate text-[clamp(2rem,12vw,3rem)] font-extrabold"
                   style={{ 
                     color: "#FF3B3B",
                     textShadow: "0 0 12px rgba(255,59,59,0.35)" 
@@ -342,9 +342,9 @@ function MembresiaCard({
             </>
           ) : (
             /* Mostrar Precio Normal */
-            <div className="flex items-baseline gap-2">
+            <div className="flex min-w-0 items-baseline gap-2">
               <span
-                className="text-3xl font-extrabold text-accent"
+                className="max-w-full truncate text-[clamp(2rem,12vw,3rem)] font-extrabold text-accent"
                 style={{ textShadow: "0 0 12px rgba(0,191,255,0.25)" }}
               >
                 ${m.precioBase.toLocaleString()}
@@ -372,7 +372,7 @@ function MembresiaCard({
       </div>
 
       {/* Body */}
-      <div className="px-5 py-4 flex-1 flex flex-col gap-3">
+      <div className="px-4 py-4 flex-1 flex flex-col gap-3 sm:px-5">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar className="h-4 w-4 flex-shrink-0 text-accent/70" />
           <span className="font-medium">{getDuracionTexto(m.duracionCantidad, m.duracionUnidad)}</span>
