@@ -199,7 +199,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 px-4 pb-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)] md:px-4 md:pb-4 md:pt-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-background/85 backdrop-blur-sm"
@@ -208,13 +208,13 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
 
       {/* Modal */}
       <div
-        className="relative bg-card rounded-xl w-full max-w-5xl overflow-hidden animate-slide-up shadow-2xl my-4"
+        className="relative my-2 max-h-[calc(100dvh-2rem)] w-full max-w-5xl overflow-y-auto rounded-xl bg-card shadow-2xl animate-slide-up md:my-4"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border bg-muted/30">
-          <h3 className="text-xl font-bold text-primary flex items-center gap-2">
+        <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-muted/95 p-4 backdrop-blur md:p-6">
+          <h3 className="flex min-w-0 items-center gap-2 text-lg font-bold text-primary md:text-xl">
             <ShoppingCart className="h-5 w-5" />
-            Registrar Nueva Venta
+            <span className="truncate">Registrar Nueva Venta</span>
           </h3>
           <button
             onClick={onClose}
@@ -225,10 +225,10 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
         </div>
 
         {/* Contenido en dos columnas */}
-        <div className="flex flex-col md:flex-row h-[calc(100vh-180px)] max-h-[650px] overflow-y-auto">
+        <div className="flex flex-col md:h-[calc(100vh-180px)] md:max-h-[650px] md:flex-row md:overflow-y-auto">
           {/* COLUMNA IZQUIERDA: Productos */}
-          <div className="flex-1 border-r border-border p-6 flex flex-col overflow-hidden">
-            <form onSubmit={handleSubmit} className="flex flex-col flex-1">
+          <div className="flex flex-col border-border p-4 md:flex-1 md:border-r md:p-6 md:overflow-hidden">
+            <form onSubmit={handleSubmit} className="flex flex-col md:flex-1">
               {/* Buscador de productos */}
               <div className="mb-4">
                 <h4 className="text-sm font-semibold mb-3 text-muted-foreground flex items-center gap-2">
@@ -253,7 +253,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
                   
                   {/* Sugerencias de productos */}
                   {showProductosSuggestions && productosFiltrados.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-lg overflow-hidden z-20 max-h-48 overflow-y-auto shadow-lg">
+                    <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-lg">
                       {productosFiltrados.map((producto) => (
                         <button
                           key={producto.id}
@@ -280,17 +280,17 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
               </div>
 
               {/* Lista de productos seleccionados */}
-              <div className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex flex-col md:flex-1 md:overflow-hidden">
                 {productosSeleccionados.length > 0 ? (
                   <>
                     <h4 className="text-xs font-semibold mb-3 text-muted-foreground uppercase tracking-wider">
                       Productos Seleccionados ({productosSeleccionados.length})
                     </h4>
-                    <div className="flex-1 overflow-y-auto pr-2 space-y-2">
+                    <div className="max-h-72 space-y-2 overflow-y-auto pr-1 md:max-h-none md:flex-1 md:pr-2">
                       {productosSeleccionados.map((item) => (
                         <div
                           key={item.producto.id}
-                          className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border hover:border-accent/30 transition-colors"
+                          className="grid grid-cols-[1fr_auto] gap-3 rounded-lg border border-border bg-background p-3 transition-colors hover:border-accent/30 sm:flex sm:items-center sm:gap-2"
                         >
                           {/* Nombre y detalles */}
                           <div className="flex-1 min-w-0">
@@ -301,7 +301,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
                           </div>
 
                           {/* Controles de cantidad */}
-                          <div className="flex items-center gap-1 bg-muted/50 px-2 py-1 rounded">
+                          <div className="flex items-center gap-1 rounded bg-muted/50 px-2 py-1">
                             <button
                               type="button"
                               onClick={() => cambiarCantidad(item.producto.id, item.cantidad - 1)}
@@ -324,7 +324,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
                           </div>
 
                           {/* Subtotal */}
-                          <div className="text-sm font-semibold text-foreground min-w-[4rem] text-right">
+                          <div className="text-right text-sm font-semibold text-foreground sm:min-w-[4rem]">
                             {formatCurrency(item.producto.precioVenta * item.cantidad)}
                           </div>
 
@@ -341,7 +341,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
                     </div>
                   </>
                 ) : (
-                  <div className="flex-1 flex items-center justify-center">
+                  <div className="flex min-h-44 items-center justify-center md:flex-1">
                     <div className="text-center py-8">
                       <Package className="h-12 w-12 text-muted-foreground/30 mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">
@@ -355,7 +355,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
           </div>
 
           {/* COLUMNA DERECHA: Cliente y Pago */}
-          <div className="w-full md:w-100 p-6 border-t md:border-t-0 border-border bg-muted/20 flex flex-col overflow-y-auto">
+          <div className="flex w-full flex-col overflow-visible border-t border-border bg-muted/20 p-4 md:w-100 md:overflow-y-auto md:border-t-0 md:p-6">
             <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
               {/* Cliente */}
               <div className="space-y-3">
@@ -382,7 +382,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
                   
                   {/* Sugerencias de socios */}
                   {showSociosSuggestions && sociosFiltrados.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-lg overflow-hidden z-20 max-h-40 overflow-y-auto shadow-lg">
+                    <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-40 overflow-y-auto rounded-lg border border-border bg-card shadow-lg">
                       {sociosFiltrados.map((socio) => (
                         <button
                           key={socio.id}
@@ -429,7 +429,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
               <div className="space-y-3 flex-1 flex flex-col">
 
                 {productosSeleccionados.length > 0 ? (
-                  <div className="flex-1 overflow-y-auto">
+                  <div className="overflow-visible md:flex-1 md:overflow-y-auto">
                     <DualPaymentSelector
                       total={total}
                       metodosPago={metodosPago}
@@ -457,7 +457,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
               )}
 
               {/* Botones */}
-              <div className="flex gap-2 pt-2">
+              <div className="sticky bottom-0 z-20 -mx-4 grid grid-cols-2 gap-2 border-t border-border bg-card/95 px-4 pb-1 pt-3 backdrop-blur md:static md:mx-0 md:flex md:border-0 md:bg-transparent md:p-0 md:pt-2 md:backdrop-blur-0">
                 <button
                   type="button"
                   onClick={onClose}
