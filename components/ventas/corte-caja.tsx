@@ -360,10 +360,10 @@ export function CorteCaja({
   }, [cargarCortes])
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {/* Action Bar */}
       <div
-        className="bg-card rounded-xl p-5"
+        className="min-w-0 bg-card rounded-xl p-4 sm:p-5"
         style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
       >
         <div className="flex items-center gap-2 mb-5">
@@ -374,11 +374,11 @@ export function CorteCaja({
         </div>
 
         {/* Top Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div className="grid grid-cols-1 gap-2 mb-5 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           {canCrearCorte && (
             <button
               onClick={() => setShowNuevoModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase bg-primary text-primary-foreground glow-primary glow-primary-hover transition-all"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase bg-primary text-primary-foreground glow-primary glow-primary-hover transition-all"
             >
               <PlusCircle className="h-4 w-4" />
               Nuevo
@@ -389,7 +389,7 @@ export function CorteCaja({
               if (selectedCorte) cargarDetalle(selectedCorte.id)
             }}
             disabled={!selectedCorte || loadingDetalle}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase border border-accent text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase border border-accent text-accent hover:bg-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loadingDetalle ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -398,12 +398,12 @@ export function CorteCaja({
             )}
             Ver Detalle
           </button>
-          <div className="flex-1" />
+          <div className="hidden flex-1 sm:block" />
           {canCrearCorte && (
             <button
               onClick={handleEliminar}
               disabled={!selectedCorte}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase border border-destructive text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase border border-destructive text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Trash2 className="h-4 w-4" />
               Eliminar
@@ -412,7 +412,7 @@ export function CorteCaja({
           {canExportar && (
             <button
               onClick={handleExportar}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase border border-success text-success hover:bg-success/10 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase border border-success text-success hover:bg-success/10 transition-colors"
             >
               <FileSpreadsheet className="h-4 w-4" />
               Exportar a Excel
@@ -421,9 +421,9 @@ export function CorteCaja({
         </div>
 
         {/* Date Filters + Efectivo en Caja */}
-        <div className="flex flex-wrap items-end gap-4 mb-5 pb-5 border-b border-border">
-          <div className="flex items-end gap-3">
-            <div>
+        <div className="grid grid-cols-1 gap-4 mb-5 pb-5 border-b border-border lg:flex lg:flex-wrap lg:items-end">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end">
+            <div className="min-w-0">
               <label className="block text-[10px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">
                 Fecha inicio
               </label>
@@ -431,10 +431,10 @@ export function CorteCaja({
                 type="date"
                 value={filtroFechaInicio}
                 onChange={(e) => setFiltroFechaInicio(e.target.value)}
-                className="px-3 py-2 bg-background border border-border rounded-lg text-foreground text-xs focus:border-accent focus:ring-0 focus:outline-none transition-colors"
+                className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-xs focus:border-accent focus:ring-0 focus:outline-none transition-colors"
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <label className="block text-[10px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">
                 Fecha fin
               </label>
@@ -442,22 +442,22 @@ export function CorteCaja({
                 type="date"
                 value={filtroFechaFin}
                 onChange={(e) => setFiltroFechaFin(e.target.value)}
-                className="px-3 py-2 bg-background border border-border rounded-lg text-foreground text-xs focus:border-accent focus:ring-0 focus:outline-none transition-colors"
+                className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-xs focus:border-accent focus:ring-0 focus:outline-none transition-colors"
               />
             </div>
             <button
               onClick={handleBuscar}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase bg-accent text-accent-foreground glow-accent glow-accent-hover transition-all"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase bg-accent text-accent-foreground glow-accent glow-accent-hover transition-all"
             >
               <Search className="h-3.5 w-3.5" />
               Buscar
             </button>
           </div>
 
-          <div className="flex-1" />
+          <div className="hidden flex-1 lg:block" />
 
           {/* Efectivo en Caja */}
-          <div className="flex items-center gap-3 bg-background rounded-lg px-4 py-2.5">
+          <div className="flex items-center gap-3 bg-background rounded-lg px-4 py-3">
             <DollarSign className="h-5 w-5 text-success" />
             <div>
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">
@@ -468,8 +468,101 @@ export function CorteCaja({
           </div>
         </div>
 
+        {/* Cortes mobile cards */}
+        <div className="space-y-3 md:hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 text-accent animate-spin" />
+            </div>
+          ) : cortes.length === 0 ? (
+            <div className="rounded-xl border border-border bg-background/40 px-4 py-10 text-center text-sm text-muted-foreground">
+              No hay cortes registrados
+            </div>
+          ) : (
+            cortes.map((corte) => {
+              const isSelected = selectedCorte?.id === corte.id
+              const fechaInicio = formatFecha(corte.fechaInicio)
+              const fechaFin = formatFecha(corte.fechaFin, "Caja abierta")
+
+              return (
+                <article
+                  key={corte.id}
+                  onClick={() => setSelectedCorte(isSelected ? null : corte)}
+                  className={`rounded-xl border p-4 transition-colors ${
+                    isSelected
+                      ? "border-accent/60 bg-accent/10"
+                      : "border-border bg-background/35"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-sm font-semibold text-accent">{corte.folio}</p>
+                      <h4 className="mt-1 truncate text-base font-semibold text-foreground">
+                        {corte.usuario}
+                      </h4>
+                    </div>
+                    <div
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${
+                        isSelected ? "border-accent bg-accent text-accent-foreground" : "border-border text-muted-foreground"
+                      }`}
+                    >
+                      {isSelected && <CheckCircle2 className="h-4 w-4" />}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Inicio</p>
+                      <p className="mt-1 font-medium text-foreground">{fechaInicio}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Fin</p>
+                      <p className="mt-1 font-medium text-foreground">{fechaFin}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Ingresos</p>
+                      <p className="mt-1 font-semibold text-success">{formatCurrency(corte.ingresos)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Egresos</p>
+                      <p className="mt-1 font-semibold text-destructive">{formatCurrency(corte.egresos)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Caja inicial</p>
+                      <p className="mt-1 font-semibold text-accent">{formatCurrency(corte.cajaInicial)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Caja final</p>
+                      <p className="mt-1 font-semibold text-accent">{formatCurrency(corte.cajaFinal)}</p>
+                    </div>
+                  </div>
+
+                  {corte.observacion && (
+                    <p className="mt-3 line-clamp-2 rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                      {corte.observacion}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setSelectedCorte(corte)
+                      cargarDetalle(corte.id)
+                    }}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2.5 text-sm font-semibold text-accent"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Ver detalle
+                  </button>
+                </article>
+              )
+            })
+          )}
+        </div>
+
         {/* Cortes Table */}
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-8 w-8 text-accent animate-spin" />
@@ -586,7 +679,7 @@ export function CorteCaja({
 
         {/* Pagination */}
         {pagination.total_pages > 1 && !loading && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+          <div className="mobile-safe-pagination flex items-center justify-between mt-4 pt-4 border-t border-border">
             <span className="text-xs text-muted-foreground">
               {pagination.total_records} corte{pagination.total_records !== 1 ? "s" : ""} registrado{pagination.total_records !== 1 ? "s" : ""}
             </span>
@@ -927,8 +1020,8 @@ function NuevoCorteModal({
                   <p className="text-sm text-muted-foreground">No hay movimientos en el rango seleccionado</p>
                 </div>
               ) : (
-                <div className="max-h-72 overflow-y-auto">
-                  <table className="w-full text-left">
+                <div className="max-h-72 overflow-auto">
+                  <table className="min-w-[760px] w-full text-left">
                     <thead className="sticky top-0 bg-background z-10">
                       <tr className="border-b border-border">
                         <th className="px-3 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -991,7 +1084,7 @@ function NuevoCorteModal({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-border">
+          <div className="grid grid-cols-1 gap-2 pt-4 border-t border-border sm:flex sm:justify-end sm:gap-3">
             <button
               type="button"
               onClick={onClose}
@@ -1003,7 +1096,7 @@ function NuevoCorteModal({
               type="button"
               onClick={handleRealizarCorte}
               disabled={!consulted || movimientos.length === 0}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-xs font-bold uppercase bg-success text-foreground transition-all hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-xs font-bold uppercase bg-success text-foreground transition-all hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ boxShadow: consulted && movimientos.length > 0 ? "0 0 15px rgba(75, 181, 67, 0.4)" : "none" }}
             >
               <CheckCircle2 className="h-4 w-4" />
@@ -1031,19 +1124,19 @@ function DetalleCorteModal({
   }, [corte.movimientos])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4 pb-8 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 px-3 pb-6 overflow-y-auto sm:pt-8 sm:px-4 sm:pb-8">
       <div className="fixed inset-0 bg-background/85 backdrop-blur-sm" onClick={onClose} />
 
       <div
         className="relative bg-card rounded-xl w-full max-w-3xl overflow-hidden animate-slide-up"
         style={{ boxShadow: "0 25px 50px rgba(0,0,0,0.5)" }}
       >
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {/* Header */}
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
-            <h3 className="text-lg font-bold text-accent flex items-center gap-2">
+          <div className="flex items-center justify-between gap-3 mb-6 pb-4 border-b border-border">
+            <h3 className="min-w-0 text-base sm:text-lg font-bold text-accent flex items-center gap-2">
               <Receipt className="h-5 w-5" />
-              Detalle del Corte {corte.folio}
+              <span className="truncate">Detalle del Corte {corte.folio}</span>
             </h3>
             <button
               onClick={onClose}
@@ -1054,7 +1147,7 @@ function DetalleCorteModal({
           </div>
 
           {/* Info Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Fecha Inicio</p>
               <p className="text-sm font-medium text-foreground">
@@ -1080,7 +1173,7 @@ function DetalleCorteModal({
           </div>
 
           {/* Totals */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Total Ingresos</p>
               <p className="text-lg font-bold text-success">{formatCurrency(corte.totalIngresos)}</p>
@@ -1123,8 +1216,8 @@ function DetalleCorteModal({
             {corte.movimientos.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-8">Sin movimientos registrados</p>
             ) : (
-              <div className="max-h-64 overflow-y-auto">
-                <table className="w-full text-left">
+              <div className="max-h-64 overflow-auto">
+                <table className="min-w-[760px] w-full text-left">
                   <thead className="sticky top-0 bg-background z-10">
                     <tr className="border-b border-border">
                       <th className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -1198,7 +1291,7 @@ function DetalleCorteModal({
           <div className="flex justify-end">
             <button
               onClick={onClose}
-              className="px-5 py-2 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="w-full px-5 py-2.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors sm:w-auto"
             >
               Cerrar
             </button>
