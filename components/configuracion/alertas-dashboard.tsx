@@ -55,9 +55,10 @@ function ResumenBadge({ label, count, color }: { label: string; count: number; c
 interface AlertasDashboardProps {
   compact?: boolean
   onAlertaResuelta?: () => void
+  onClose?: () => void
 }
 
-export function AlertasDashboard({ compact = false, onAlertaResuelta }: AlertasDashboardProps = {}) {
+export function AlertasDashboard({ compact = false, onAlertaResuelta, onClose }: AlertasDashboardProps = {}) {
   const [alertas, setAlertas] = useState<AlertaItem[]>([])
   const [resumen, setResumen] = useState<AlertasResumen | null>(null)
   const [cargando, setCargando] = useState(false)
@@ -144,14 +145,27 @@ export function AlertasDashboard({ compact = false, onAlertaResuelta }: AlertasD
             </span>
           )}
         </div>
-        <button
-          onClick={sincronizarManual}
-          disabled={cargando || sincronizando}
-          className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          title="Sincronizar y recargar alertas"
-        >
-          <RefreshCw className={`h-4 w-4 ${(cargando || sincronizando) ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={sincronizarManual}
+            disabled={cargando || sincronizando}
+            className="p-1.5 rounded-md hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            title="Sincronizar y recargar alertas"
+          >
+            <RefreshCw className={`h-4 w-4 ${(cargando || sincronizando) ? "animate-spin" : ""}`} />
+          </button>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title="Cerrar alertas"
+              aria-label="Cerrar alertas"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Resumen de prioridades */}
