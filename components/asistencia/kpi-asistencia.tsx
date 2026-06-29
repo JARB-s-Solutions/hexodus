@@ -72,7 +72,7 @@ export function KpiAsistenciaCards({ data, loading = false, error = null, onReca
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
       {kpis.map((kpi) => {
         const Icon = kpi.icon
         const value = data[kpi.key]
@@ -80,7 +80,7 @@ export function KpiAsistenciaCards({ data, loading = false, error = null, onReca
         return (
           <div
             key={kpi.key}
-            className="bg-card rounded-xl p-4 border border-border hover:border-accent/30 transition-all duration-300 hover:-translate-y-0.5 relative"
+            className="relative rounded-xl border border-border bg-card p-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-accent/30 md:p-4"
             style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}
           >
             {loading && (
@@ -88,16 +88,16 @@ export function KpiAsistenciaCards({ data, loading = false, error = null, onReca
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             )}
-            <div className="flex items-center justify-between mb-3">
-              <div className={`p-2.5 rounded-lg ${kpi.bgClass}`}>
-                <Icon className={`h-5 w-5 ${kpi.colorClass}`} />
+            <div className="mb-3 flex items-center justify-between">
+              <div className={`rounded-lg p-2 md:p-2.5 ${kpi.bgClass}`}>
+                <Icon className={`h-4 w-4 md:h-5 md:w-5 ${kpi.colorClass}`} />
               </div>
               {kpi.pulse && !loading && (
                 <div className="h-2.5 w-2.5 rounded-full bg-success animate-pulse" />
               )}
             </div>
-            <p className="text-xs text-muted-foreground mb-1">{kpi.label}</p>
-            <p className={`text-2xl font-bold ${kpi.colorClass}`}>{value}</p>
+            <p className="mb-1 text-[11px] text-muted-foreground md:text-xs">{kpi.label}</p>
+            <p className={`text-xl font-bold md:text-2xl ${kpi.colorClass}`}>{value}</p>
           </div>
         )
       })}
