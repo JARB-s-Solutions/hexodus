@@ -21,7 +21,7 @@ interface ConfigTabsProps {
 export function ConfigTabs({ activeTab, onTabChange }: ConfigTabsProps) {
   return (
     <div className="bg-card rounded-xl p-2 border border-border">
-      <div className="flex flex-wrap gap-2">
+      <div className="custom-scrollbar flex gap-2 overflow-x-auto md:flex-wrap md:overflow-visible">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTab
           return (
@@ -29,7 +29,7 @@ export function ConfigTabs({ activeTab, onTabChange }: ConfigTabsProps) {
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={`
-                flex-1 min-w-[140px] flex items-center justify-center gap-2 px-5 py-3
+                min-w-[132px] shrink-0 flex items-center justify-center gap-2 px-4 py-3 md:flex-1 md:min-w-[140px] md:px-5
                 rounded-lg text-sm font-medium transition-all duration-300 relative overflow-hidden
                 ${
                   isActive
@@ -56,7 +56,7 @@ export function ConfigTabs({ activeTab, onTabChange }: ConfigTabsProps) {
                     : undefined
                 }
               />
-              <span>{tab.label}</span>
+              <span className="truncate">{tab.label}</span>
             </button>
           )
         })}
