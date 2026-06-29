@@ -92,15 +92,15 @@ export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, o
 
   return (
     <div
-      className="bg-card rounded-xl p-4"
+      className="min-w-0 bg-card rounded-xl p-4"
       style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
     >
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <ShoppingCart className="h-5 w-5 text-accent" />
-          <h2 className="text-lg font-semibold text-foreground">Historial de Ventas</h2>
-          <span className="ml-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-accent/20 text-accent">
+          <h2 className="min-w-0 text-lg font-semibold text-foreground">Historial de Ventas</h2>
+          <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-accent/20 text-accent">
             {pagination.totalRecords} ventas
           </span>
         </div>
@@ -122,8 +122,89 @@ export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, o
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-lg" style={{ maxHeight: "calc(100vh - 320px)" }}>
+      {/* Mobile cards */}
+      <div className="space-y-3 md:hidden">
+        {sorted.length === 0 ? (
+          <div className="rounded-xl border border-border bg-background/40 px-4 py-10 text-center text-sm text-muted-foreground">
+            No se encontraron ventas con los filtros seleccionados.
+          </div>
+        ) : (
+          sorted.map((venta) => {
+            const { fecha, hora } = formatDateTime(venta.fechaHora)
+            const cancelada = venta.status === 'cancelada'
+
+            return (
+              <article
+                key={venta.id}
+                className={`rounded-xl border p-4 ${cancelada ? 'border-destructive/25 bg-destructive/5' : 'border-border bg-background/35'}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-sm font-semibold text-accent">{venta.idVenta}</p>
+                    <h3 className={`mt-1 truncate text-base font-semibold text-foreground ${cancelada ? 'line-through decoration-destructive/60' : ''}`}>
+                      {venta.cliente}
+                    </h3>
+                  </div>
+                  <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyles[venta.status] || 'bg-muted text-muted-foreground border-border'}`}>
+                    {statusLabels[venta.status] || venta.status}
+                  </span>
+                </div>
+
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-muted-foreground">Productos</span>
+                    <span className={`max-w-[62%] text-right text-foreground ${cancelada ? 'line-through decoration-destructive/60' : ''}`}>
+                      {venta.productosResumen}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Total</span>
+                    <span className="font-semibold text-primary">{formatCurrency(venta.total)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Pago</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${metodoPagoStyles[venta.metodoPago] || "bg-muted text-muted-foreground"}`}>
+                      {venta.metodoPago}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Fecha</span>
+                    <span className="text-right text-foreground">{fecha} · {hora}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onVerDetalle(venta)}
+                    className="flex items-center justify-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2.5 text-sm font-medium text-accent transition-colors hover:bg-accent/20"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Detalle
+                  </button>
+                  {puedeCancelarVenta && venta.status !== 'cancelada' ? (
+                    <button
+                      type="button"
+                      onClick={() => onCancelarVenta(venta)}
+                      className="flex items-center justify-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/20"
+                    >
+                      <Ban className="h-4 w-4" />
+                      Cancelar
+                    </button>
+                  ) : (
+                    <div className="rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-center text-sm text-muted-foreground">
+                      Sin acciones
+                    </div>
+                  )}
+                </div>
+              </article>
+            )
+          })
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden overflow-x-auto rounded-lg md:block" style={{ maxHeight: "calc(100vh - 320px)" }}>
         <table className="min-w-full divide-y divide-border">
           <thead className="bg-muted sticky top-0 z-10">
             <tr>
@@ -246,7 +327,7 @@ export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, o
 
       {/* Pagination */}
       {pagination.totalRecords > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between mt-4 pt-4 border-t border-border gap-3">
+        <div className="mobile-safe-pagination flex flex-col sm:flex-row items-center justify-between mt-4 pt-4 border-t border-border gap-3">
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span>Mostrando</span>
             <span className="font-medium text-foreground">{inicio}</span>
@@ -257,7 +338,7 @@ export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, o
             <span>ventas</span>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex max-w-full items-center justify-center gap-1 overflow-x-auto">
             <button
               onClick={() => onPageChange(1)}
               disabled={pagination.currentPage === 1}
@@ -282,7 +363,7 @@ export function VentasTable({ ventas, pagination, onPageChange, onLimitChange, o
                 <button
                   key={p}
                   onClick={() => onPageChange(p as number)}
-                  className={`px-2.5 py-1.5 text-xs font-medium border border-border rounded transition-all duration-200 ${
+                  className={`hidden px-2.5 py-1.5 text-xs font-medium border border-border rounded transition-all duration-200 sm:inline-flex ${
                     pagination.currentPage === p
                       ? "bg-primary text-primary-foreground border-primary glow-primary"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
