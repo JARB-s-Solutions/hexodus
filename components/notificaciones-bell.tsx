@@ -46,7 +46,7 @@ export function NotificacionesBell() {
     <div ref={containerRef} className="relative">
       <button
         onClick={handleToggle}
-        className="relative p-2 rounded-full hover:bg-gray-800 transition duration-200"
+        className="notificaciones-trigger relative p-2 rounded-full hover:bg-gray-800 transition duration-200"
         title="Notificaciones"
         aria-label="Notificaciones"
       >
@@ -61,10 +61,14 @@ export function NotificacionesBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-105 max-w-[calc(100vw-2rem)] z-50 shadow-2xl rounded-xl bg-card border border-border/60 overflow-hidden">
+        <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+6.25rem)] top-[calc(env(safe-area-inset-top)+5rem)] z-[80] overflow-hidden rounded-xl border border-border/60 bg-card shadow-2xl md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:max-h-[70vh] md:w-105 md:max-w-[calc(100vw-2rem)]">
           <AlertasDashboard
             compact
             onAlertaResuelta={cargarConteo}
+          onClose={() => {
+              cargarConteo()
+              setOpen(false)
+            }}
           />
         </div>
       )}
