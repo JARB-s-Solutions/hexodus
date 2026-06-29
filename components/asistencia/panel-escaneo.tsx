@@ -47,10 +47,10 @@ export function PanelEscaneo({
   )
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 md:space-y-4">
       {/* Scanner Control Card */}
       <div
-        className="bg-card rounded-xl p-5 border border-border"
+        className="rounded-xl border border-border bg-card p-4 md:p-5"
         style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}
       >
         <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -59,8 +59,8 @@ export function PanelEscaneo({
         </h3>
 
         {/* Status indicators */}
-        <div className="flex items-center gap-6 mb-4 p-3 rounded-lg bg-muted/50">
-          <div className="flex items-center gap-2">
+        <div className="mb-4 grid grid-cols-1 gap-2 rounded-lg bg-muted/50 p-3 sm:grid-cols-2 md:flex md:items-center md:gap-6">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="text-xs text-muted-foreground">Estado:</span>
             <div className="flex items-center gap-1.5">
               <div
@@ -77,7 +77,7 @@ export function PanelEscaneo({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="text-xs text-muted-foreground">Sistema:</span>
             <div className="flex items-center gap-1.5">
               <div
@@ -101,7 +101,7 @@ export function PanelEscaneo({
           <button
             onClick={onAbrirPantalla}
             disabled={!sistemaListo}
-            className="w-full flex items-center justify-center gap-2.5 px-5 py-3 rounded-lg bg-primary text-primary-foreground font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed glow-primary"
+            className="flex min-h-12 w-full items-center justify-center gap-2.5 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 md:px-5 glow-primary"
           >
             <MonitorPlay className="h-5 w-5" />
             Abrir Pantalla de Escaneo
@@ -109,7 +109,7 @@ export function PanelEscaneo({
         ) : (
           <button
             onClick={onCerrarPantalla}
-            className="w-full flex items-center justify-center gap-2.5 px-5 py-3 rounded-lg border-2 border-accent text-accent font-semibold text-sm transition-all hover:bg-accent/10 glow-accent"
+            className="flex min-h-12 w-full items-center justify-center gap-2.5 rounded-lg border-2 border-accent px-4 py-3 text-sm font-semibold text-accent transition-all hover:bg-accent/10 md:px-5 glow-accent"
           >
             <MonitorOff className="h-5 w-5" />
             Cerrar Pantalla
@@ -135,12 +135,12 @@ export function PanelEscaneo({
 
       {/* Configuration Card */}
       <div
-        className="bg-card rounded-xl border border-border overflow-hidden"
+        className="overflow-hidden rounded-xl border border-border bg-card"
         style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}
       >
         <button
           onClick={() => setShowConfig(!showConfig)}
-          className="w-full flex items-center justify-between p-5 hover:bg-muted/30 transition-colors"
+          className="flex w-full items-center justify-between p-4 transition-colors hover:bg-muted/30 md:p-5"
         >
           <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Settings2 className="h-4 w-4 text-accent" />
