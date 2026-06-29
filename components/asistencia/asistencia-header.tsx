@@ -57,26 +57,26 @@ export function AsistenciaHeader({ onRegistroManual, onRegistroHuella }: Asisten
 
   return (
     <header
-      className="flex items-center justify-between p-4 rounded-xl sticky top-0 z-10 bg-card"
+      className="sticky top-0 z-10 flex flex-col gap-3 rounded-xl bg-card p-3 md:flex-row md:items-center md:justify-between md:p-4"
       style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
     >
-      <div>
-        <h2 className="text-xl font-semibold text-foreground">
+      <div className="min-w-0">
+        <h2 className="truncate text-lg font-semibold text-foreground md:text-xl">
           {"Control de Asistencia - "}
           <span className="text-primary">Administrador General</span>
         </h2>
         <p className="text-sm text-muted-foreground">{fechaHora}</p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2 md:w-auto md:flex md:items-center md:gap-3">
         {onRegistroHuella && (
           <Button
             onClick={onRegistroHuella}
             variant="default"
             size="sm"
-            className="gap-2 bg-gradient-to-r from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70"
+            className="min-h-11 min-w-0 justify-center gap-1.5 bg-gradient-to-r from-accent to-accent/80 px-2 text-xs hover:from-accent/90 hover:to-accent/70 md:min-h-0 md:w-auto md:gap-2 md:px-4 md:text-sm"
           >
-            <Fingerprint className="h-4 w-4" />
-            Registro con Huella
+            <Fingerprint className="h-4 w-4 shrink-0" />
+            <span className="truncate">Registro con Huella</span>
           </Button>
         )}
         {onRegistroManual && (
@@ -84,16 +84,18 @@ export function AsistenciaHeader({ onRegistroManual, onRegistroHuella }: Asisten
             onClick={onRegistroManual}
             variant="default"
             size="sm"
-            className="gap-2"
+            className="min-h-11 min-w-0 justify-center gap-1.5 px-2 text-xs md:min-h-0 md:w-auto md:gap-2 md:px-4 md:text-sm"
           >
-            <UserPlus className="h-4 w-4" />
-            Registro Manual
+            <UserPlus className="h-4 w-4 shrink-0" />
+            <span className="truncate">Registro Manual</span>
           </Button>
         )}
-        <NotificacionesBell />
+        <div className="hidden md:block">
+          <NotificacionesBell />
+        </div>
         <button
           onClick={handleLogout}
-          className="p-2 rounded-full hover:bg-muted transition-colors"
+          className="hidden p-2 rounded-full hover:bg-muted transition-colors md:block"
           aria-label="Cerrar sesion"
         >
           <LogOut className="h-5 w-5 text-primary" />

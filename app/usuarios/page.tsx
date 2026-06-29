@@ -413,7 +413,7 @@ export default function UsuariosPage() {
 
           {/* Paginación */}
           {totalPaginas > 1 && (
-            <div className="flex items-center justify-between border-t border-border pt-4">
+            <div className="mobile-safe-pagination flex items-center justify-between border-t border-border pt-4">
               <p className="text-sm text-muted-foreground">
                 Página {paginaActual} de {totalPaginas} • Total: {totalUsuarios} usuarios
               </p>

@@ -55,13 +55,13 @@ export function KpiMembresias({ membresias }: KpiMembresiasProps) {
   }
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {kpis.map((kpi) => {
         const colors = accentColors[kpi.accentType]
         return (
           <div
             key={kpi.label}
-            className="group bg-card rounded-xl p-5 relative overflow-hidden transition-all duration-300 hover:scale-[1.02]"
+            className="group min-w-0 bg-card rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300 hover:scale-[1.02]"
             style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
           >
             <div
@@ -76,8 +76,8 @@ export function KpiMembresias({ membresias }: KpiMembresiasProps) {
                 boxShadow: `0 0 8px ${colors.shadow}`,
               }}
             />
-            <div className="flex items-center justify-between mb-3">
-              <span className={`text-xs font-medium uppercase tracking-wider ${colors.text}`}>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <span className={`min-w-0 truncate text-xs font-medium uppercase tracking-wider ${colors.text}`}>
                 {kpi.label}
               </span>
               <kpi.icon
@@ -85,7 +85,7 @@ export function KpiMembresias({ membresias }: KpiMembresiasProps) {
                 style={{ filter: `drop-shadow(0 0 4px ${colors.shadow})` }}
               />
             </div>
-            <p className="text-3xl font-bold text-foreground mb-1">
+            <p className="truncate text-[clamp(2rem,10vw,2.75rem)] font-bold text-foreground mb-1">
               {typeof kpi.value === 'number' ? kpi.value : kpi.value}
             </p>
             <span className={`text-xs flex items-center gap-1 ${kpi.subColor}`}>

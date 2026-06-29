@@ -105,7 +105,7 @@ export function UsuariosTable({
 
       {/* Scrollable table */}
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="min-w-[900px] w-full">
           <thead>
             <tr className="bg-muted/50">
               <th
@@ -254,7 +254,7 @@ export function UsuariosTable({
       </div>
 
       {/* Pagination footer */}
-      <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-4 border-t border-border gap-3">
+      <div className="mobile-safe-pagination flex flex-col sm:flex-row items-center justify-between px-5 py-4 border-t border-border gap-3">
         <p className="text-xs text-muted-foreground">
           Mostrando{" "}
           <span className="font-semibold text-foreground">{sorted.length > 0 ? inicio + 1 : 0}</span>
@@ -287,7 +287,7 @@ export function UsuariosTable({
               <button
                 key={b}
                 onClick={() => setPagina(b as number)}
-                className={`px-3 py-1.5 text-xs font-medium border rounded transition-colors duration-200 ${
+                className={`mobile-page-number px-3 py-1.5 text-xs font-medium border rounded transition-colors duration-200 ${
                   b === paginaActual
                     ? "bg-primary text-primary-foreground border-primary glow-primary"
                     : "text-muted-foreground border-border hover:text-foreground hover:bg-muted"

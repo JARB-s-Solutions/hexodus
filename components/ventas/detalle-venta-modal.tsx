@@ -70,21 +70,21 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice, vent
     : { fecha: '', hora: '' }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4 pb-8 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)] md:px-4 md:pb-8 md:pt-8">
       <div className="fixed inset-0 bg-background/85 backdrop-blur-sm" onClick={onClose} />
 
       <div
-        className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl w-full max-w-3xl overflow-hidden animate-slide-up shadow-2xl border border-slate-700/50"
+        className="relative max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-700/50 bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl animate-slide-up"
       >
-        <div className="p-8">
+        <div className="p-4 md:p-8">
           {/* Header */}
-          <div className="flex items-start justify-between mb-8">
-            <div className="flex items-center gap-4">
-              <div className="bg-cyan-500/10 p-3 rounded-xl border border-cyan-500/20">
-                <Receipt className="h-7 w-7 text-cyan-400" />
+          <div className="mb-6 flex items-start justify-between gap-3 md:mb-8">
+            <div className="flex min-w-0 items-center gap-3 md:gap-4">
+              <div className="shrink-0 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                <Receipt className="h-6 w-6 text-cyan-400 md:h-7 md:w-7" />
               </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white">Detalle de Venta</h2>
+              <div className="min-w-0">
+                <h2 className="text-xl font-bold text-white md:text-2xl">Detalle de Venta</h2>
                 <p className="text-xs text-slate-400 uppercase tracking-wider mt-1">SISTEMA DE GESTIÓN DE INVENTARIO</p>
               </div>
             </div>
@@ -121,7 +121,7 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice, vent
           {detalleVenta && !loading && (
             <>
               {/* Info Grid - Top Section */}
-              <div className="grid grid-cols-2 gap-8 mb-6">
+              <div className="mb-6 grid grid-cols-1 gap-5 sm:grid-cols-2 md:gap-8">
                 {/* Left Column */}
                 <div className="space-y-4">
                   <div>
@@ -135,14 +135,14 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice, vent
                 </div>
 
                 {/* Right Column */}
-                <div className="space-y-4 text-right">
+                <div className="space-y-4 text-left sm:text-right">
                   <div>
                     <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">FECHA Y HORA</p>
                     <p className="text-base font-medium text-slate-300">{fecha} {hora}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">MÉTODO DE PAGO</p>
-                    <p className="text-base font-medium text-slate-300 flex items-center justify-end gap-2">
+                    <p className="flex items-center gap-2 text-base font-medium text-slate-300 sm:justify-end">
                       <Receipt className="h-4 w-4" />
                       {detalleVenta.metodoPago}
                     </p>
@@ -151,7 +151,7 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice, vent
               </div>
 
               {/* Stats Cards */}
-              <div className="grid grid-cols-3 gap-4 mb-8">
+              <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3 md:mb-8 md:gap-4">
                 {/* Items Card */}
                 <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 text-center">
                   <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">ARTÍCULOS</p>
@@ -172,16 +172,16 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice, vent
                 {/* Total Amount Card */}
                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4 text-center">
                   <p className="text-xs text-cyan-400 uppercase tracking-wider mb-2">MONTO TOTAL</p>
-                  <p className="text-3xl font-bold text-cyan-400">{formatCurrency(detalleVenta.total)}</p>
+                  <p className="text-2xl font-bold text-cyan-400 md:text-3xl">{formatCurrency(detalleVenta.total)}</p>
                 </div>
               </div>
 
               {/* Products List */}
-              <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-6 mb-6">
+              <div className="mb-6 rounded-xl border border-slate-700/50 bg-slate-800/30 p-4 md:p-6">
                 <h3 className="text-xs text-slate-400 uppercase tracking-wider mb-4 font-semibold">LISTA DE PRODUCTOS</h3>
-                
+
                 {/* Table Header */}
-                <div className="grid grid-cols-12 gap-4 pb-3 mb-3 border-b border-slate-700/50">
+                <div className="mb-3 hidden grid-cols-12 gap-4 border-b border-slate-700/50 pb-3 sm:grid">
                   <div className="col-span-5">
                     <p className="text-xs text-slate-400 font-medium">Descripción del Producto</p>
                   </div>
@@ -199,18 +199,21 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice, vent
                 {/* Table Body */}
                 <div className="space-y-3">
                   {detalleVenta.productos.map((p) => (
-                    <div key={p.idDetalle} className="grid grid-cols-12 gap-4 items-center py-2">
-                      <div className="col-span-5">
+                    <div key={p.idDetalle} className="grid grid-cols-2 gap-3 rounded-lg border border-slate-700/40 bg-slate-900/25 p-3 sm:grid-cols-12 sm:items-center sm:border-0 sm:bg-transparent sm:p-0 sm:py-2 md:gap-4">
+                      <div className="col-span-2 sm:col-span-5">
                         <p className="text-sm text-white font-medium">{p.nombre}</p>
                         <p className="text-xs text-slate-500 mt-0.5">Esenciales de Gym</p>
                       </div>
-                      <div className="col-span-2 text-center">
+                      <div className="sm:col-span-2 sm:text-center">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500 sm:hidden">Cant</p>
                         <p className="text-sm text-slate-300 font-medium">{p.cantidad}</p>
                       </div>
-                      <div className="col-span-2 text-right">
+                      <div className="text-right sm:col-span-2">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500 sm:hidden">Precio</p>
                         <p className="text-sm text-slate-300">{formatCurrency(p.precioUnitario)}</p>
                       </div>
-                      <div className="col-span-3 text-right">
+                      <div className="col-span-2 text-right sm:col-span-3">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500 sm:hidden">Subtotal</p>
                         <p className="text-base text-cyan-400 font-semibold">{formatCurrency(p.subtotal)}</p>
                       </div>
                     </div>
@@ -218,19 +221,19 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice, vent
                 </div>
 
                 {/* Total Due */}
-                <div className="border-t border-slate-700/50 mt-4 pt-4 flex justify-end items-center">
-                  <span className="text-base text-slate-400 mr-8">Total a Pagar</span>
+                <div className="mt-4 flex items-center justify-between border-t border-slate-700/50 pt-4 sm:justify-end">
+                  <span className="text-base text-slate-400 sm:mr-8">Total a Pagar</span>
                   <span className="text-2xl font-bold text-cyan-400">{formatCurrency(detalleVenta.total)}</span>
                 </div>
               </div>
 
               {/* Footer Actions */}
-              <div className="flex justify-between items-center gap-4">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between md:gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:flex sm:items-center">
                   {onPrintInvoice && (
                     <button
                       onClick={() => onPrintInvoice(detalleVenta)}
-                      className="flex items-center gap-2 px-6 py-3 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-medium text-white transition-colors"
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-700/50 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-700"
                     >
                       <Printer className="h-4 w-4" />
                       Imprimir Ticket
@@ -239,7 +242,7 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice, vent
                   {ventaContexto && ventaContexto.status !== 'cancelada' && onSolicitarCancelacion && (
                     <button
                       onClick={() => onSolicitarCancelacion(ventaContexto)}
-                      className="flex items-center gap-2 px-6 py-3 bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 rounded-lg text-sm font-medium text-destructive transition-colors"
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-6 py-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/20"
                     >
                       <Ban className="h-4 w-4" />
                       Cancelar venta
@@ -248,7 +251,7 @@ export function DetalleVentaModal({ ventaId, open, onClose, onPrintInvoice, vent
                 </div>
                 <button
                   onClick={onClose}
-                  className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 rounded-lg text-sm font-medium text-white transition-colors"
+                  className="min-h-12 rounded-lg bg-cyan-500 px-8 py-3 text-sm font-medium text-white transition-colors hover:bg-cyan-600"
                 >
                   Cerrar Detalle
                 </button>

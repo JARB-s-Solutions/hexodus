@@ -416,3 +416,178 @@
 .delay-300 {
   animation-delay: 300ms;
 }
+
+/* ================================================
+   ADAPTACION MOVIL DEL SHELL PRINCIPAL
+   ================================================ */
+
+@media (max-width: 767px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  body:has(.hexodus-mobile-shell) main {
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+    padding-top: calc(4.25rem + env(safe-area-inset-top));
+    padding-bottom: calc(6.75rem + env(safe-area-inset-bottom));
+  }
+
+  body:has(.hexodus-mobile-shell) main > header {
+    position: static !important;
+    top: auto !important;
+    margin-inline: 0.75rem !important;
+    margin-top: 0.75rem !important;
+    padding: 0.875rem !important;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  body:has(.hexodus-mobile-shell) main > header > div:first-child {
+    min-width: 0;
+  }
+
+  body:has(.hexodus-mobile-shell) main > header h1,
+  body:has(.hexodus-mobile-shell) main > header h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    font-size: clamp(0.95rem, 4.2vw, 1.05rem);
+    line-height: 1.35rem;
+  }
+
+  body:has(.hexodus-mobile-shell) main > header h1 span,
+  body:has(.hexodus-mobile-shell) main > header h2 span {
+    display: inline;
+  }
+
+  body:has(.hexodus-mobile-shell) main > header p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+  }
+
+  body:has(.hexodus-mobile-shell) main > header > div:last-child {
+    flex-shrink: 0;
+    gap: 0.5rem;
+    max-width: none;
+    overflow: visible;
+  }
+
+  body:has(.hexodus-mobile-shell) .notificaciones-trigger {
+    display: flex;
+    width: 2.75rem;
+    height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    background: hsl(var(--muted) / 0.35);
+  }
+
+  body:has(.hexodus-mobile-shell) .notificaciones-trigger svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  body:has(.hexodus-mobile-shell) main > header button[title="Cerrar sesión"] {
+    display: none;
+  }
+
+  body:has(.hexodus-mobile-shell) main > div,
+  body:has(.hexodus-mobile-shell) main section,
+  body:has(.hexodus-mobile-shell) main article,
+  body:has(.hexodus-mobile-shell) main form,
+  body:has(.hexodus-mobile-shell) main .grid,
+  body:has(.hexodus-mobile-shell) main .flex {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  body:has(.hexodus-mobile-shell) main > div {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  body:has(.hexodus-mobile-shell) main input,
+  body:has(.hexodus-mobile-shell) main select,
+  body:has(.hexodus-mobile-shell) main textarea,
+  body:has(.hexodus-mobile-shell) main button {
+    font-size: 16px;
+  }
+
+  body:has(.hexodus-mobile-shell) main input,
+  body:has(.hexodus-mobile-shell) main select,
+  body:has(.hexodus-mobile-shell) main button {
+    min-height: 44px;
+  }
+
+  body:has(.hexodus-mobile-shell) main table {
+    min-width: 720px;
+  }
+
+  body:has(.hexodus-mobile-shell) main .overflow-x-auto {
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  body:has(.hexodus-mobile-shell) main .overflow-x-auto::after {
+    content: "";
+    display: block;
+    width: 0.75rem;
+    height: 1px;
+  }
+
+  body:has(.hexodus-mobile-shell) main [class*="rounded-xl"],
+  body:has(.hexodus-mobile-shell) main [class*="rounded-lg"] {
+    max-width: 100%;
+  }
+
+  body:has(.hexodus-mobile-shell) main [class*="px-5"] {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  body:has(.hexodus-mobile-shell) main [class*="gap-6"] {
+    gap: 1rem;
+  }
+
+  body:has(.hexodus-mobile-shell) .mobile-safe-pagination {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  body:has(.hexodus-mobile-shell) .mobile-safe-pagination > p,
+  body:has(.hexodus-mobile-shell) .mobile-safe-pagination > span,
+  body:has(.hexodus-mobile-shell) .mobile-safe-pagination > div:first-child {
+    text-align: center;
+  }
+
+  body:has(.hexodus-mobile-shell) .mobile-safe-pagination > div:last-child {
+    justify-content: center;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 0.125rem;
+  }
+
+  body:has(.hexodus-mobile-shell) .mobile-safe-pagination button {
+    flex-shrink: 0;
+  }
+
+  body:has(.hexodus-mobile-shell) .mobile-safe-pagination .mobile-page-number {
+    display: none;
+  }
+
+  .hexodus-mobile-bottom-nav {
+    padding-left: max(0.5rem, env(safe-area-inset-left));
+    padding-right: max(0.5rem, env(safe-area-inset-right));
+  }
+}

@@ -91,11 +91,11 @@ export function DashboardKpi({ datos, loading = false, error = null }: Dashboard
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {cards.map((card, i) => (
         <div
           key={card.label}
-          className={`relative bg-card rounded-xl p-5 border transition-colors hover:border-foreground/10 animate-fade-in-up ${
+          className={`relative min-w-0 bg-card rounded-xl p-4 sm:p-5 border transition-colors hover:border-foreground/10 animate-fade-in-up ${
             card.accent ? "border-accent/15 hover:border-accent/30" : "border-border"
           }`}
           style={{ animationDelay: `${i * 30}ms` }}
@@ -103,7 +103,7 @@ export function DashboardKpi({ datos, loading = false, error = null }: Dashboard
           {loading && (
             <div className="absolute inset-0 rounded-xl bg-background/45 backdrop-blur-[1px]" />
           )}
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between gap-3 mb-3">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               {card.label}
             </span>
@@ -111,7 +111,7 @@ export function DashboardKpi({ datos, loading = false, error = null }: Dashboard
               <card.icon className="h-4 w-4" />
             </div>
           </div>
-          <p className={`text-2xl font-bold mb-1.5 ${card.colorClass}`}>{card.valor}</p>
+          <p className={`truncate text-[clamp(1.45rem,7vw,1.75rem)] font-bold mb-1.5 ${card.colorClass}`}>{card.valor}</p>
           <TrendBadge pct={card.pct} contexto="vs anterior" />
           {error && i === 0 && (
             <p className="text-[11px] text-primary mt-2 truncate" title={error}>
