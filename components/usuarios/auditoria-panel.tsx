@@ -371,7 +371,7 @@ export function AuditoriaPanel() {
 
       {/* ── Paginación ── */}
       {totalPaginas > 1 && (
-        <div className="flex items-center justify-between border-t border-border pt-4">
+        <div className="mobile-safe-pagination flex items-center justify-between border-t border-border pt-4">
           <p className="text-sm text-muted-foreground">
             Página {paginaActual} de {totalPaginas} &bull; Total: {total} registros
           </p>
@@ -392,7 +392,7 @@ export function AuditoriaPanel() {
                   key={num}
                   onClick={() => setPaginaActual(num)}
                   disabled={loading}
-                  className={`w-9 h-9 rounded-lg text-sm border transition-colors disabled:opacity-50 ${
+                  className={`mobile-page-number w-9 h-9 rounded-lg text-sm border transition-colors disabled:opacity-50 ${
                     num === paginaActual
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-card border-border hover:bg-accent/10 text-foreground"
