@@ -50,14 +50,14 @@ export function SociosHeader() {
   }
 
   return (
-    <header className="flex items-center justify-between p-4 mx-4 mt-4 mb-0 rounded-xl sticky top-4 z-10 bg-card">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">
+    <header className="flex min-w-0 items-center justify-between gap-4 p-4 mx-3 md:mx-4 mt-4 mb-0 rounded-xl sticky top-4 z-10 bg-card">
+      <div className="min-w-0">
+        <h1 className="truncate text-lg xl:text-xl font-semibold text-foreground">
           Gestión de Socios - <span className="text-primary">Administrador General</span>
         </h1>
         <p className="text-sm text-muted-foreground">{dateTime}</p>
       </div>
-      <div className="flex items-center space-x-4">
+      <div className="flex shrink-0 items-center space-x-4">
         <NotificacionesBell />
         <button
           onClick={handleLogout}
