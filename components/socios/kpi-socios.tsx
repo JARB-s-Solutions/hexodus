@@ -69,13 +69,13 @@ export function KpiSocios({ socios, stats }: KpiSociosProps) {
   }
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 xl:gap-4">
       {kpis.map((kpi) => {
         const colors = accentColors[kpi.accentType]
         return (
           <div
             key={kpi.label}
-            className="group bg-card rounded-xl p-5 relative overflow-hidden transition-all duration-300 hover:scale-[1.02]"
+            className="group bg-card rounded-xl p-4 xl:p-5 relative min-w-0 overflow-hidden transition-all duration-300 hover:scale-[1.02]"
             style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
           >
             <div
@@ -85,19 +85,19 @@ export function KpiSocios({ socios, stats }: KpiSociosProps) {
                 boxShadow: `0 0 8px ${colors.shadow}`,
               }}
             />
-            <div className="flex items-center justify-between mb-3">
-              <span className={`text-xs font-medium uppercase tracking-wider ${colors.text}`}>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <span className={`min-w-0 truncate text-xs font-medium uppercase tracking-wider ${colors.text}`}>
                 {kpi.label}
               </span>
               <kpi.icon
-                className={`h-5 w-5 ${colors.text}`}
+                className={`h-5 w-5 shrink-0 ${colors.text}`}
                 style={{ filter: `drop-shadow(0 0 4px ${colors.shadow})` }}
               />
             </div>
-            <p className="text-3xl font-bold text-foreground mb-1">{kpi.value}</p>
-            <span className={`text-xs flex items-center gap-1 ${kpi.subColor}`}>
+            <p className="truncate text-3xl font-bold text-foreground mb-1">{kpi.value}</p>
+            <span className={`flex min-w-0 items-center gap-1 text-xs ${kpi.subColor}`}>
               {kpi.label === "Total Socios" && <TrendingUp className="h-3 w-3" />}
-              {kpi.sub}
+              <span className="min-w-0 truncate">{kpi.sub}</span>
             </span>
           </div>
         )

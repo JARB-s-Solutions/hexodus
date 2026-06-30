@@ -478,13 +478,13 @@ export default function SociosPage() {
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar activePage="socios" />
 
-      <main className="flex-1 flex flex-col min-h-0">
+      <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
         <SociosHeader />
 
-        <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6 space-y-5">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-3 py-5 md:px-4 xl:px-6 xl:py-6 space-y-5">
           {cargando && socios.length === 0 ? (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:gap-4">
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div
                     key={index}

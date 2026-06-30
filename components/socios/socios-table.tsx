@@ -176,19 +176,19 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
 
   return (
     <div
-      className="bg-card rounded-xl overflow-hidden"
+      className="min-w-0 max-w-full bg-card rounded-xl overflow-hidden"
       style={{ boxShadow: "0 4px 15px rgba(0,0,0,0.3)" }}
     >
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-5 py-4 border-b border-border">
-        <div className="flex items-center gap-2 mb-2 sm:mb-0">
-          <ListChecks className="h-5 w-5 text-accent" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 xl:px-5 py-4 border-b border-border">
+        <div className="flex min-w-0 items-center gap-2">
+          <ListChecks className="h-5 w-5 shrink-0 text-accent" />
           <h2 className="text-lg font-semibold text-foreground">Lista de Socios</h2>
-          <span className="ml-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-accent/15 text-accent">
+          <span className="ml-1 shrink-0 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-accent/15 text-accent">
             {socios.length} socios
           </span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
           <span>Mostrar:</span>
           <select
             value={perPage}
@@ -205,12 +205,12 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto" style={{ maxHeight: "calc(100vh - 460px)" }}>
-        <table className="min-w-full divide-y divide-border">
+      <div className="max-w-full overflow-x-auto" style={{ maxHeight: "calc(100vh - 460px)" }}>
+        <table className="min-w-[1120px] xl:min-w-full table-fixed divide-y divide-border">
           <thead className="bg-muted/50 sticky top-0 z-10">
             <tr>
               <th
-                className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer hover:bg-muted/70 transition"
+                className="w-[5rem] px-3 xl:px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer hover:bg-muted/70 transition"
                 onClick={() => toggleSort("id")}
               >
                 <span className="flex items-center gap-1">
@@ -218,37 +218,37 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                 </span>
               </th>
               <th
-                className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer hover:bg-muted/70 transition"
+                className="w-[13rem] px-3 xl:px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer hover:bg-muted/70 transition"
                 onClick={() => toggleSort("nombre")}
               >
                 <span className="flex items-center gap-1">
                   Nombre <ChevronsUpDown className="h-3 w-3" />
                 </span>
               </th>
-              <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <th className="w-[6.5rem] px-3 xl:px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Genero
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <th className="w-[7.5rem] px-3 xl:px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Contacto
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <th className="w-[8.5rem] px-3 xl:px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Membresia
               </th>
               <th
-                className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer hover:bg-muted/70 transition"
+                className="w-[9.5rem] px-3 xl:px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer hover:bg-muted/70 transition"
                 onClick={() => toggleSort("vencimiento")}
               >
                 <span className="flex items-center gap-1">
                   Vencimiento <ChevronsUpDown className="h-3 w-3" />
                 </span>
               </th>
-              <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <th className="w-[7rem] px-3 xl:px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Vigencia
               </th>
-              <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <th className="w-[7.5rem] px-3 xl:px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Estado Contrato
               </th>
-              <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <th className="w-[7.5rem] px-3 xl:px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Acciones
               </th>
             </tr>
@@ -307,7 +307,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                     className="hover:bg-muted/30 transition-colors duration-150 animate-fade-in-up"
                   >
                     {/* Clave */}
-                    <td className="px-4 py-3">
+                    <td className="px-3 xl:px-4 py-3">
                       <div
                         className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm ${
                           vigencia === "vigente"
@@ -321,24 +321,30 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                       </div>
                     </td>
                     {/* Nombre */}
-                    <td className="px-4 py-3">
-                      <div className="text-sm font-semibold text-foreground">{nombre}</div>
-                      <div className="text-xs text-muted-foreground">{correo}</div>
+                    <td className="px-3 xl:px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground" title={nombre}>
+                          {nombre}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground" title={correo}>
+                          {correo}
+                        </div>
+                      </div>
                     </td>
                     {/* Genero */}
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 xl:px-4 py-3 text-center">
                       <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${generoColors[genero as 'M' | 'F' | 'O'] || generoColors['O']}`}>
                         {genero === "M" ? "Masculino" : genero === "F" ? "Femenino" : "Otro"}
                       </span>
                     </td>
                     {/* Contacto */}
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      <div>{telefono}</div>
+                    <td className="px-3 xl:px-4 py-3 text-sm text-muted-foreground">
+                      <div className="truncate" title={telefono}>{telefono}</div>
                     </td>
                     {/* Membresia */}
-                    <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-foreground">
-                        {typeof membresia === 'string' && membresiaLabels[membresia as keyof typeof membresiaLabels] 
+                    <td className="px-3 xl:px-4 py-3">
+                      <div className="truncate text-sm font-medium text-foreground" title={String(membresia || "")}>
+                        {typeof membresia === 'string' && membresiaLabels[membresia as keyof typeof membresiaLabels]
                           ? membresiaLabels[membresia as keyof typeof membresiaLabels]
                           : membresia || 'N/A'}
                       </div>
@@ -347,7 +353,7 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                       </span>
                     </td>
                     {/* Vencimiento */}
-                    <td className="px-4 py-3">
+                    <td className="px-3 xl:px-4 py-3">
                       <div className={`text-sm font-semibold ${vigencia === "vigente" ? "text-[#22C55E]" : vigencia === "por_vencer" ? "text-[#FFD700]" : "text-primary"}`}>
                         {fechaVencimientoLabel}
                       </div>
@@ -360,20 +366,20 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
                       </div>
                     </td>
                     {/* Vigencia */}
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 xl:px-4 py-3 text-center">
                       <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${vigenciaColors[vigencia]}`}>
                         {vigenciaLabels[vigencia]}
                       </span>
                     </td>
                     {/* Estado Contrato */}
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 xl:px-4 py-3 text-center">
                       <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${contratoColors[contrato]}`}>
                         {contratoLabels[contrato]}
                       </span>
                     </td>
                     {/* Acciones */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-1">
+                    <td className="px-3 xl:px-4 py-3">
+                      <div className="flex items-center justify-center gap-1 whitespace-nowrap">
                         {estadoPago === 'sin_pagar' && onCobrar && tienePermiso('socios', 'pagar') && (
                           <button
                             onClick={() => onCobrar(s)}
@@ -428,11 +434,11 @@ export function SociosTable({ socios, onVerDetalle, onEditar, onEliminar, onCobr
       </div>
 
       {/* Pagination */}
-      <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-3 border-t border-border">
-        <span className="text-sm text-muted-foreground mb-2 sm:mb-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 xl:px-5 py-3 border-t border-border">
+        <span className="text-sm text-muted-foreground">
           Mostrando {sorted.length > 0 ? start + 1 : 0} a {Math.min(start + perPage, sorted.length)} de {sorted.length} socios
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex max-w-full items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
           <button
             onClick={() => setPage(1)}
             disabled={page === 1}

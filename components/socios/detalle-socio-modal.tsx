@@ -167,38 +167,38 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4 pb-20 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden px-3 pb-24 pt-4 sm:px-4 sm:pt-8"
       style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(5px)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
-        className="w-full max-w-4xl my-4 rounded-2xl overflow-hidden animate-slide-up"
+        className="my-2 w-full max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl animate-slide-up sm:my-4 sm:max-w-4xl"
         style={{
           background: "linear-gradient(180deg, rgba(22,24,36,0.97), rgba(18,20,32,0.95))",
           border: "1px solid rgba(255,255,255,0.09)",
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/30" style={{ background: "rgba(0,0,0,0.3)" }}>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-accent/10">
+        <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-border/30 sm:px-6" style={{ background: "rgba(0,0,0,0.3)" }}>
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0 p-2 rounded-lg bg-accent/10">
               <User className="h-5 w-5 text-accent" />
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-foreground">Detalle del Socio</h3>
-              <p className="text-xs text-muted-foreground">Información completa del socio</p>
+            <div className="min-w-0">
+              <h3 className="truncate text-lg font-bold text-foreground">Detalle del Socio</h3>
+              <p className="truncate text-xs text-muted-foreground">Información completa del socio</p>
             </div>
           </div>
           <button 
             onClick={onClose} 
-            className="text-muted-foreground hover:text-foreground transition p-2 hover:bg-muted/50 rounded-lg"
+            className="shrink-0 text-muted-foreground hover:text-foreground transition p-2 hover:bg-muted/50 rounded-lg"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="overflow-x-hidden p-4 sm:p-6">
           {/* Loading state */}
           {cargando && (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -226,48 +226,50 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
               : 'Pendiente'
 
             return (
-              <div className="space-y-4">
+              <div className="min-w-0 space-y-4">
                 {/* Sección de Header con Avatar y Datos Principales */}
-                <div 
-                  className="p-5 rounded-xl border border-border/30"
+                <div
+                  className="min-w-0 p-4 rounded-xl border border-border/30 sm:p-5"
                   style={{ background: "rgba(255,255,255,0.02)" }}
                 >
-                  <div className="flex items-center gap-5">
+                  <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-[auto_minmax(0,1fr)] lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center lg:gap-5">
                     {/* Avatar con componente reutilizable */}
-                    <SocioAvatar 
-                      nombre={socio.nombre}
-                      fotoPerfil={socio.fotoPerfil}
-                      size="xl"
-                      variant="default"
-                      className="rounded-xl border-2 border-accent/30"
-                    />
-                    
+                    <div className="flex justify-center sm:block">
+                      <SocioAvatar
+                        nombre={socio.nombre}
+                        fotoPerfil={socio.fotoPerfil}
+                        size="xl"
+                        variant="default"
+                        className="rounded-xl border-2 border-accent/30"
+                      />
+                    </div>
+
                     {/* Info Principal */}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="text-xl font-bold text-foreground">{socio.nombre}</h4>
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+                    <div className="min-w-0">
+                      <div className="mb-2 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                        <h4 className="min-w-0 truncate text-xl font-bold text-foreground" title={socio.nombre}>{socio.nombre}</h4>
+                        <span className="w-fit shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
                           {generoLabel}
                         </span>
                       </div>
                       <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <IdCard className="h-4 w-4" />
-                          <span className="font-mono">{socio.codigoSocio}</span>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <IdCard className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 truncate font-mono">{socio.codigoSocio}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4" />
-                          <span>{socio.correo}</span>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Mail className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 truncate" title={socio.correo}>{socio.correo}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-4 w-4" />
-                          <span>{socio.telefono}</span>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Phone className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 truncate">{socio.telefono}</span>
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Fecha de Registro */}
-                    <div className="text-right">
+                    <div className="min-w-0 rounded-lg border border-border/30 bg-white/[0.02] p-3 text-left lg:border-0 lg:bg-transparent lg:p-0 lg:text-right">
                       <p className="text-xs text-muted-foreground mb-1">Fecha de Registro</p>
                       <p className="text-sm font-medium text-foreground">{formatFecha(socio.fechaRegistro)}</p>
                     </div>
@@ -278,8 +280,8 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
                   {/* ===== SECCIÓN: MEMBRESÍA ===== */}
-                  <div 
-                    className="p-5 rounded-xl border border-border/30"
+                  <div
+                    className="min-w-0 p-4 rounded-xl border border-border/30 sm:p-5"
                     style={{ background: "rgba(255,255,255,0.02)" }}
                   >
                     <div className="flex items-center gap-2 mb-4">
@@ -331,7 +333,7 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                       </div>
                       
                       {/* Fechas */}
-                      <div className="grid grid-cols-2 gap-3 pt-2">
+                      <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
                         <div>
                           <p className="text-xs text-muted-foreground mb-1">Inicio</p>
                           <p className="text-xs font-medium text-foreground">{formatFecha(socio.fechaInicioMembresia)}</p>
@@ -345,8 +347,8 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                   </div>
 
                   {/* ===== SECCIÓN: CONTRATO ===== */}
-                  <div 
-                    className="p-5 rounded-xl border border-border/30"
+                  <div
+                    className="min-w-0 p-4 rounded-xl border border-border/30 sm:p-5"
                     style={{ background: "rgba(255,255,255,0.02)" }}
                   >
                     <div className="flex items-center gap-2 mb-4">
@@ -383,7 +385,7 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                       </div>
                       
                       {/* Fechas */}
-                      <div className="grid grid-cols-2 gap-3 pt-2">
+                      <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
                         <div>
                           <p className="text-xs text-muted-foreground mb-1">Inicio</p>
                           <p className="text-xs font-medium text-foreground">{formatFecha(socio.inicioContrato)}</p>
@@ -399,7 +401,7 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
 
                 {/* ===== SECCIÓN: BIOMETRÍA (Ancho Completo) ===== */}
                 <div 
-                  className="p-5 rounded-xl border border-border/30"
+                  className="min-w-0 p-4 rounded-xl border border-border/30 sm:p-5"
                   style={{ background: "rgba(255,255,255,0.02)" }}
                 >
                   <div className="flex items-center gap-2 mb-4">
@@ -411,24 +413,24 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Rostro */}
-                    <div 
-                      className={`p-4 rounded-lg border ${
+                    <div
+                      className={`min-w-0 p-4 rounded-lg border ${
                         socio.bioRostro 
                           ? "bg-green-500/5 border-green-500/30" 
                           : "bg-muted/30 border-border/50"
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${socio.bioRostro ? "bg-green-500/15" : "bg-muted"}`}>
+                      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className={`shrink-0 p-2 rounded-lg ${socio.bioRostro ? "bg-green-500/15" : "bg-muted"}`}>
                             <ScanFace className={`h-5 w-5 ${socio.bioRostro ? "text-green-400" : "text-muted-foreground"}`} />
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">Reconocimiento Facial</p>
-                            <p className="text-xs text-muted-foreground">Biometría de rostro</p>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-foreground">Reconocimiento Facial</p>
+                            <p className="truncate text-xs text-muted-foreground">Biometría de rostro</p>
                           </div>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        <span className={`w-fit shrink-0 px-3 py-1 rounded-full text-xs font-bold ${
                           socio.bioRostro 
                             ? "bg-green-500/20 text-green-400" 
                             : "bg-muted text-muted-foreground"
@@ -439,24 +441,24 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                     </div>
                     
                     {/* Huella */}
-                    <div 
-                      className={`p-4 rounded-lg border ${
+                    <div
+                      className={`min-w-0 p-4 rounded-lg border ${
                         socio.bioHuella 
                           ? "bg-green-500/5 border-green-500/30" 
                           : "bg-muted/30 border-border/50"
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${socio.bioHuella ? "bg-green-500/15" : "bg-muted"}`}>
+                      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className={`shrink-0 p-2 rounded-lg ${socio.bioHuella ? "bg-green-500/15" : "bg-muted"}`}>
                             <Fingerprint className={`h-5 w-5 ${socio.bioHuella ? "text-green-400" : "text-muted-foreground"}`} />
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">Huella Digital</p>
-                            <p className="text-xs text-muted-foreground">Biometría de huella</p>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-foreground">Huella Digital</p>
+                            <p className="truncate text-xs text-muted-foreground">Biometría de huella</p>
                           </div>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        <span className={`w-fit shrink-0 px-3 py-1 rounded-full text-xs font-bold ${
                           socio.bioHuella 
                             ? "bg-green-500/20 text-green-400" 
                             : "bg-muted text-muted-foreground"
@@ -470,7 +472,7 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
 
                 {/* ===== SECCIÓN: HISTORIAL DE PAGOS (Ancho Completo) ===== */}
                 <div 
-                  className="p-5 rounded-xl border border-border/30"
+                  className="min-w-0 p-4 rounded-xl border border-border/30 sm:p-5"
                   style={{ background: "rgba(255,255,255,0.02)" }}
                 >
                   <div className="flex items-center gap-2 mb-4">
@@ -511,14 +513,14 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                             style={{ background: "rgba(255,255,255,0.025)" }}
                           >
                             {/* Cabecera de la entrada */}
-                            <div className="w-full flex items-center gap-2 px-4 py-3 hover:bg-white/5 transition">
+                            <div className="w-full flex min-w-0 flex-col gap-3 px-3 py-3 hover:bg-white/5 transition sm:flex-row sm:items-center sm:px-4">
                               <button
                                 type="button"
                                 onClick={() => setHistorialExpandido(estaExpandido ? null : entrada.id_membresia_socio)}
-                                className="flex-1 min-w-0 flex items-center justify-between text-left"
+                                className="flex-1 min-w-0 flex flex-col gap-3 text-left sm:flex-row sm:items-center sm:justify-between"
                               >
-                                <div className="flex items-center gap-3 flex-wrap">
-                                  <span className="text-sm font-semibold text-foreground">{entrada.plan}</span>
+                                <div className="flex min-w-0 items-center gap-2 flex-wrap">
+                                  <span className="min-w-0 max-w-full truncate text-sm font-semibold text-foreground">{entrada.plan}</span>
                                   <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                                     vigenciaActiva
                                       ? "bg-green-500/15 text-green-400"
@@ -533,11 +535,11 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                                   }`}>
                                     {entrada.estado_pago === 'sin_pagar' ? 'no pagado' : entrada.estado_pago}
                                   </span>
-                                  <span className="text-xs text-muted-foreground">
+                                  <span className="min-w-0 text-xs text-muted-foreground">
                                     {formatFecha(entrada.fecha_inicio)} — {formatFecha(entrada.fecha_fin)}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-3 shrink-0">
+                                <div className="flex items-center justify-between gap-3 sm:shrink-0">
                                   <span className="text-sm font-bold text-foreground">{formatMonto(entrada.precio_cobrado)}</span>
                                   {estaExpandido
                                     ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -570,14 +572,14 @@ export function DetalleSocioModal({ socioId, open, onClose }: DetalleSocioModalP
                                     {entrada.pagos.map((pago) => (
                                       <div
                                         key={pago.id_pago}
-                                        className="flex items-center justify-between rounded-lg px-3 py-2 bg-white/5 border border-border/30"
+                                        className="flex min-w-0 flex-col gap-2 rounded-lg px-3 py-2 bg-white/5 border border-border/30 sm:flex-row sm:items-center sm:justify-between"
                                       >
-                                        <div className="flex flex-col gap-0.5">
+                                        <div className="min-w-0 flex flex-col gap-0.5">
                                           <span className="text-xs font-medium text-foreground">{pago.metodo_pago}</span>
                                           <span className="text-xs text-muted-foreground">{formatFechaHora(pago.fecha_pago)}</span>
-                                          <span className="text-xs text-muted-foreground">Recibido por: {pago.recibido_por}</span>
+                                          <span className="truncate text-xs text-muted-foreground">Recibido por: {pago.recibido_por}</span>
                                         </div>
-                                        <span className={`text-sm font-bold ${Number(pago.monto) < 0 ? "text-red-400" : "text-emerald-400"}`}>{formatMonto(pago.monto)}</span>
+                                        <span className={`shrink-0 text-sm font-bold ${Number(pago.monto) < 0 ? "text-red-400" : "text-emerald-400"}`}>{formatMonto(pago.monto)}</span>
                                       </div>
                                     ))}
                                   </div>
