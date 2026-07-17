@@ -30,23 +30,25 @@ export function MembresiaModal({ open, onClose, onGuardar, membresia }: Membresi
     if (membresia) {
       setNombre(membresia.nombre)
       setPrecio(String(membresia.precioBase))
-      
-      // Convertir días a unidad apropiada
-      const convertirDiasAUnidad = (dias: number): { cantidad: number, unidad: UnidadDuracion } => {
-        if (dias % 365 === 0) {
-          return { cantidad: dias / 365, unidad: 'años' }
-        } else if (dias % 30 === 0) {
-          return { cantidad: dias / 30, unidad: 'meses' }
-        } else if (dias % 7 === 0) {
-          return { cantidad: dias / 7, unidad: 'semanas' }
-        } else {
-          return { cantidad: dias, unidad: 'dias' }
-        }
+
+      // La membresía ya viene normalizada por mapMembresiaFromAPI. No se debe
+      // volver a interpretar duracionCantidad como días porque, por ejemplo,
+      // una mensualidad ya llega como { cantidad: 1, unidad: "mes" }.
+      const unidadesFormulario: Record<string, UnidadDuracion> = {
+        dia: "dias",
+        dias: "dias",
+        semana: "semanas",
+        semanas: "semanas",
+        mes: "meses",
+        meses: "meses",
+        año: "anos",
+        años: "anos",
+        ano: "anos",
+        anos: "anos",
       }
-      
-      const { cantidad, unidad } = convertirDiasAUnidad(membresia.duracionCantidad)
-      setDuracionCantidad(String(cantidad))
-      setDuracionUnidad(unidad)
+
+      setDuracionCantidad(String(membresia.duracionCantidad))
+      setDuracionUnidad(unidadesFormulario[membresia.duracionUnidad] ?? "dias")
       
       setDescripcion(membresia.descripcion)
       setEsOferta(membresia.esOferta)
@@ -225,10 +227,9 @@ export function MembresiaModal({ open, onClose, onGuardar, membresia }: Membresi
                       className={inputClass}
                     >
                       <option value="dias">Días</option>
-                      <option value="semana">Semana</option>
                       <option value="semanas">Semanas</option>
                       <option value="meses">Meses</option>
-                      <option value="años">Años</option>
+                      <option value="anos">Años</option>
                     </select>
                   </div>
                 </div>
