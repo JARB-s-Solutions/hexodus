@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Search, Calendar, CreditCard, Filter, XCircle, Plus, Download, CalendarCheck } from "lucide-react"
 import { getMetodosPago, type MetodoPago } from "@/lib/services/metodos-pago"
 
-type FormatoExportacionVentas = "XLSX" | "PDF" | "CSV"
+type FormatoExportacionVentas = "XLSX" | "PDF"
 
 interface VentasToolbarProps {
   busqueda: string
@@ -196,7 +196,6 @@ export function VentasToolbar({
                 >
                   <option value="XLSX">Excel (.xlsx) - Recomendado</option>
                   <option value="PDF">PDF (imprimible)</option>
-                  <option value="CSV">CSV (avanzado)</option>
                 </select>
 
                 <button
@@ -208,7 +207,6 @@ export function VentasToolbar({
                   {exportando && "Exportando..."}
                   {!exportando && formatoExportacion === "XLSX" && "Exportar Excel"}
                   {!exportando && formatoExportacion === "PDF" && "Exportar PDF"}
-                  {!exportando && formatoExportacion === "CSV" && "Exportar CSV"}
                 </button>
               </div>
             )}
