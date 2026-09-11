@@ -289,7 +289,6 @@ export function HistorialSocioModal({
                   <SelectContent>
                     <SelectItem value="XLSX">Excel (.xlsx) - Recomendado</SelectItem>
                     <SelectItem value="PDF">PDF (imprimible)</SelectItem>
-                    <SelectItem value="CSV">CSV (avanzado)</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -303,12 +302,11 @@ export function HistorialSocioModal({
                   <FileDown className="mr-2 h-4 w-4" />
                   {formatoExportacion === "XLSX" && "Exportar Excel"}
                   {formatoExportacion === "PDF" && "Exportar PDF"}
-                  {formatoExportacion === "CSV" && "Exportar CSV"}
                 </Button>
               </div>
 
               <p className="text-[11px] text-muted-foreground">
-                Excel para editar, PDF para imprimir y CSV para uso avanzado.
+                Excel para editar o PDF para imprimir.
               </p>
             </div>
           )}
