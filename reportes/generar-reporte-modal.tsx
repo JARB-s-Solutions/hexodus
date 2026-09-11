@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 import { type TipoReporte } from "@/lib/reportes-data"
 
-type FormatoReporte = "CSV" | "XLSX" | "PDF"
+type FormatoReporte = "XLSX" | "PDF"
 
 interface GenerarReporteModalProps {
   open: boolean
@@ -186,7 +186,6 @@ export function GenerarReporteModal({ open, onClose, onGenerar }: GenerarReporte
                 >
                   <option value="XLSX">Excel (.xlsx) - Recomendado</option>
                   <option value="PDF">PDF (imprimible)</option>
-                  <option value="CSV">CSV (avanzado)</option>
                 </select>
               </div>
             </div>
