@@ -30,6 +30,7 @@ import { CajaService } from "@/lib/services/caja"
 import type { CorteCaja as CorteCajaType, GetCortesResponse, Movimiento, CorteDetalle } from "@/lib/types/caja"
 import { useToast } from "@/hooks/use-toast"
 import { DesgloceMetodosKpi } from "@/components/ventas/desglose-metodos-kpi"
+import * as XLSX from "xlsx"
 
 // Helper functions para corte de caja (temporal hasta integración con API)
 function getMetodoPagoLabel(metodo: MetodoPago | string): string {
@@ -321,23 +322,30 @@ export function CorteCaja({
       c.folio,
       c.fechaInicio,
       c.fechaFin ?? "Caja abierta",
-      c.ingresos.toFixed(2),
-      c.egresos.toFixed(2),
-      c.cajaInicial.toFixed(2),
-      c.cajaFinal.toFixed(2),
+      c.ingresos,
+      c.egresos,
+      c.cajaInicial,
+      c.cajaFinal,
       c.usuario,
       c.fechaCreacion,
       c.observacion,
       c.status,
     ])
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n")
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `cortes_caja_${new Date().toISOString().split("T")[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    worksheet["!cols"] = [
+      { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 14 }, { wch: 14 },
+      { wch: 14 }, { wch: 14 }, { wch: 26 }, { wch: 22 }, { wch: 38 }, { wch: 14 },
+    ]
+    if (rows.length > 0) worksheet["!autofilter"] = { ref: `A1:K${rows.length + 1}` }
+    for (let row = 2; row <= rows.length + 1; row += 1) {
+      for (const column of ["D", "E", "F", "G"]) {
+        if (worksheet[`${column}${row}`]) worksheet[`${column}${row}`].z = '"$"#,##0.00'
+      }
+    }
+
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Cortes de caja")
+    XLSX.writeFile(workbook, `cortes_caja_${new Date().toISOString().split("T")[0]}.xlsx`)
     
     toast({
       title: "Exportación exitosa",
