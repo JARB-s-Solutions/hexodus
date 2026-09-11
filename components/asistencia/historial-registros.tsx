@@ -194,7 +194,6 @@ export function HistorialRegistros({
                 <SelectContent>
                   <SelectItem value="XLSX">Excel (.xlsx) - Recomendado</SelectItem>
                   <SelectItem value="PDF">PDF (imprimible)</SelectItem>
-                  <SelectItem value="CSV">CSV (avanzado)</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -211,7 +210,6 @@ export function HistorialRegistros({
                 <Download className="h-3.5 w-3.5" />
                 {formatoExportacion === "XLSX" && "Exportar Excel"}
                 {formatoExportacion === "PDF" && "Exportar PDF"}
-                {formatoExportacion === "CSV" && "Exportar CSV"}
               </button>
             </div>
           </div>

@@ -34,7 +34,7 @@ function getPeriodoLabel(periodo: string): string {
   return labels[periodo] ?? periodo
 }
 
-type FormatoExportacion = "XLSX" | "PDF" | "CSV"
+type FormatoExportacion = "XLSX" | "PDF"
 type ReportesTabKey = "resumen" | "productos" | "graficas" | "comparaciones" | "historial"
 
 function formatUtcYmd(date: Date): string {

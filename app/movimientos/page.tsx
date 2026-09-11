@@ -13,7 +13,7 @@ import { ModalConcepto } from "@/components/movimientos/modal-concepto"
 import { MovimientosService } from "@/lib/services/movimientos"
 import { SociosService } from "@/lib/services/socios"
 import { getMetodosPago, type MetodoPago } from "@/lib/services/metodos-pago"
-import { exportMovimientosCSV } from "@/lib/movimientos-data"
+import { exportMovimientosExcel } from "@/lib/movimientos-data"
 import { getTodayYmdInTimeZone, startOfMonthYmd, startOfWeekYmd } from "@/lib/timezone"
 import type { 
   Movimiento, 
@@ -30,6 +30,29 @@ type MovimientosTabKey = "historial" | "comparaciones" | "conceptos"
 
 function getTodayDate(): string {
   return getTodayYmdInTimeZone()
+}
+
+function calcularRangoPorPeriodo(
+  periodo: string,
+  fechaInicio: string,
+  fechaFin: string
+): { inicio?: string; fin?: string } {
+  if (periodo === "todo") return {}
+
+  if (periodo === "personalizado") {
+    return {
+      inicio: fechaInicio || undefined,
+      fin: fechaFin || undefined,
+    }
+  }
+
+  const todayYmd = getTodayYmdInTimeZone()
+  let inicio = todayYmd
+
+  if (periodo === "semana") inicio = startOfWeekYmd(todayYmd)
+  else if (periodo === "mes") inicio = startOfMonthYmd(todayYmd)
+
+  return { inicio, fin: todayYmd }
 }
 
 const SOCIO_CODE_REGEX = /\bSOC-[A-Z0-9-]+\b/g
@@ -77,6 +100,7 @@ export default function MovimientosPage() {
 
   // Loading & Error state
   const [loading, setLoading] = useState(true)
+  const [exportando, setExportando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Métodos de pago disponibles
@@ -222,36 +246,7 @@ export default function MovimientosPage() {
       const metodoPagoNombre = metodoPagoSeleccionado?.nombre
       const metodoPagoId = metodoPagoSeleccionado?.metodo_pago_id
 
-      const calcularRangoPorPeriodo = () => {
-        if (periodo === "todo") {
-          return {
-            inicio: undefined,
-            fin: undefined,
-          }
-        }
-
-        if (periodo === "personalizado") {
-          return {
-            inicio: fechaInicio || undefined,
-            fin: fechaFin || undefined,
-          }
-        }
-
-        const todayYmd = getTodayYmdInTimeZone()
-        let inicio = todayYmd
-
-        if (periodo === "semana") {
-          inicio = startOfWeekYmd(todayYmd)
-        } else if (periodo === "mes") {
-          inicio = startOfMonthYmd(todayYmd)
-        }
-
-        const fin = todayYmd
-
-        return { inicio, fin }
-      }
-
-      const rango = calcularRangoPorPeriodo()
+      const rango = calcularRangoPorPeriodo(periodo, fechaInicio, fechaFin)
 
       const params = {
         page: pagination.current_page,
@@ -457,24 +452,94 @@ export default function MovimientosPage() {
     console.log("✅ Filtros limpiados")
   }, [])
 
-  const handleExportar = useCallback(() => {
-    console.log("📤 Exportando movimientos a CSV...")
-    console.log("  - Movimientos a exportar:", filtered.length)
-    console.log("  - KPIs:", kpis)
-    
-    let label = "todos"
-    if (fechaInicio && fechaFin) {
-      label = `${fechaInicio}_a_${fechaFin}`
-    } else if (fechaInicio) {
-      label = `desde_${fechaInicio}`
-    } else if (fechaFin) {
-      label = `hasta_${fechaFin}`
+  const handleExportar = useCallback(async () => {
+    if (exportando) return
+
+    try {
+      setExportando(true)
+
+      let tipoAPI: "Ingresos" | "Egresos" | "Todos" = "Todos"
+      if (tipo === "ingreso") tipoAPI = "Ingresos"
+      else if (tipo === "egreso") tipoAPI = "Egresos"
+
+      const metodoPagoSeleccionado = metodosPago.find(
+        (metodo) => String(metodo.metodo_pago_id ?? metodo.id) === tipoPago
+      )
+      const rango = calcularRangoPorPeriodo(periodo, fechaInicio, fechaFin)
+      const pageSize = 250
+      const filtrosExportacion = {
+        limit: pageSize,
+        tipo: tipoAPI,
+        metodo_pago: metodoPagoSeleccionado?.nombre,
+        metodo_pago_id: metodoPagoSeleccionado?.metodo_pago_id,
+        search: busqueda || undefined,
+        fecha_inicio: rango.inicio,
+        fecha_fin: rango.fin,
+      }
+
+      const primeraPagina = await MovimientosService.getAll({
+        ...filtrosExportacion,
+        page: 1,
+      })
+      const paginasRestantes = Array.from(
+        { length: Math.max(0, primeraPagina.pagination.total_pages - 1) },
+        (_, index) => index + 2
+      )
+      const respuestasRestantes = []
+      for (const page of paginasRestantes) {
+        respuestasRestantes.push(
+          await MovimientosService.getAll({ ...filtrosExportacion, page })
+        )
+      }
+      const movimientosExportar = [
+        ...primeraPagina.movimientos,
+        ...respuestasRestantes.flatMap((response) => response.movimientos),
+      ].map((movimiento) => ({
+        ...movimiento,
+        concepto:
+          enrichTextWithSocioName(movimiento.concepto, socioNamesByCode) ||
+          movimiento.concepto,
+        observaciones: enrichTextWithSocioName(
+          movimiento.observaciones,
+          socioNamesByCode
+        ),
+      }))
+
+      const label = rango.inicio && rango.fin
+        ? `${rango.inicio}_a_${rango.fin}`
+        : rango.inicio
+          ? `desde_${rango.inicio}`
+          : rango.fin
+            ? `hasta_${rango.fin}`
+            : "todos"
+
+      exportMovimientosExcel(movimientosExportar, primeraPagina.kpis, label)
+      toast({
+        title: "Reporte generado",
+        description: `Se exportaron ${movimientosExportar.length} movimientos con los filtros seleccionados.`,
+      })
+    } catch (err: any) {
+      console.error("❌ Error exportando movimientos:", err)
+      toast({
+        title: "No se pudo exportar",
+        description: err.message || "No fue posible generar el reporte de movimientos.",
+        variant: "destructive",
+      })
+    } finally {
+      setExportando(false)
     }
-    
-    console.log("  - Label del archivo:", label)
-    exportMovimientosCSV(filtered, kpis, label)
-    console.log("✅ Exportación completada")
-  }, [filtered, kpis, fechaInicio, fechaFin])
+  }, [
+    exportando,
+    tipo,
+    metodosPago,
+    tipoPago,
+    periodo,
+    fechaInicio,
+    fechaFin,
+    busqueda,
+    socioNamesByCode,
+    toast,
+  ])
 
   const handleNuevo = useCallback(() => {
     console.log("➕ Abriendo modal para crear nuevo movimiento")
@@ -729,6 +794,7 @@ export default function MovimientosPage() {
                   onExportar={handleExportar}
                   metodosPago={metodosPago}
                   canExportar={puedeExportar}
+                  exportando={exportando}
                 />
 
                 {/* Tabla */}

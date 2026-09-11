@@ -29,7 +29,7 @@ export interface GetVentasParams {
   limit?: number
 }
 
-export type FormatoExportacionVentas = 'XLSX' | 'PDF' | 'CSV'
+export type FormatoExportacionVentas = 'XLSX' | 'PDF'
 
 export interface ExportarVentasParams extends Omit<GetVentasParams, 'page' | 'limit'> {
   formato?: FormatoExportacionVentas
@@ -49,7 +49,7 @@ function descargarBlob(blob: Blob, filename: string): void {
 function getNombreArchivoVentas(formato: FormatoExportacionVentas, filename?: string): string {
   if (filename && !filename.startsWith('descarga_')) return filename
 
-  const extension = formato === 'PDF' ? 'pdf' : formato === 'CSV' ? 'csv' : 'xlsx'
+  const extension = formato === 'PDF' ? 'pdf' : 'xlsx'
   const fecha = new Date().toISOString().split('T')[0]
   return `ventas_${fecha}.${extension}`
 }

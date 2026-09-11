@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx"
+
 // ------- Types -------
 
 export type TipoMovimiento = "ingreso" | "egreso"
@@ -319,46 +321,58 @@ export function getPeriodosComparacion(referenceDate: Date): PeriodoComparacion[
   ]
 }
 
-// ------- CSV Export -------
+// ------- Excel Export -------
 
-export function exportMovimientosCSV(
+export function exportMovimientosExcel(
   movimientos: Movimiento[],
   kpis: MovimientoKpis,
   rangoLabel: string
 ) {
-  const lines: string[] = []
-
-  lines.push("REPORTE DE MOVIMIENTOS - " + rangoLabel)
-  lines.push(`Generado: ${new Date().toLocaleString("es-MX")}`)
-  lines.push("")
-
-  // Resumen
-  lines.push("RESUMEN")
-  lines.push("Concepto,Monto")
-  lines.push(`Total Ingresos,"$${kpis.totalIngresos.toLocaleString("es-MX", { minimumFractionDigits: 2 })}"`)
-  lines.push(`Total Egresos,"$${kpis.totalEgresos.toLocaleString("es-MX", { minimumFractionDigits: 2 })}"`)
-  lines.push(`Balance Neto,"$${kpis.balanceNeto.toLocaleString("es-MX", { minimumFractionDigits: 2 })}"`)
-  lines.push(`Total Movimientos,${kpis.totalMovimientos}`)
-  lines.push("")
-
-  // Detail table
-  lines.push("DETALLE DE MOVIMIENTOS")
-  lines.push("Folio,Fecha,Hora,Tipo,Concepto,Total,Tipo Pago,Usuario,Observaciones")
-  for (const m of movimientos) {
-    const obs = m.observaciones ? `"${m.observaciones}"` : ""
-    lines.push(
-      `${m.id},${m.fecha},${m.hora},${m.tipo === "ingreso" ? "Ingreso" : "Egreso"},"${m.concepto}","$${m.total.toLocaleString("es-MX", { minimumFractionDigits: 2 })}",${m.tipoPago},${m.usuario},${obs}`
-    )
+  const workbook = XLSX.utils.book_new()
+  const resumen = XLSX.utils.aoa_to_sheet([
+    ["REPORTE DE MOVIMIENTOS"],
+    ["Periodo", rangoLabel],
+    ["Generado", new Date().toLocaleString("es-MX")],
+    [],
+    ["Indicador", "Valor"],
+    ["Total Ingresos", kpis.totalIngresos],
+    ["Total Egresos", kpis.totalEgresos],
+    ["Balance Neto", kpis.balanceNeto],
+    ["Total Movimientos", movimientos.length],
+  ])
+  resumen["!cols"] = [{ wch: 24 }, { wch: 28 }]
+  for (const cell of ["B6", "B7", "B8"]) {
+    if (resumen[cell]) resumen[cell].z = '"$"#,##0.00'
   }
 
-  const csvContent = lines.join("\n")
-  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = `movimientos_${rangoLabel.replace(/\s/g, "_")}_${new Date().toISOString().split("T")[0]}.csv`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  const detalle = XLSX.utils.json_to_sheet(
+    movimientos.map((movimiento) => ({
+      Folio: movimiento.id,
+      Fecha: movimiento.fecha,
+      Hora: movimiento.hora,
+      Tipo: movimiento.tipo === "ingreso" ? "Ingreso" : "Egreso",
+      Concepto: movimiento.concepto,
+      Total: movimiento.total,
+      "Tipo de pago": movimiento.tipoPago,
+      Responsable: movimiento.usuario,
+      Observaciones: movimiento.observaciones || "",
+    }))
+  )
+  detalle["!cols"] = [
+    { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 34 },
+    { wch: 16 }, { wch: 18 }, { wch: 26 }, { wch: 48 },
+  ]
+  if (movimientos.length > 0) {
+    detalle["!autofilter"] = { ref: `A1:I${movimientos.length + 1}` }
+    for (let row = 2; row <= movimientos.length + 1; row += 1) {
+      if (detalle[`F${row}`]) detalle[`F${row}`].z = '"$"#,##0.00'
+    }
+  }
+
+  XLSX.utils.book_append_sheet(workbook, resumen, "Resumen")
+  XLSX.utils.book_append_sheet(workbook, detalle, "Movimientos")
+  XLSX.writeFile(
+    workbook,
+    `movimientos_${rangoLabel.replace(/\s/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`
+  )
 }

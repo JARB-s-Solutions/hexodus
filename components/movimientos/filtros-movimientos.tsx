@@ -26,6 +26,7 @@ interface FiltrosMovimientosProps {
   onExportar: () => void
   metodosPago?: MetodoPago[]
   canExportar?: boolean
+  exportando?: boolean
 }
 
 export function FiltrosMovimientos({
@@ -45,13 +46,13 @@ export function FiltrosMovimientos({
   onExportar,
   metodosPago = [],
   canExportar = true,
+  exportando = false,
 }: FiltrosMovimientosProps) {
   const hasFilters =
     busqueda !== "" ||
     periodo !== "hoy" ||
     tipo !== "todos" ||
-    tipoPago !== "" ||
-    (periodo === "personalizado" && (fechaInicio !== "" || fechaFin !== ""))
+    tipoPago !== ""
 
   // Métodos de pago por defecto si no se cargan del API
   const metodosDefault = [
@@ -139,7 +140,10 @@ export function FiltrosMovimientos({
           >
             <option value="">Todos</option>
             {metodosDisponibles.map((metodo) => (
-              <option key={metodo.id} value={String(metodo.metodo_pago_id ?? metodo.id)}>
+              <option
+                key={metodo.id}
+                value={String("metodo_pago_id" in metodo ? metodo.metodo_pago_id ?? metodo.id : metodo.id)}
+              >
                 {metodo.nombre}
               </option>
             ))}
@@ -168,10 +172,12 @@ export function FiltrosMovimientos({
         {canExportar && (
           <button
             onClick={onExportar}
-            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap"
+            disabled={exportando}
+            aria-busy={exportando}
+            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap"
           >
-            <Download className="h-4 w-4" />
-            Exportar
+            <Download className={`h-4 w-4 ${exportando ? "animate-pulse" : ""}`} />
+            {exportando ? "Preparando..." : "Exportar Excel"}
           </button>
         )}
       </div>

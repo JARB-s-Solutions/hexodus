@@ -13,8 +13,8 @@ interface ReportesFiltersProps {
   onPeriodoChange: (value: string) => void
   tipoReporte: TipoReporte | "todos"
   onTipoReporteChange: (value: TipoReporte | "todos") => void
-  formatoExportacion: "XLSX" | "PDF" | "CSV"
-  onFormatoExportacionChange: (value: "XLSX" | "PDF" | "CSV") => void
+  formatoExportacion: "XLSX" | "PDF"
+  onFormatoExportacionChange: (value: "XLSX" | "PDF") => void
   fechaInicio: string
   onFechaInicioChange: (value: string) => void
   fechaFin: string
@@ -46,7 +46,6 @@ export function ReportesFilters({
   const exportLabel = {
     XLSX: "Excel (.xlsx)",
     PDF: "PDF",
-    CSV: "CSV",
   }[formatoExportacion]
 
   return (
@@ -133,12 +132,11 @@ export function ReportesFilters({
               <select
                 id="formato-exportacion"
                 value={formatoExportacion}
-                onChange={(e) => onFormatoExportacionChange(e.target.value as "XLSX" | "PDF" | "CSV")}
+                onChange={(e) => onFormatoExportacionChange(e.target.value as "XLSX" | "PDF")}
                 className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-accent"
               >
                 <option value="XLSX">Excel (.xlsx)</option>
                 <option value="PDF">PDF</option>
-                <option value="CSV">CSV</option>
               </select>
             </div>
           )}
