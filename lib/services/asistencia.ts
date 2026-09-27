@@ -126,7 +126,10 @@ export interface FiltrosHistorial {
   fecha_fin?: string
   metodo?: 'facial' | 'manual' | 'huella'
   search?: string
+  estado?: 'permitido' | 'denegado'
 }
+
+export interface FiltrosExportacionAsistencias extends Omit<FiltrosHistorial, 'pagina' | 'limite'> {}
 
 export interface KpisAsistenciasResponse {
   success: boolean
@@ -342,6 +345,7 @@ class AsistenciaServiceClass {
       if (filtros?.fecha_fin) params.append('fecha_fin', filtros.fecha_fin)
       if (filtros?.metodo) params.append('metodo', filtros.metodo)
       if (filtros?.search) params.append('search', filtros.search)
+      if (filtros?.estado) params.append('estado', filtros.estado)
 
       const queryString = params.toString()
       const url = `${this.baseURL}/asistencia${queryString ? `?${queryString}` : ''}`
@@ -364,6 +368,45 @@ class AsistenciaServiceClass {
   }
 
   /**
+   * Exportar todo el historial que coincide con los filtros, sin paginación.
+   */
+  async exportarHistorial(filtros?: FiltrosExportacionAsistencias): Promise<void> {
+    const params = new URLSearchParams()
+    if (filtros?.fecha_inicio) params.append('fecha_inicio', filtros.fecha_inicio)
+    if (filtros?.fecha_fin) params.append('fecha_fin', filtros.fecha_fin)
+    if (filtros?.metodo) params.append('metodo', filtros.metodo)
+    if (filtros?.search) params.append('search', filtros.search)
+    if (filtros?.estado) params.append('estado', filtros.estado)
+
+    const queryString = params.toString()
+    const url = `${this.baseURL}/asistencia/exportar${queryString ? `?${queryString}` : ''}`
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || errorData.error || 'Error al exportar asistencias')
+    }
+
+    const disposition = response.headers.get('content-disposition') || ''
+    const filenameMatch = /filename\*?=(?:UTF-8''|\")?([^\";]+)/i.exec(disposition)
+    const filename = filenameMatch
+      ? decodeURIComponent(filenameMatch[1].replace(/\"/g, ''))
+      : `asistencias_${new Date().toISOString().split('T')[0]}.xlsx`
+    const blob = await response.blob()
+    const downloadUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(downloadUrl)
+  }
+
+  /**
    * Obtener KPIs de asistencias
    * Usa los datos de asistencias del día para calcular KPIs
    */
@@ -371,7 +414,7 @@ class AsistenciaServiceClass {
     try {
       // Obtener asistencias del día para calcular KPIs
       const response = await this.obtenerAsistenciasHoy()
-      
+
       if (!response.success) {
         throw new Error('Error al obtener datos para KPIs')
       }
@@ -473,10 +516,10 @@ class AsistenciaServiceClass {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      
+
       const timestamp = new Date().toISOString().split('T')[0]
       link.setAttribute('download', `asistencias-${timestamp}.${formato}`)
-      
+
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -581,12 +624,12 @@ export async function comprimirImagen(base64: string, maxWidth: number = 500): P
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.src = base64
-    
+
     img.onload = () => {
       const canvas = document.createElement('canvas')
       let width = img.width
       let height = img.height
-      
+
       // Calcular nuevas dimensiones manteniendo aspect ratio
       if (width > height && width > maxWidth) {
         height *= maxWidth / width
@@ -595,23 +638,23 @@ export async function comprimirImagen(base64: string, maxWidth: number = 500): P
         width *= maxWidth / height
         height = maxWidth
       }
-      
+
       canvas.width = width
       canvas.height = height
-      
+
       const ctx = canvas.getContext('2d')
       if (!ctx) {
         reject(new Error('No se pudo obtener contexto del canvas'))
         return
       }
-      
+
       ctx.drawImage(img, 0, 0, width, height)
-      
+
       // Comprimir a JPEG con calidad 0.8
       const comprimida = canvas.toDataURL('image/jpeg', 0.8)
       resolve(comprimida)
     }
-    
+
     img.onerror = () => {
       reject(new Error('Error al cargar la imagen'))
     }
