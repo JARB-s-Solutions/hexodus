@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/sidebar"
 import { AsistenciaHeader } from "@/components/asistencia/asistencia-header"
 import { KpiAsistenciaCards } from "@/components/asistencia/kpi-asistencia"
 import { PanelEscaneo } from "@/components/asistencia/panel-escaneo"
-import { HistorialRegistros } from "@/components/asistencia/historial-registros"
+import { HistorialRegistros, type FiltrosExportacionHistorial } from "@/components/asistencia/historial-registros"
 import { RegistroManualModal } from "@/components/asistencia/registro-manual-modal"
 import { HistorialSocioModal } from "@/components/asistencia/historial-socio-modal"
 import { HistorialSocioTab } from "@/components/asistencia/historial-socio-tab"
@@ -36,29 +36,30 @@ export default function AsistenciaPage() {
   const puedeVerHistorial = tienePermiso("asistencia", "verHistorial")
   const puedeExportar = tienePermiso("asistencia", "exportar")
   const puedeCobrarAdeudos = tienePermiso("socios", "pagar")
-  
+
   // Estados para tab activo
   const [tabActivo, setTabActivo] = useState<"hoy" | "historial" | "socio">("hoy")
-  
+
   // Estados para registros de hoy
   const [registrosHoy, setRegistrosHoy] = useState<RegistroAcceso[]>([])
   const [loadingHoy, setLoadingHoy] = useState(false)
   const [errorHoy, setErrorHoy] = useState<string | null>(null)
-  
+
   // Estados para historial completo
   const [registrosHistorial, setRegistrosHistorial] = useState<RegistroAcceso[]>([])
   const [loadingHistorial, setLoadingHistorial] = useState(false)
+  const [exportandoHistorial, setExportandoHistorial] = useState(false)
   const [errorHistorial, setErrorHistorial] = useState<string | null>(null)
   const [paginaHistorial, setPaginaHistorial] = useState(1)
   const [totalPaginasHistorial, setTotalPaginasHistorial] = useState(1)
   const [totalRegistrosHistorial, setTotalRegistrosHistorial] = useState(0)
   const [registrosPorPagina, setRegistrosPorPagina] = useState(50)
-  
+
   // Estados para filtros de historial
   const [filtroMetodo, setFiltroMetodo] = useState<string>("todos")
   const [fechaInicio, setFechaInicio] = useState<string>("")
   const [fechaFin, setFechaFin] = useState<string>("")
-  
+
   // Estados para historial por socio
   const [socioSeleccionadoId, setSocioSeleccionadoId] = useState<number | null>(null)
   const [datosSocio, setDatosSocio] = useState<{
@@ -70,7 +71,7 @@ export default function AsistenciaPage() {
   const [asistenciasSocio, setAsistenciasSocio] = useState<RegistroAcceso[]>([])
   const [loadingSocio, setLoadingSocio] = useState(false)
   const [errorSocio, setErrorSocio] = useState<string | null>(null)
-  
+
   // Estados comunes
   const [kpisData, setKpisData] = useState<KpiAsistencia>({
     asistentesHoy: 0,
@@ -93,7 +94,7 @@ export default function AsistenciaPage() {
       setTabActivo("hoy")
     }
   }, [tabActivo, puedeVerHistorial])
-  
+
   const ventanaRef = useRef<Window | null>(null)
 
   const inferirEstadoMembresiaDesdeMotivo = useCallback((motivoCodigo?: string): EstadoMembresia => {
@@ -329,6 +330,42 @@ export default function AsistenciaPage() {
     setFechaFin(fecha)
   }, [])
 
+  const handleExportarHistorial = useCallback(async (filtrosLocales: FiltrosExportacionHistorial) => {
+    if (fechaInicio && fechaFin && fechaFin < fechaInicio) {
+      toast({
+        title: "Rango de fechas inválido",
+        description: "La fecha final no puede ser anterior a la fecha inicial.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setExportandoHistorial(true)
+      await AsistenciaService.exportarHistorial({
+        fecha_inicio: fechaInicio || undefined,
+        fecha_fin: fechaFin || undefined,
+        metodo: filtroMetodo !== "todos" ? filtroMetodo as "facial" | "manual" | "huella" : undefined,
+        estado: filtrosLocales.estado,
+        search: filtrosLocales.search,
+      })
+
+      toast({
+        title: "Reporte generado",
+        description: "El Excel incluye todos los registros filtrados y el análisis de llegadas por horario.",
+      })
+    } catch (error: any) {
+      console.error("Error al exportar historial de asistencias:", error)
+      toast({
+        title: "No se pudo exportar",
+        description: error.message || "No fue posible generar el reporte de asistencias.",
+        variant: "destructive",
+      })
+    } finally {
+      setExportandoHistorial(false)
+    }
+  }, [fechaInicio, fechaFin, filtroMetodo, toast])
+
   // Cargar KPIs desde API
   const cargarKpis = useCallback(async () => {
     try {
@@ -458,15 +495,15 @@ export default function AsistenciaPage() {
     function handleMessage(event: MessageEvent) {
       if (event.data?.tipo === "registro_acceso") {
         const nuevoRegistro = event.data.datos as RegistroAcceso
-        
+
         // Agregar registro al array de "hoy" (siempre son registros nuevos de hoy)
         setRegistrosHoy((prev) => [nuevoRegistro, ...prev.filter((r) => r.id !== nuevoRegistro.id)])
-        
+
         // Si estamos en el tab de historial, también se agrega ahí
         if (tabActivo === "historial") {
           setRegistrosHistorial((prev) => [nuevoRegistro, ...prev.filter((r) => r.id !== nuevoRegistro.id)])
         }
-        
+
         // Mostrar notificación
         toast({
           title: nuevoRegistro.tipo === "permitido" ? "Acceso Permitido" : "Acceso Denegado",
@@ -562,7 +599,7 @@ export default function AsistenciaPage() {
 
   const handleRegistroExitoso = useCallback((registroData: any) => {
     console.log('[handleRegistroExitoso] Datos recibidos:', registroData)
-    
+
     // La estructura del backend de registro manual es plana, no anidada
     if (!registroData || !registroData.nombre || !registroData.tipo) {
       console.warn('[handleRegistroExitoso] Estructura de respuesta inesperada:', registroData)
@@ -594,7 +631,7 @@ export default function AsistenciaPage() {
 
     // Agregar a registros de hoy (siempre son registros nuevos del día)
     setRegistrosHoy((prev) => [nuevoRegistro, ...prev])
-    
+
     // Si estamos en historial, también agregar ahí
     if (tabActivo === "historial") {
       setRegistrosHistorial((prev) => [nuevoRegistro, ...prev])
@@ -618,14 +655,14 @@ export default function AsistenciaPage() {
       <Sidebar activePage="asistencia" />
 
       <main className="flex-1 overflow-y-auto p-3 pb-28 md:p-6 flex flex-col gap-4 md:gap-5">
-        <AsistenciaHeader 
+        <AsistenciaHeader
           onRegistroManual={puedeRegistrarManual ? () => setModalRegistroManual(true) : undefined}
           onRegistroHuella={() => router.push('/asistencia/huella')}
         />
 
         {/* KPIs */}
-        <KpiAsistenciaCards 
-          data={kpisData} 
+        <KpiAsistenciaCards
+          data={kpisData}
           loading={loadingKpis}
           error={errorKpis}
           onRecargar={cargarKpis}
@@ -687,7 +724,7 @@ export default function AsistenciaPage() {
                 </>
               )}
             </div>
-            
+
             {/* Tab Content */}
             {tabActivo === "hoy" && (
               <HistorialRegistros
@@ -700,7 +737,7 @@ export default function AsistenciaPage() {
                 onVerHistorialSocio={puedeVerHistorial ? handleVerHistorialSocio : undefined}
               />
             )}
-            
+
             {tabActivo === "historial" && puedeVerHistorial && (
               <HistorialRegistros
                 registros={registrosHistorial}
@@ -727,11 +764,13 @@ export default function AsistenciaPage() {
                 onCambiarFechaFin={handleCambiarFechaFin}
                 onAplicarFiltros={handleAplicarFiltros}
                 onLimpiarFiltros={handleLimpiarFiltros}
+                onExportarCompleto={handleExportarHistorial}
+                exportando={exportandoHistorial}
               />
             )}
-            
+
             {tabActivo === "socio" && puedeVerHistorial && (
-              <HistorialSocioTab 
+              <HistorialSocioTab
                 onError={(mensaje) => toast({
                   title: "Error",
                   description: mensaje,
