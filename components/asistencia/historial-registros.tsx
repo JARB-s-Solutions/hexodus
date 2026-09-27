@@ -30,8 +30,12 @@ import type { RegistroAcceso } from "@/lib/asistencia-data"
 import { formatHora } from "@/lib/asistencia-data"
 import {
   exportarRegistrosAsistencia,
-  type FormatoExportacionAsistencias,
 } from "@/lib/export-asistencias"
+
+export interface FiltrosExportacionHistorial {
+  estado?: "permitido" | "denegado"
+  search?: string
+}
 
 interface Props {
   registros: RegistroAcceso[]
@@ -58,11 +62,13 @@ interface Props {
   onCambiarFechaFin?: (fecha: string) => void
   onAplicarFiltros?: () => void
   onLimpiarFiltros?: () => void
+  onExportarCompleto?: (filtros: FiltrosExportacionHistorial) => Promise<void>
+  exportando?: boolean
 }
 
-export function HistorialRegistros({ 
-  registros, 
-  onLimpiar, 
+export function HistorialRegistros({
+  registros,
+  onLimpiar,
   loading = false,
   error = null,
   onRecargar,
@@ -83,11 +89,12 @@ export function HistorialRegistros({
   onCambiarFechaFin,
   onAplicarFiltros,
   onLimpiarFiltros,
+  onExportarCompleto,
+  exportando = false,
 }: Props) {
   const [filtroTipo, setFiltroTipo] = useState("todos")
   const [busqueda, setBusqueda] = useState("")
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
-  const [formatoExportacion, setFormatoExportacion] = useState<FormatoExportacionAsistencias>("XLSX")
 
   // Calcular si hay filtros activos
   const hayFiltrosActivos = filtroMetodo !== "todos" || fechaInicio || fechaFin
@@ -179,37 +186,35 @@ export function HistorialRegistros({
         {canExportar && (
           <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/20 p-2.5 lg:flex-row lg:items-center lg:justify-between">
             <p className="hidden px-1 text-[11px] text-muted-foreground sm:block">
-              Exporta en el formato adecuado para compartir o imprimir.
+              Exporta todos los registros que coinciden con los filtros aplicados.
             </p>
 
             <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
-              <Select
-                value={formatoExportacion}
-                onValueChange={(value) => setFormatoExportacion(value as FormatoExportacionAsistencias)}
-                disabled={loading}
-              >
-                <SelectTrigger className="h-11 w-full bg-background text-sm sm:h-8 sm:w-[230px] sm:text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="XLSX">Excel (.xlsx) - Recomendado</SelectItem>
-                  <SelectItem value="PDF">PDF (imprimible)</SelectItem>
-                </SelectContent>
-              </Select>
-
               <button
-                onClick={() =>
+                onClick={() => {
+                  if (onExportarCompleto) {
+                    void onExportarCompleto({
+                      estado: filtroTipo === "todos" ? undefined : filtroTipo as "permitido" | "denegado",
+                      search: busqueda.trim() || undefined,
+                    })
+                    return
+                  }
+
                   exportarRegistrosAsistencia({
                     registros: registrosFiltrados,
-                    formato: formatoExportacion,
+                    formato: "XLSX",
                   })
+                }}
+                disabled={
+                  loading ||
+                  exportando ||
+                  (onExportarCompleto ? !totalRegistros : registrosFiltrados.length === 0)
                 }
-                disabled={loading || registrosFiltrados.length === 0}
+                aria-busy={exportando}
                 className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 sm:min-w-[142px] sm:py-1.5 sm:text-xs"
               >
-                <Download className="h-3.5 w-3.5" />
-                {formatoExportacion === "XLSX" && "Exportar Excel"}
-                {formatoExportacion === "PDF" && "Exportar PDF"}
+                {exportando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {exportando ? "Generando..." : "Exportar Excel"}
               </button>
             </div>
           </div>
@@ -285,8 +290,8 @@ export function HistorialRegistros({
                   <label className="text-[11px] font-medium text-muted-foreground">
                     Método de registro
                   </label>
-                  <Select 
-                    value={filtroMetodo || "todos"} 
+                  <Select
+                    value={filtroMetodo || "todos"}
                     onValueChange={onCambiarFiltroMetodo}
                   >
                     <SelectTrigger className="h-9 text-xs bg-background">
@@ -488,7 +493,7 @@ export function HistorialRegistros({
               >
                 <span className="text-xs">‹ Anterior</span>
               </Button>
-              
+
               {/* Números de página */}
               <div className="hidden md:flex items-center gap-1">
                 {Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => {
@@ -502,7 +507,7 @@ export function HistorialRegistros({
                   } else {
                     pageNum = paginaActual - 2 + i
                   }
-                  
+
                   return (
                     <Button
                       key={pageNum}
@@ -524,7 +529,7 @@ export function HistorialRegistros({
                   {paginaActual} / {totalPaginas}
                 </span>
               </div>
-              
+
               {/* Página siguiente */}
               <Button
                 size="sm"
