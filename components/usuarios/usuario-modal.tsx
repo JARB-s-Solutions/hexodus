@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, User, Shield, Key } from "lucide-react"
+import { X, User, Shield, Key, Eye, EyeOff } from "lucide-react"
 import type { Usuario } from "@/lib/usuarios-data"
 
 interface UsuarioModalProps {
@@ -34,6 +34,8 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario, roles, rolesLo
   const [activo, setActivo] = useState<boolean>(usuario?.activo ?? true)
   const [password, setPassword] = useState("")
   const [confirmarPassword, setConfirmarPassword] = useState("")
+  const [mostrarPassword, setMostrarPassword] = useState(false)
+  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false)
   const [error, setError] = useState("")
 
   // Reinicia campos al abrir el modal para nuevo usuario o precarga para edicion.
@@ -43,6 +45,8 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario, roles, rolesLo
     setError("")
     setPassword("")
     setConfirmarPassword("")
+    setMostrarPassword(false)
+    setMostrarConfirmacion(false)
 
     if (usuario) {
       setNombre(usuario.nombre || "")
@@ -78,13 +82,18 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario, roles, rolesLo
       return
     }
 
-    if (!esEdicion) {
+    const debeValidarPassword = !esEdicion || password.length > 0 || confirmarPassword.length > 0
+    if (debeValidarPassword) {
       if (!password || password.length < 6) {
-        setError("La contrasena debe tener al menos 6 caracteres")
+        setError("La contraseña debe tener al menos 6 caracteres")
+        return
+      }
+      if (password.length > 72) {
+        setError("La contraseña no puede exceder 72 caracteres")
         return
       }
       if (password !== confirmarPassword) {
-        setError("Las contrasenas no coinciden")
+        setError("Las contraseñas no coinciden")
         return
       }
     }
@@ -96,7 +105,7 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario, roles, rolesLo
       username,
       rolId,
       activo,
-      password: esEdicion ? undefined : password,
+      password: password || undefined,
     })
   }
 
@@ -224,39 +233,68 @@ export function UsuarioModal({ open, onClose, onGuardar, usuario, roles, rolesLo
             </div>
           </div>
 
-          {/* Section: Password (only for new users) */}
-          {!esEdicion && (
-            <div>
+          {/* Section: Password */}
+          <div>
               <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2 border-b border-border pb-2">
                 <Key className="h-4 w-4 text-accent" />
-                Contrasena
+                {esEdicion ? "Cambiar contraseña" : "Contraseña"}
               </h4>
+              {esEdicion && (
+                <p className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  La contraseña actual no puede consultarse. Deja ambos campos vacíos para conservarla o escribe una nueva para reemplazarla.
+                </p>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">
-                    Contrasena <span className="text-destructive">*</span>
+                    {esEdicion ? "Nueva contraseña" : "Contraseña"} {!esEdicion && <span className="text-destructive">*</span>}
                   </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
-                  />
+                  <div className="relative">
+                    <input
+                      type={mostrarPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="new-password"
+                      maxLength={72}
+                      placeholder={esEdicion ? "Dejar vacío para no cambiar" : "Mínimo 6 caracteres"}
+                      className="w-full px-3 py-2 pr-10 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setMostrarPassword((actual) => !actual)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                      aria-label={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {mostrarPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">
-                    Confirmar Contrasena <span className="text-destructive">*</span>
+                    Confirmar contraseña {!esEdicion && <span className="text-destructive">*</span>}
                   </label>
-                  <input
-                    type="password"
-                    value={confirmarPassword}
-                    onChange={(e) => setConfirmarPassword(e.target.value)}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
-                  />
+                  <div className="relative">
+                    <input
+                      type={mostrarConfirmacion ? "text" : "password"}
+                      value={confirmarPassword}
+                      onChange={(e) => setConfirmarPassword(e.target.value)}
+                      autoComplete="new-password"
+                      maxLength={72}
+                      placeholder="Repite la nueva contraseña"
+                      className="w-full px-3 py-2 pr-10 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setMostrarConfirmacion((actual) => !actual)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                      aria-label={mostrarConfirmacion ? "Ocultar confirmación" : "Mostrar confirmación"}
+                    >
+                      {mostrarConfirmacion ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+          </div>
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4 border-t border-border">
