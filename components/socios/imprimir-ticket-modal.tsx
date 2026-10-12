@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { X, Printer, AlertTriangle, CheckCircle, Loader2 } from "lucide-react"
 import { Button } from "@/ui/button"
-import { Dialog, DialogContent } from "@/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/ui/dialog"
 import { Alert, AlertDescription } from "@/ui/alert"
 import { getPrinterInstance, formatTicketData, isWebUSBSupported } from "@/lib/services/thermal-printer"
 import type { CotizacionResponse } from "@/lib/types/socios"
@@ -53,7 +53,7 @@ export function ImprimirTicketModal({
       const timer = setTimeout(() => {
         intentarAutoImpresion()
       }, 300)
-      
+
       return () => clearTimeout(timer)
     }
   }, [open])
@@ -61,10 +61,10 @@ export function ImprimirTicketModal({
   const intentarAutoImpresion = async () => {
     setAutoConectando(true)
     setError(null)
-    
+
     try {
       console.log('🔄 Intentando conexión automática...')
-      
+
       // Verificar si ya está conectado
       if (printer.isConnected()) {
         console.log('✅ Impresora ya estaba conectada, imprimiendo directamente...')
@@ -72,14 +72,14 @@ export function ImprimirTicketModal({
         await imprimirAutomatico()
         return
       }
-      
+
       // Intentar conectar a dispositivo guardado
       const conectadoAuto = await printer.connectToSavedDevice()
-      
+
       if (conectadoAuto) {
         setConectado(true)
         console.log('✅ Conexión automática exitosa, imprimiendo...')
-        
+
         // Auto-imprimir inmediatamente
         await imprimirAutomatico()
       } else {
@@ -95,7 +95,7 @@ export function ImprimirTicketModal({
 
   const imprimirAutomatico = async () => {
     setImprimiendo(true)
-    
+
     try {
       const ticketData = formatTicketData(
         socioData,
@@ -113,15 +113,15 @@ export function ImprimirTicketModal({
       )
 
       await printer.printTicket(ticketData)
-      
+
       setExito(true)
       setError(null)
-      
+
       // Cerrar automáticamente después de 2 segundos
       setTimeout(() => {
         handleCerrar()
       }, 2000)
-      
+
     } catch (err: any) {
       console.error("Error en impresión automática:", err)
       setError(err.message || "Error al imprimir el ticket")
@@ -135,10 +135,10 @@ export function ImprimirTicketModal({
   const handleConectar = async () => {
     setConectando(true)
     setError(null)
-    
+
     try {
       const resultado = await printer.connect()
-      
+
       if (resultado) {
         setConectado(true)
         setError(null)
@@ -183,15 +183,15 @@ export function ImprimirTicketModal({
 
       // Imprimir ticket
       await printer.printTicket(ticketData)
-      
+
       setExito(true)
       setError(null)
-      
+
       // Cerrar automáticamente después de 2 segundos
       setTimeout(() => {
         handleCerrar()
       }, 2000)
-      
+
     } catch (err: any) {
       console.error("Error imprimiendo ticket:", err)
       setError(err.message || "Error al imprimir el ticket")
@@ -216,14 +216,18 @@ export function ImprimirTicketModal({
   return (
     <Dialog open={open} onOpenChange={handleCerrar}>
       <DialogContent className="sm:max-w-[500px] [&>button]:hidden">
+        <DialogDescription className="sr-only">
+          Revisa los datos del socio y el estado de la impresora para imprimir el ticket.
+        </DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b">
           <div className="flex items-center gap-2">
             <Printer className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-bold">Imprimir Ticket</h2>
+            <DialogTitle className="text-xl font-bold">Imprimir Ticket</DialogTitle>
           </div>
           <button
             onClick={handleCerrar}
+            aria-label="Cerrar impresión de ticket"
             disabled={imprimiendo}
             className="text-muted-foreground hover:text-foreground disabled:opacity-50"
           >

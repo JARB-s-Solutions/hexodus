@@ -70,7 +70,8 @@ export function DashboardHeader() {
       staff: 'Personal',
       usuario: 'Usuario'
     }
-    return roles[user.rol] || user.rol
+    const rol = user.rol || ''
+    return roles[rol] || rol
   }
 
   return (

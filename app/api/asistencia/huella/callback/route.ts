@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { timingSafeEqual } from "node:crypto"
 
 import { appendHuellaMotorEvent } from "@/lib/asistencia-huella-events"
 
@@ -7,14 +8,15 @@ export const runtime = "nodejs"
 
 function isAuthorized(request: NextRequest) {
   const expectedSecret = process.env.HUELLA_MOTOR_CALLBACK_SECRET?.trim()
-  if (!expectedSecret) return true
+  if (!expectedSecret || process.env.HUELLA_LEGACY_CLOUD_ENABLED !== "true") return false
 
   const providedSecret =
     request.headers.get("x-motor-secret") ||
-    request.headers.get("x-callback-secret") ||
-    request.nextUrl.searchParams.get("secret")
+    request.headers.get("x-callback-secret")
 
-  return providedSecret === expectedSecret
+  const provided = Buffer.from(providedSecret || "")
+  const expected = Buffer.from(expectedSecret)
+  return provided.length === expected.length && timingSafeEqual(provided, expected)
 }
 
 function normalizeParsedPayload(value: unknown): Record<string, unknown>[] {
@@ -57,6 +59,7 @@ function parseCallbackBody(rawBody: string) {
 }
 
 export async function POST(request: NextRequest) {
+  if (process.env.HUELLA_LEGACY_CLOUD_ENABLED !== "true") return NextResponse.json({ success: false, error: "Legacy callback disabled" }, { status: 410 })
   if (!isAuthorized(request)) {
     return NextResponse.json(
       { success: false, error: "Unauthorized callback" },
@@ -66,6 +69,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const rawBody = await request.text()
+    if (Buffer.byteLength(rawBody, "utf8") > 65536) return NextResponse.json({ success: false, error: "Payload too large" }, { status: 413 })
     const payloads = parseCallbackBody(rawBody)
 
     if (payloads.length === 0) {

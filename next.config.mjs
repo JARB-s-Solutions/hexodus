@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   images: {
     unoptimized: true,
@@ -21,7 +21,7 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     // Le decimos a Webpack que ignore 'WebSdk' porque lo inyectaremos manualmente
     config.externals = [...(config.externals || []), { WebSdk: 'WebSdk' }];
-    
+
     // Resolver módulos de Node que no están disponibles en el cliente
     if (!isServer) {
       config.resolve.fallback = {
@@ -31,7 +31,7 @@ const nextConfig = {
         encoding: false,
       };
     }
-    
+
     return config;
   },
 }

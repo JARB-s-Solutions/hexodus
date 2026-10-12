@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiPut, apiDelete, apiDownload } from '@/lib/api'
+import { notificarCambioBiometrico } from '@/lib/motor-huella'
 import { getMetodosPago as getMetodosPagoConfiguracion } from '@/lib/services/metodos-pago'
 import type {
   Socio,
@@ -141,20 +142,18 @@ export class SociosService {
    */
   static async getById(id: number): Promise<Socio> {
     console.log(`🔄 GET /api/socios/${id} - Obteniendo socio`)
-    
+
     const response = await apiGet<SocioResponse>(`/socios/${id}`)
-    console.log('✅ Respuesta API cruda:', response)
-    console.log('📋 Datos del socio (response.data):', response.data)
     console.log('🏷️ Campo plan_id en API:', {
       plan_id: response.data.plan_id,
       tipo: typeof response.data.plan_id,
       membresia: response.data.membresia
     })
-    
+
     if (!response.data) {
       throw new Error('No se encontró el socio')
     }
-    
+
     const socioMapeado = mapSocioFromAPI(response.data)
     console.log('🔄 Socio después de mapear:', socioMapeado)
     console.log('📅 Fechas contrato mapeadas:', {
@@ -166,7 +165,7 @@ export class SociosService {
       tipo: typeof socioMapeado.planId,
       esCero: socioMapeado.planId === 0
     })
-    
+
     return socioMapeado
   }
 
@@ -177,14 +176,14 @@ export class SociosService {
   static async cotizar(data: CotizarRequest): Promise<CotizacionResponse['data']> {
     console.log('🔄 POST /api/socios/cotizar - Cotizando membresía')
     console.log('📤 Datos a enviar:', data)
-    
+
     const response = await apiPost<CotizacionResponse>('/socios/cotizar', data)
     console.log('✅ Cotización obtenida:', response)
-    
+
     if (!response.data) {
       throw new Error('No se pudo obtener la cotización')
     }
-    
+
     return response.data
   }
 
@@ -194,15 +193,15 @@ export class SociosService {
    */
   static async create(data: CreateSocioRequest): Promise<CreateSocioResponse['data']> {
     console.log('🆕 POST /api/socios - Creando nuevo socio')
-    console.log('📤 Payload completo:', data)
-    
+
     const response = await apiPost<CreateSocioResponse>('/socios', data)
+    // The registration form awaits the direct push to the local reader after saving.
     console.log('✅ Socio creado exitosamente:', response)
-    
+
     if (!response.data) {
       throw new Error('No se recibió respuesta válida del servidor')
     }
-    
+
     return response.data
   }
 
@@ -211,17 +210,16 @@ export class SociosService {
    */
   static async update(id: number, data: Partial<CreateSocioRequest>): Promise<Socio> {
     console.log(`✏️ PUT /api/socios/${id} - Actualizando socio`)
-    console.log('📤 Datos a actualizar:', data)
-    
+
     const response = await apiPut<SocioResponse>(`/socios/${id}`, data)
-    console.log('✅ Respuesta del servidor:', response)
-    
+    // The edit form awaits the direct push when a fingerprint is changed.
+
     // Si el backend devuelve solo { message: "..." } sin data, recargar el socio
     if (!response.data) {
       console.log('⚠️ No hay data en response, recargando socio...')
       return await this.getById(id)
     }
-    
+
     return mapSocioFromAPI(response.data)
   }
 
@@ -230,8 +228,9 @@ export class SociosService {
    */
   static async delete(id: number): Promise<void> {
     console.log(`❌ DELETE /api/socios/${id} - Eliminando socio`)
-    
+
     await apiDelete(`/socios/${id}`)
+    // The members page awaits the direct push after this deletion.
     console.log('✅ Socio eliminado exitosamente')
   }
 
@@ -241,14 +240,15 @@ export class SociosService {
   static async updateEstado(id: number, estado: 'activo' | 'inactivo' | 'suspendido'): Promise<Socio> {
     console.log(`🔄 PUT /api/socios/${id}/estado - Actualizando estado`)
     console.log('📤 Nuevo estado:', estado)
-    
+
     const response = await apiPut<SocioResponse>(`/socios/${id}/estado`, { estado })
+    notificarCambioBiometrico()
     console.log('✅ Estado actualizado:', response)
-    
+
     if (!response.data) {
       throw new Error('No se pudo actualizar el estado')
     }
-    
+
     return mapSocioFromAPI(response.data)
   }
 
@@ -258,15 +258,15 @@ export class SociosService {
    * Soporta pagos simples (metodo_pago_id) o split (pagos[])
    */
   static async pagarMembresiaPendiente(
-    id: number, 
+    id: number,
     metodoPagoIdOPagos: number | Array<{ metodo_pago_id: number; monto: number }>
   ): Promise<string> {
     console.log(`💰 POST /api/socios/${id}/pagar-membresia - Registrando pago de adeudo`)
-    
+
     const body = Array.isArray(metodoPagoIdOPagos)
       ? { pagos: metodoPagoIdOPagos }
       : { metodo_pago_id: metodoPagoIdOPagos }
-    
+
     console.log('📤 Payload:', body)
 
     const response = await apiPost<{ message?: string }>(`/socios/${id}/pagar-membresia`, body)
@@ -282,17 +282,17 @@ export class SociosService {
    * Soporta renovación simple (metodo_pago_id) o split (pagos[])
    */
   static async renovarMembresia(
-    id: number, 
-    planId: number, 
+    id: number,
+    planId: number,
     metodoPagoIdOPagos: number | Array<{ metodo_pago_id: number; monto: number }>
   ): Promise<string> {
     console.log(`🔄 POST /api/socios/${id}/renovar - Renovando membresía`)
     console.log('📤 plan_id:', planId)
-    
+
     const body = Array.isArray(metodoPagoIdOPagos)
       ? { plan_id: planId, pagos: metodoPagoIdOPagos }
       : { plan_id: planId, metodo_pago_id: metodoPagoIdOPagos }
-    
+
     console.log('📤 Payload:', body)
 
     const response = await apiPost<{ message?: string }>(`/socios/${id}/renovar`, body)
@@ -313,20 +313,20 @@ export class SociosService {
     membresia?: string
   }>> {
     console.log(`🔍 GET /api/socios?search=${query} - Buscando socios`)
-    
+
     if (!query || query.trim().length < 2) {
       return []
     }
-    
+
     const response = await apiGet<GetSociosResponse>(`/socios?search=${encodeURIComponent(query.trim())}`)
     console.log('✅ Resultados de búsqueda:', response)
     console.log('📋 Data completa:', response.data)
     console.log('📋 Primer socio:', response.data?.[0])
-    
+
     if (!response.data || !Array.isArray(response.data)) {
       return []
     }
-    
+
     // Mapear a formato simplificado para el buscador
     // SocioListItemAPI usa 'clave' y 'nombre', no 'codigo_socio' y 'nombre_completo'
     const resultados = response.data.slice(0, 10).map((socio) => {
@@ -336,7 +336,7 @@ export class SociosService {
         clave: socio.clave,
         membresia: socio.membresia
       })
-      
+
       return {
         id: socio.socio_id,
         nombre: socio.nombre,
@@ -345,7 +345,7 @@ export class SociosService {
         membresia: socio.membresia || undefined,
       }
     })
-    
+
     console.log('✅ Resultados mapeados:', resultados)
     return resultados
   }

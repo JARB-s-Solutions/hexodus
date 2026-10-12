@@ -35,7 +35,7 @@ export function UsuariosTable({
   const sorted = [...usuarios].sort((a, b) => {
     const dir = sortDir === "asc" ? 1 : -1
     if (sortField === "nombre") return a.nombre.localeCompare(b.nombre) * dir
-    
+
     // Manejar valores null en ultimoAcceso - mover nulls al final
     if (!a.ultimoAcceso && !b.ultimoAcceso) return 0
     if (!a.ultimoAcceso) return 1  // a va al final
@@ -177,9 +177,9 @@ export function UsuariosTable({
 
                     {/* Rol */}
                     <td className="px-4 py-3 text-center">
-                      <span 
+                      <span
                         className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium text-white"
-                        style={{ backgroundColor: u.rol.color }}
+                        style={{ backgroundColor: u.rol.color ?? undefined }}
                       >
                         {u.rol.nombre}
                       </span>
@@ -188,8 +188,8 @@ export function UsuariosTable({
                     {/* Estado */}
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        u.activo 
-                          ? "bg-[#22C55E]/20 text-[#22C55E]" 
+                        u.activo
+                          ? "bg-[#22C55E]/20 text-[#22C55E]"
                           : "bg-muted text-muted-foreground"
                       }`}>
                         {u.activo && (
