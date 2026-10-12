@@ -50,8 +50,8 @@ export function DetalleUsuarioModal({ usuario, open, displayId, onClose }: Detal
               )}
             </div>
             <span className={`ml-auto inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-semibold ${
-              usuario.activo 
-                ? "bg-[#22C55E]/20 text-[#22C55E]" 
+              usuario.activo
+                ? "bg-[#22C55E]/20 text-[#22C55E]"
                 : "bg-muted text-muted-foreground"
             }`}>
               {usuario.activo && <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E] animate-pulse" />}
@@ -79,9 +79,9 @@ export function DetalleUsuarioModal({ usuario, open, displayId, onClose }: Detal
               <Shield className="h-4 w-4 text-accent flex-shrink-0" />
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Rol</p>
-                <span 
+                <span
                   className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                  style={{ backgroundColor: usuario.rol.color }}
+                  style={{ backgroundColor: usuario.rol.color ?? undefined }}
                 >
                   {usuario.rol.nombre}
                 </span>

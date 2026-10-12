@@ -7,12 +7,12 @@ import { ProductosService } from "@/lib/services/productos"
 import { MetodosPagoService } from "@/lib/services/socios"
 import { DualPaymentSelector, type PagoSplitRequest } from "@/components/payment/dual-payment-selector"
 import type { Socio } from "@/lib/types/socios"
-import type { ProductoExtendido } from "@/lib/types/productos"
+import type { Producto } from "@/lib/types/productos"
 import type { MetodoPago } from "@/lib/types/socios"
 import { formatCurrency } from "@/lib/types/ventas"
 
 interface ProductoSeleccionado {
-  producto: ProductoExtendido
+  producto: Producto
   cantidad: number
 }
 
@@ -30,14 +30,14 @@ interface NuevaVentaModalProps {
 export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalProps) {
   // Estados principales
   const [socios, setSocios] = useState<Socio[]>([])
-  const [productos, setProductos] = useState<ProductoExtendido[]>([])
+  const [productos, setProductos] = useState<Producto[]>([])
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([])
-  
+
   // Estados del formulario
   const [socioSeleccionado, setSocioSeleccionado] = useState<Socio | null>(null)
   const [pagosSeleccionados, setPagosSeleccionados] = useState<PagoSplitRequest[]>([])
   const [productosSeleccionados, setProductosSeleccionados] = useState<ProductoSeleccionado[]>([])
-  
+
   // Estados de búsqueda
   const [busquedaSocio, setBusquedaSocio] = useState("")
   const [busquedaProducto, setBusquedaProducto] = useState("")
@@ -54,27 +54,27 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
   async function cargarDatos() {
     try {
       console.log('🔄 Cargando datos para modal de venta...')
-      
+
       const [sociosData, productosData, metodosPagoData] = await Promise.all([
         SociosService.getAll(),
         ProductosService.getAll(),
         MetodosPagoService.getAll()
       ])
-      
+
       console.log('📦 Datos recibidos:', {
         sociosRaw: sociosData.socios.length,
         productosRaw: productosData.productos.length,
         metodosRaw: metodosPagoData.length
       })
-      
+
       const sociosFiltrados = sociosData.socios.filter(s => s.estadoSocio === 'activo')
       const productosFiltrados = productosData.productos.filter(p => p.status === 'activo' && p.stockActual > 0)
       const metodosActivos = metodosPagoData.filter(m => m.activo)
-      
+
       setSocios(sociosFiltrados)
       setProductos(productosFiltrados)
       setMetodosPago(metodosActivos)
-      
+
       console.log('✅ Datos filtrados y guardados:', {
         socios: sociosFiltrados.length,
         productos: productosFiltrados.length,
@@ -90,13 +90,13 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
     if (!busquedaSocio.trim()) return []
     const q = busquedaSocio.toLowerCase()
     const filtrados = socios.filter(
-      s => s.nombre.toLowerCase().includes(q) || 
+      s => s.nombre.toLowerCase().includes(q) ||
            s.codigoSocio.toLowerCase().includes(q)
     ).slice(0, 5)
-    
-    console.log('🔍 Búsqueda socio:', { 
-      query: q, 
-      resultados: filtrados.length, 
+
+    console.log('🔍 Búsqueda socio:', {
+      query: q,
+      resultados: filtrados.length,
       total: socios.length,
       sociosDisponibles: socios.slice(0, 3).map(s => ({ nombre: s.nombre, codigo: s.codigoSocio }))
     })
@@ -133,7 +133,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
     setBusquedaSocio("")
   }
 
-  function agregarProducto(producto: ProductoExtendido) {
+  function agregarProducto(producto: Producto) {
     setProductosSeleccionados(prev => [
       ...prev,
       { producto, cantidad: 1 }
@@ -169,7 +169,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
+
     if (pagosSeleccionados.length === 0 || productosSeleccionados.length === 0) {
       alert('Debes seleccionar al menos un método de pago y un producto')
       return
@@ -250,7 +250,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
                     placeholder="Buscar producto..."
                     className="w-full pl-9 pr-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground focus:border-accent focus:ring-0 focus:outline-none transition-colors"
                   />
-                  
+
                   {/* Sugerencias de productos */}
                   {showProductosSuggestions && productosFiltrados.length > 0 && (
                     <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-lg">
@@ -379,7 +379,7 @@ export function NuevaVentaModal({ open, onClose, onConfirm }: NuevaVentaModalPro
                     placeholder="Buscar Socio..."
                     className="w-full pl-9 pr-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground focus:border-accent focus:ring-0 focus:outline-none transition-colors"
                   />
-                  
+
                   {/* Sugerencias de socios */}
                   {showSociosSuggestions && sociosFiltrados.length > 0 && (
                     <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-40 overflow-y-auto rounded-lg border border-border bg-card shadow-lg">

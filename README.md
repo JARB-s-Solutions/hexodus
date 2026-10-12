@@ -30,7 +30,7 @@ Sistema moderno de gestión integral para gimnasios desarrollado con Next.js 16,
 ## 🚀 Inicio Rápido
 
 ### Requisitos Previos
-- Node.js 18+ 
+- Node.js 18+
 - pnpm (recomendado) o npm
 
 ### Instalación
@@ -221,3 +221,7 @@ Para soporte y consultas:
 ---
 
 **Desarrollado con ❤️ por el equipo de Hexodus**
+
+## Motor biométrico actual
+
+La configuración recomendada usa HEXODUS BioSync por SSE y no hace polling continuo. Consulta [`docs/BIOMETRIA-SSE-FRONT-2026-10-12.md`](docs/BIOMETRIA-SSE-FRONT-2026-10-12.md) para el flujo, las variables de entorno y las pruebas. El callback y el transporte heredados permanecen desactivados salvo habilitación explícita.

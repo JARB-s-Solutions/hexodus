@@ -8,7 +8,7 @@ import {
 import { SociosService } from "@/lib/services/socios"
 import { MembresiasService } from "@/lib/services/membresias"
 import { AuthService } from "@/lib/auth"
-import { sincronizarCacheMotorHuella } from "@/lib/motor-huella"
+import { sincronizarCacheMotorHuella, notificarCambioBiometrico } from "@/lib/motor-huella"
 import { CheckoutSocioModal } from "./checkout-socio-modal"
 import { ImprimirTicketModal } from "./imprimir-ticket-modal"
 import { CapturaFacialModal } from "./captura-facial-modal"
@@ -25,7 +25,7 @@ import type { Membresia } from "@/lib/types/membresias"
 /**
  * Valida y normaliza el estado_pago para evitar estados inválidos.
  * CRÍTICO para cambios de plan y actualizaciones de membresía.
- * 
+ *
  * @param estadoPago - Estado de pago recibido (puede ser undefined, null o inválido)
  * @param contexto - Contexto de donde viene (para logs de depuración)
  * @returns Estado de pago válido ('pagado' | 'sin_pagar')
@@ -35,19 +35,19 @@ function validarEstadoPago(
   contexto: string
 ): 'pagado' | 'sin_pagar' {
   const estadosValidos = ['pagado', 'sin_pagar']
-  
+
   if (!estadoPago) {
     console.warn(`⚠️ [${contexto}] Estado de pago undefined/null → Usando default: sin_pagar`)
     return 'sin_pagar'
   }
-  
+
   if (!estadosValidos.includes(estadoPago)) {
     console.error(`❌ [${contexto}] Estado de pago inválido: "${estadoPago}"`)
     console.error(`   Estados válidos: ${estadosValidos.join(', ')}`)
     console.error(`   → Usando default seguro: sin_pagar`)
     return 'sin_pagar'
   }
-  
+
   console.log(`✅ [${contexto}] Estado de pago válido: ${estadoPago}`)
   return estadoPago as 'pagado' | 'sin_pagar'
 }
@@ -65,7 +65,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   const [genero, setGenero] = useState<"Masculino" | "Femenino" | "Otro">("Masculino")
   const [correo, setCorreo] = useState("")
   const [telefono, setTelefono] = useState("")
-  
+
   // Membresía
   const [membresias, setMembresias] = useState<Membresia[]>([])
   const [membresiaId, setMembresiaId] = useState<number | null>(null)
@@ -73,24 +73,25 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaVencimiento, setFechaVencimiento] = useState("") // Para preservar fecha de vencimiento
   const [editarMembresia, setEditarMembresia] = useState(false) // Toggle para habilitar edición de membresía
-  
+
   // Contrato
   const [firmoContrato, setFirmoContrato] = useState(false)
   const [contratoInicio, setContratoInicio] = useState("")
   const [contratoFin, setContratoFin] = useState("")
-  
+
   // Biometría
   const [fotoPerfilUrl, setFotoPerfilUrl] = useState("")
   const [faceEncoding, setFaceEncoding] = useState<number[]>([])
   const [fingerprintTemplate, setFingerprintTemplate] = useState("")
+  const [enrollmentProof, setEnrollmentProof] = useState<string | undefined>()
   const [bioRostro, setBioRostro] = useState(false)
   const [bioHuella, setBioHuella] = useState(false)
-  
+
   // Modales biométricos
   const [showFacialModal, setShowFacialModal] = useState(false)
   const [showHuellaModal, setShowHuellaModal] = useState(false)
   const [facialDetected, setFacialDetected] = useState(false)
-  
+
   // ===== Estado del flujo de registro =====
   const [loading, setLoading] = useState(false)
   const [loadingSocioData, setLoadingSocioData] = useState(false) // Nuevo: carga de datos completos
@@ -116,17 +117,17 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   // Formatear fechas sin problemas de zona horaria
   const formatFecha = (fecha: string | undefined) => {
     if (!fecha) return "-"
-    
+
     // Extraer solo la parte de la fecha (YYYY-MM-DD) ignorando hora y zona horaria
     const fechaSolo = fecha.split('T')[0]
     const [year, month, day] = fechaSolo.split('-').map(Number)
-    
+
     // Crear fecha usando componentes directamente (sin conversión de zona horaria)
     const meses = [
       "enero", "febrero", "marzo", "abril", "mayo", "junio",
       "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
     ]
-    
+
     return `${day} de ${meses[month - 1]} de ${year}`
   }
 
@@ -145,7 +146,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
         })
       }
     }
-    
+
     if (open) {
       cargarMembresias()
     }
@@ -156,7 +157,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
     if (socio && open) {
       // Modo edición: cargar datos COMPLETOS del socio desde API
       console.log('📋 Modo EDICIÓN - Obteniendo datos completos del socio:', socio.id)
-      
+
       const cargarDatosCompletos = async () => {
         setLoadingSocioData(true)
         try {
@@ -167,13 +168,13 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
             finContrato: socioCompleto.finContrato,
             firmoContrato: socioCompleto.firmoContrato
           })
-          
+
           // Datos personales
           setNombre(socioCompleto.nombre || "")
           setGenero(socioCompleto.genero || "Masculino")
           setCorreo(socioCompleto.correo || "")
           setTelefono(socioCompleto.telefono || "")
-          
+
           // Membresía
           console.log('📛 Membresía del socio:', {
             planId: socioCompleto.planId,
@@ -181,11 +182,11 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
             fechaInicio: socioCompleto.fechaInicioMembresia,
             fechaVencimiento: socioCompleto.fechaVencimientoMembresia
           })
-          
+
           // Guardar el nombre del plan y el ID (se buscará después cuando se carguen las membresías)
           setNombrePlanOriginal(socioCompleto.nombrePlan || null)
           setMembresiaId(socioCompleto.planId || null)
-          
+
           // Formatear fecha de inicio de membresía (YYYY-MM-DD)
           if (socioCompleto.fechaInicioMembresia) {
             const fechaInicioMem = socioCompleto.fechaInicioMembresia.split('T')[0]
@@ -194,14 +195,14 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
           } else {
             setFechaInicio("")
           }
-          
+
           // Guardar fecha de vencimiento (no formatear, solo para display)
           setFechaVencimiento(socioCompleto.fechaVencimientoMembresia || "")
           setEditarMembresia(false) // Por defecto NO editable
-          
+
           // Contrato - Convertir fechas al formato YYYY-MM-DD si es necesario
           setFirmoContrato(socioCompleto.firmoContrato || false)
-          
+
           // Procesar fecha de inicio del contrato
           if (socioCompleto.inicioContrato) {
             const fechaInicio = new Date(socioCompleto.inicioContrato)
@@ -216,7 +217,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
           } else {
             setContratoInicio("")
           }
-          
+
           // Procesar fecha de fin del contrato
           if (socioCompleto.finContrato) {
             const fechaFin = new Date(socioCompleto.finContrato)
@@ -231,13 +232,15 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
           } else {
             setContratoFin("")
           }
-          
+
           // Biometría
           setFotoPerfilUrl(socioCompleto.fotoPerfil || "")
           setBioRostro(socioCompleto.bioRostro || false)
           setBioHuella(socioCompleto.bioHuella || false)
           setFaceEncoding(socioCompleto.faceEncoding || [])
-          setFingerprintTemplate(socioCompleto.fingerprintTemplate || "")
+          // Existing templates are never re-submitted as a new enrollment.
+          setFingerprintTemplate("")
+          setEnrollmentProof(undefined)
         } catch (error: any) {
           console.error('❌ Error cargando datos del socio:', error)
           toast({
@@ -249,14 +252,14 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
           setLoadingSocioData(false)
         }
       }
-      
+
       cargarDatosCompletos()
     } else if (open) {
       // Modo creación: resetear todo y establecer fecha actual por defecto
       console.log('✨ Modo CREACIÓN - Formulario limpio')
-      
+
       const fechaActual = obtenerFechaActual()
-      
+
       setLoadingSocioData(false)
       setNombre("")
       setGenero("Masculino")
@@ -275,6 +278,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       setFotoPerfilUrl("")
       setFaceEncoding([])
       setFingerprintTemplate("")
+      setEnrollmentProof(undefined)
       setCotizacion(null)
       setShowCheckout(false)
       setDatosTemporales(null)
@@ -289,11 +293,11 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       console.log('🔍 Buscando plan después de cargar membresías...')
       console.log('   Plan del socio:', nombrePlanOriginal)
       console.log('   Membresías disponibles:', membresias.length, membresias.map(m => m.nombre))
-      
-      const planEncontrado = membresias.find(m => 
+
+      const planEncontrado = membresias.find(m =>
         m.nombre.toLowerCase() === nombrePlanOriginal.toLowerCase()
       )
-      
+
       if (planEncontrado) {
         console.log('✅ Plan encontrado:', planEncontrado.nombre, 'ID:', planEncontrado.id)
         setMembresiaId(planEncontrado.id)
@@ -306,27 +310,34 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
 
   if (!open) return null
 
-  const sincronizarMotorSiHayHuella = async (template?: string) => {
-    if (!template) return
+  const sincronizarMotorSiHayHuella = async (template?: string | null) => {
+    if (!template) return null
 
     const token = AuthService.getToken()
-    if (!token) return
+    if (!token) {
+      toast({ title: "Socio guardado, pero falta sincronizar", description: "La sesión expiró. Vuelve a entrar y actualiza el lector." })
+      notificarCambioBiometrico()
+      return false
+    }
 
     try {
-      await sincronizarCacheMotorHuella(token)
+      await sincronizarCacheMotorHuella(token, { scope: "enrollment", codigoSocio: socio?.codigoSocio })
+      return true
     } catch (error: any) {
+      notificarCambioBiometrico()
       console.error("Error sincronizando cache de huellas:", error)
       toast({
         title: "Socio guardado, pero falta sincronizar",
         description: error?.message || "No se pudo actualizar la cache del lector biometrico.",
       })
+      return false
     }
   }
 
   // ===== STEP 1: Validar y continuar =====
   const handleContinuar = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validaciones comunes
     if (!nombre.trim()) {
       toast({ title: "Error", description: "El nombre es obligatorio", variant: "destructive" })
@@ -377,6 +388,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
         foto_perfil_url: fotoPerfilUrl || undefined,
         face_encoding: faceEncoding.length > 0 ? faceEncoding : undefined,
         fingerprint_template: fingerprintTemplate || undefined,
+        enrollment_proof: enrollmentProof,
       },
       membresia: {
         plan_id: membresiaId,
@@ -399,10 +411,10 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
         plan_id: membresiaId,
         fecha_inicio: fechaInicio,
       }
-      
+
       const resultado = await SociosService.cotizar(cotizacionData)
       setCotizacion(resultado)
-      
+
       // STEP 3: Abrir modal de checkout
       setShowCheckout(true)
     } catch (error: any) {
@@ -420,12 +432,12 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   // ===== NUEVA FUNCIÓN: Actualizar socio existente =====
   const handleActualizarSocio = async () => {
     if (!socio) return
-    
+
     setLoading(true)
     try {
       console.log('✏️ Actualizando socio ID:', socio.id)
       console.log('🔄 Editar membresía:', editarMembresia)
-      
+
       const biometriaActualizada: NonNullable<Partial<CreateSocioRequest>["biometria"]> = {}
 
       if (fotoPerfilUrl) {
@@ -438,6 +450,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
 
       if (fingerprintTemplate) {
         biometriaActualizada.fingerprint_template = fingerprintTemplate
+        biometriaActualizada.enrollment_proof = enrollmentProof
       }
 
       // Construir solo los campos modificados
@@ -458,7 +471,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       if (Object.keys(biometriaActualizada).length > 0) {
         datosActualizados.biometria = biometriaActualizada
       }
-      
+
       // SOLO incluir membresía si el toggle está activado
       if (editarMembresia && membresiaId) {
         // ⚠️ VALIDACIÓN CRÍTICA: Determinar estado_pago de forma segura
@@ -466,7 +479,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
           socio.estadoPago,
           'Actualización de Socio'
         )
-        
+
         // 🔍 VERIFICACIÓN ADICIONAL: ¿Es cambio de plan?
         const esCambioDePlan = socio.planId !== membresiaId
         if (esCambioDePlan) {
@@ -481,19 +494,19 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
           console.warn('      2. Devolver monto anterior si corresponde')
           console.warn('      3. Cobrar nuevo plan SOLO si estado_pago=pagado')
           console.warn('      4. NO cobrar si estado_pago=sin_pagar')
-          
+
           // MEJORA FUTURA: Aquí podrías mostrar un modal de confirmación
           // preguntando: "¿Desea cobrar la nueva membresía ahora?"
           // y permitir al usuario cambiar el estado_pago explícitamente
         }
-        
+
         console.log('📝 Incluyendo membresía en actualización:', {
           plan_id: membresiaId,
           fecha_inicio: fechaInicio,
           estado_pago: estadoPagoSeguro,
           es_cambio_de_plan: esCambioDePlan,
         })
-        
+
         datosActualizados.membresia = {
           plan_id: membresiaId,
           fecha_inicio: fechaInicio,
@@ -502,22 +515,22 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       } else {
         console.log('⏭️ Membresía NO incluida en actualización (preservando existente)')
       }
-      
+
       await SociosService.update(socio.id, datosActualizados)
-      await sincronizarMotorSiHayHuella(fingerprintTemplate)
-      
+      const lectorListo = await sincronizarMotorSiHayHuella(fingerprintTemplate)
+
       toast({
         title: "✅ Socio actualizado",
-        description: `Los datos de ${nombre} han sido actualizados correctamente.`,
+        description: `Los datos de ${nombre} han sido actualizados correctamente.${lectorListo === false ? " Falta actualizar el lector; no vuelvas a guardar el socio." : lectorListo === true ? " La huella ya está disponible en el lector." : ""}`,
       })
-      
+
       onClose()
       onSuccess() // Refrescar lista
     } catch (error: any) {
       console.error("❌ Error al actualizar socio:", error)
       toast({
         title: "Error al actualizar",
-        description: error.message || "No se pudo actualizar el socio",
+        description: fingerprintTemplate && error.status === 409 ? "Las huellas cambiaron o la captura caducó. Captura nuevamente la huella antes de guardar." : error.message || "No se pudo actualizar el socio",
         variant: "destructive",
       })
     } finally {
@@ -567,11 +580,11 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
 
       console.log('📤 Enviando registro con pago confirmado', datosFinales.membresia)
       const response = await SociosService.create(datosFinales)
-      await sincronizarMotorSiHayHuella(datosFinales.biometria?.fingerprint_template)
+      const lectorListo = await sincronizarMotorSiHayHuella(datosFinales.biometria?.fingerprint_template)
 
       toast({
         title: "¡Socio registrado!",
-        description: `${nombre} ha sido inscrito exitosamente y el pago fue registrado.`,
+        description: `${nombre} ha sido inscrito exitosamente y el pago fue registrado.${lectorListo === false ? " Falta actualizar el lector; no vuelvas a inscribir al socio." : lectorListo === true ? " La huella ya está disponible en el lector." : ""}`,
       })
 
       // Guardar datos para impresión
@@ -596,7 +609,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       setLoading(false)
     }
   }
-  
+
   // ===== Cerrar modal de impresión y limpiar todo =====
   const handleCerrarImpresion = () => {
     setShowImprimirTicket(false)
@@ -611,13 +624,13 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   // ===== STEP 4 (alternativo): Inscribir sin pago =====
   const handleInscribirSinPago = async () => {
     if (!datosTemporales || !cotizacion) return
-    
+
     console.log('⚠️ Inscribiendo socio SIN PAGO:')
     console.log('   Nombre:', nombre)
     console.log('   Plan:', cotizacion.nombre_plan)
     console.log('   Monto pendiente:', cotizacion.desglose_cobro.total_a_pagar)
     console.warn('   💵 El cobro quedará PENDIENTE')
-    
+
     setLoading(true)
     try {
       const datosFinales: CreateSocioRequest = {
@@ -629,19 +642,19 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
           metodo_pago_id: undefined,
         },
       }
-      
+
       console.log('📤 Enviando registro sin pago')
       console.log('   estado_pago:', 'sin_pagar')
       console.log('   metodo_pago_id:', 'undefined (no se envía)')
-      
+
       await SociosService.create(datosFinales)
-      await sincronizarMotorSiHayHuella(datosFinales.biometria.fingerprint_template)
-      
+      const lectorListo = await sincronizarMotorSiHayHuella(datosFinales.biometria.fingerprint_template)
+
       toast({
         title: "¡Socio inscrito!",
-        description: `${nombre} ha sido inscrito. El pago queda pendiente.`,
+        description: `${nombre} ha sido inscrito. El pago queda pendiente.${lectorListo === false ? " Falta actualizar el lector; no vuelvas a inscribir al socio." : lectorListo === true ? " La huella ya está disponible; el acceso depende de su membresía." : ""}`,
       })
-      
+
       // STEP 5: Limpiar y cerrar
       setShowCheckout(false)
       setCotizacion(null)
@@ -668,7 +681,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
   const handleCapturaFacialCompleta = async (imageData: string, faceEncoding?: number[]) => {
     console.log('📸 Captura facial completada')
     console.log('🖼️ Tamaño de imagen:', imageData.length, 'caracteres')
-    
+
     try {
       // Mostrar loading mientras se sube la imagen
       toast({
@@ -680,7 +693,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       const uploadResponse = await fetch('/api/upload-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           image: imageData,
           type: 'profile' // Usaremos esta imagen como foto de perfil
         })
@@ -691,20 +704,20 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
       }
 
       const { imageUrl, publicId } = await uploadResponse.json()
-      
+
       console.log('✅ Imagen subida a Cloudinary:', imageUrl)
-      
+
       // Guardar URL de Cloudinary (no el base64)
       setFotoPerfilUrl(imageUrl)
-      
+
       if (faceEncoding) {
         console.log('🔢 Face encoding recibido:', faceEncoding.length, 'dimensiones')
         setFaceEncoding(faceEncoding)
       }
-      
+
       setBioRostro(true)
       setFacialDetected(true)
-      
+
       toast({
         title: "✓ Rostro capturado",
         description: "Imagen facial registrada correctamente",
@@ -712,17 +725,17 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
 
     } catch (error) {
       console.error('❌ Error al procesar captura facial:', error)
-      
+
       // En caso de error, guardamos el base64 como fallback
       setFotoPerfilUrl(imageData)
-      
+
       if (faceEncoding) {
         setFaceEncoding(faceEncoding)
       }
-      
+
       setBioRostro(true)
       setFacialDetected(true)
-      
+
       toast({
         title: "⚠️ Rostro capturado (local)",
         description: "Imagen guardada localmente. Verifica la conexión.",
@@ -738,7 +751,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
     setFotoPerfilUrl("https://via.placeholder.com/150") // Mock
     setFaceEncoding([0.1, 0.2, 0.3, 0.4, 0.5]) // Mock encoding
     setShowFacialModal(false)
-    
+
     toast({
       title: "Rostro capturado",
       description: "El reconocimiento facial ha sido configurado correctamente",
@@ -749,17 +762,18 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
     setShowHuellaModal(true)
   }
 
-  const handleCapturaHuellaCompleta = (template: string) => {
+  const handleCapturaHuellaCompleta = (template: string, proof?: string) => {
+    setEnrollmentProof(proof)
     console.log('✅ Huella capturada exitosamente')
     console.log('📝 Template length:', template.length)
-    
+
     setFingerprintTemplate(template)
     setBioHuella(true)
     setShowHuellaModal(false)
-    
+
     toast({
       title: "✓ Huella capturada",
-      description: "La huella dactilar ha sido registrada correctamente",
+      description: "La captura está lista. Guarda el socio para completar su registro.",
     })
   }
 
@@ -909,7 +923,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
                           onChange={(e) => {
                             const checked = e.target.checked
                             setFirmoContrato(checked)
-                            
+
                             // Si se activa el contrato, establecer fechas por defecto
                             if (checked) {
                               const fechaActual = obtenerFechaActual()
@@ -938,7 +952,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
                           onChange={(e) => {
                             const nuevaFechaInicio = e.target.value
                             setContratoInicio(nuevaFechaInicio)
-                            
+
                             // Calcular automáticamente fecha fin (+1 año)
                             if (nuevaFechaInicio) {
                               const fechaFin = calcularFechaUnAnoDespues(nuevaFechaInicio)
@@ -1103,7 +1117,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
                           />
                         </div>
                       </div>
-                      
+
                       {/* Información sobre vencimiento */}
                       {fechaVencimiento && (
                         <div className="text-xs text-muted-foreground/70 bg-muted/20 p-3 rounded-lg">
@@ -1220,6 +1234,7 @@ export function SocioModal({ open, onClose, onSuccess, socio }: SocioModalProps)
         open={showHuellaModal}
         onClose={() => setShowHuellaModal(false)}
         onCapture={handleCapturaHuellaCompleta}
+        codigoSocio={socio?.codigoSocio}
       />
 
       {/* Checkout Modal (STEP 3) */}

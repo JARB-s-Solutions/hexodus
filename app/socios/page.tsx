@@ -13,6 +13,7 @@ import { CobrarMembresiaModal } from "@/components/socios/cobrar-membresia-modal
 import { RenovarMembresiaModal } from "@/components/socios/renovar-membresia-modal"
 import { SociosService } from "@/lib/services/socios"
 import { AuthService } from "@/lib/auth"
+import { sincronizarCacheMotorHuella, notificarCambioBiometrico } from "@/lib/motor-huella"
 import { toast } from "@/hooks/use-toast"
 import type { DashboardStatsSocios, Socio } from "@/lib/types/socios"
 import { extractYmd } from "@/lib/timezone"
@@ -63,7 +64,7 @@ export default function SociosPage() {
   // ===== Cargar socios desde la API =====
   const cargarSocios = useCallback(async () => {
     if (useMockData) return // No cargar si usamos mock data
-    
+
     const loadId = ++loadIdRef.current
     setCargando(true)
     setCargandoMas(false)
@@ -243,7 +244,7 @@ export default function SociosPage() {
           const correoNormalizado = String(correo || '').toLowerCase()
           const telefonoNormalizado = String(telefono || '').toLowerCase()
           const claveNormalizada = String(clave || '').toLowerCase()
-          
+
           return (
             nombreNormalizado.includes(q) ||
             claveNormalizada.includes(q) ||
@@ -435,6 +436,12 @@ export default function SociosPage() {
         })
         // Recargar lista
         cargarSocios()
+        try {
+          await sincronizarCacheMotorHuella()
+        } catch {
+          notificarCambioBiometrico()
+          toast({ title: "Socio eliminado; lector pendiente de actualizar", description: "La baja ya se guardó. Se avisó al kiosco abierto para actualizar el lector; el servidor denegará el acceso del socio eliminado. Si sigue pendiente, usa Sincronizar." })
+        }
       }
     } catch (error: any) {
       console.error('Error eliminando socio:', error)

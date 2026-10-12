@@ -5,7 +5,10 @@ import { Fingerprint, CheckCircle2, XCircle, AlertTriangle, Wifi, WifiOff } from
 import { Avatar, AvatarFallback, AvatarImage } from "@/ui/avatar"
 import { AuthService } from "@/lib/auth"
 import { SociosService } from "@/lib/services/socios"
-import { sincronizarCacheMotorHuella } from "@/lib/motor-huella"
+import { sincronizarCacheMotorHuella, consumirEventosMotorSse, MOTOR_SSE, motorFetch, biometricApiFetch, BIOMETRIC_LEGACY, BIOMETRIC_CHANGED_EVENT, BIOMETRIC_CHANNEL, KIOSK_ID, MOTOR_URL, type BiometricCacheNotice } from "@/lib/motor-huella"
+import { waitMotorRetry } from "@/lib/motor-sse.mjs"
+import { getKioskAudio, attachKioskAudioRecovery, type KioskAudio, type KioskAudioState } from "@/lib/kiosk-audio.mjs"
+import { deliverEvent, validateEventPage } from "@/lib/biometric-protocol.mjs"
 import type { HuellaMotorEvent, HuellaMotorEventsResponse } from "@/lib/types/asistencia-huella"
 import { extractYmd, formatYmdForDisplay, getDaysUntilYmd } from "@/lib/timezone"
 
@@ -13,7 +16,6 @@ import { extractYmd, formatYmdForDisplay, getDaysUntilYmd } from "@/lib/timezone
 // CONSTANTES
 // ============================================================================
 
-const MOTOR_URL = process.env.NEXT_PUBLIC_MOTOR_URL || "http://localhost:4000"
 const MOTOR_EVENTOS_URL = `${MOTOR_URL}/eventos`
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://hexodusapi.vercel.app/api"
 const AUTO_RETRY_DELAY_MS = 800
@@ -76,6 +78,12 @@ type EstadoMotorDiagnostico = {
   huellasEnMemoria: number | null
   lectorConectado: boolean | null
   detectorActivo: boolean | null
+  cacheState: string | null
+  cacheStale: boolean
+  lastSyncUtc: string | null
+  lastSyncError: string | null
+  queueError: string | null
+  instanceId: string | null
 }
 
 type TipoNotificacionAcceso = "success" | "warning" | "error"
@@ -107,6 +115,7 @@ interface NotificacionAcceso {
   tipo: TipoNotificacionAcceso
   mensaje: string
   socio: SocioData | null
+  allowed: boolean
 }
 
 const ESTADO_MOTOR_INICIAL: EstadoMotorDiagnostico = {
@@ -114,6 +123,12 @@ const ESTADO_MOTOR_INICIAL: EstadoMotorDiagnostico = {
   huellasEnMemoria: null,
   lectorConectado: null,
   detectorActivo: null,
+  cacheState: null,
+  cacheStale: false,
+  lastSyncUtc: null,
+  lastSyncError: null,
+  queueError: null,
+  instanceId: null,
 }
 
 const calcularDiasRestantesMembresia = (fechaFin: string): number => {
@@ -200,75 +215,6 @@ const formatearFechaMembresia = (
   return formatYmdForDisplay(fechaYmd, "es-MX", options)
 }
 
-const safePlay = (audioRef: React.RefObject<HTMLAudioElement | null>) => {
-  const audio = audioRef.current
-  if (!audio) return
-
-  audio.currentTime = 0
-  const playPromise = audio.play()
-  if (playPromise && typeof playPromise.catch === "function") {
-    playPromise.catch((error) => {
-      console.warn("No se pudo reproducir audio:", error)
-    })
-  }
-}
-
-// Generador de tonos usando Web Audio API para casos de error o advertencia.
-const playWebAudioTone = (type: "warning" | "error") => {
-  if (typeof window === "undefined") return
-
-  const AudioContextClass =
-    (window as any).AudioContext ||
-    (window as any).webkitAudioContext
-  if (!AudioContextClass) return
-
-  const audioCtx = new AudioContextClass()
-  const oscillator = audioCtx.createOscillator()
-  const gainNode = audioCtx.createGain()
-
-  oscillator.connect(gainNode)
-  gainNode.connect(audioCtx.destination)
-
-  oscillator.onended = () => {
-    void audioCtx.close().catch((error: unknown) => {
-      console.warn("No se pudo cerrar AudioContext:", error)
-    })
-  }
-
-  const startTone = () => {
-    const startTime = audioCtx.currentTime
-
-    if (type === "warning") {
-      oscillator.type = "sine"
-      oscillator.frequency.setValueAtTime(523.25, startTime)
-      oscillator.frequency.setValueAtTime(659.25, startTime + 0.2)
-      gainNode.gain.setValueAtTime(0.5, startTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.5)
-      oscillator.start(startTime)
-      oscillator.stop(startTime + 0.5)
-      return
-    }
-
-    oscillator.type = "sawtooth"
-    oscillator.frequency.setValueAtTime(330, startTime)
-    oscillator.frequency.exponentialRampToValueAtTime(261, startTime + 0.8)
-    gainNode.gain.setValueAtTime(0.3, startTime)
-    gainNode.gain.linearRampToValueAtTime(0, startTime + 0.8)
-    oscillator.start(startTime)
-    oscillator.stop(startTime + 0.8)
-  }
-
-  if (audioCtx.state === "suspended") {
-    void audioCtx.resume().then(startTone).catch((error: unknown) => {
-      console.warn("No se pudo reanudar AudioContext:", error)
-      void audioCtx.close().catch(() => undefined)
-    })
-    return
-  }
-
-  startTone()
-}
-
 const normalizarTexto = (texto: string) =>
   texto
     .normalize("NFD")
@@ -331,8 +277,8 @@ const pickBooleanFromStatus = (...values: unknown[]) => {
 
     if (typeof value === "string") {
       const normalized = value.trim().toLowerCase()
-      if (["activo", "active", "running", "listo", "ready"].includes(normalized)) return true
-      if (["inactivo", "inactive", "stopped", "detenido", "off"].includes(normalized)) return false
+      if (["activo", "active", "running", "listo", "ready", "scanning", "enrolling"].includes(normalized)) return true
+      if (["inactivo", "inactive", "stopped", "detenido", "off", "waiting_cache", "waiting_reader", "queue_blocked"].includes(normalized)) return false
     }
   }
 
@@ -357,6 +303,12 @@ const extraerEstadoMotor = (payload: unknown): EstadoMotorDiagnostico => {
   const data = asRecord(root.data)
 
   return {
+    cacheState: typeof root.cacheState === "string" ? root.cacheState : null,
+    cacheStale: root.cacheStale === true,
+    lastSyncUtc: typeof root.lastSyncUtc === "string" ? root.lastSyncUtc : null,
+    lastSyncError: typeof root.lastSyncError === "string" ? root.lastSyncError : null,
+    queueError: typeof root.queueError === "string" ? root.queueError : null,
+    instanceId: typeof root.instanceId === "string" ? root.instanceId : null,
     cacheCargada: pickBoolean(
       root.cacheCargada,
       root.cache_cargada,
@@ -412,721 +364,314 @@ const extraerEstadoMotor = (payload: unknown): EstadoMotorDiagnostico => {
 
 export default function AsistenciaHuellaPage() {
   const [estado, setEstado] = useState<EstadoAsistencia>("connecting")
-  const [progress, setProgress] = useState(0)
-  const [socioData, setSocioData] = useState<SocioData | null>(null)
   const [errorMsg, setErrorMsg] = useState("")
-  const [countdown, setCountdown] = useState(5)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [mensajeEscaneo, setMensajeEscaneo] = useState("Escuchando el sensor. Coloca tu dedo en cualquier momento.")
   const [estadoMotor, setEstadoMotor] = useState<EstadoMotorDiagnostico>(ESTADO_MOTOR_INICIAL)
   const [ultimoCallbackAt, setUltimoCallbackAt] = useState("")
-  const [ultimoEventoMotor, setUltimoEventoMotor] = useState("Sin eventos del motor todavia.")
+  const [ultimoEventoMotor, setUltimoEventoMotor] = useState("Sin eventos del motor todavía.")
   const [notificaciones, setNotificaciones] = useState<NotificacionAcceso[]>([])
+  const [syncMessage, setSyncMessage] = useState("")
+  const [sessionExpired, setSessionExpired] = useState(false)
+  const [sessionReason, setSessionReason] = useState<"missing" | "expired">("expired")
+  const audioRef = useRef<KioskAudio | null>(null)
+  const [audioState, setAudioState] = useState<KioskAudioState>("blocked")
+  const mounted = useRef(false)
+  const abortRef = useRef<AbortController | null>(null)
+  const sseAbortRef = useRef<AbortController | null>(null)
+  const cursorRef = useRef(0)
+  const instanceRef = useRef<string | null>(null)
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollingRef = useRef(false)
+  const syncingRef = useRef(false)
+  const syncRequestedRef = useRef(false)
+  const motorCacheMissingRef = useRef(false)
+  const healthRef = useRef(false)
+  const expiredRef = useRef(false)
+  const pendingRef = useRef(false)
+  const backoffRef = useRef(750)
+  const notificationTimers = useRef<ReturnType<typeof setTimeout>[]>([])
+  const shownEvents = useRef(new Set<string>())
 
-  const audioSuccessRef = useRef<HTMLAudioElement | null>(null)
-  const audioBeepRef = useRef<HTMLAudioElement | null>(null)
-  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const autoRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const arranqueEventoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const compareAbortRef = useRef<AbortController | null>(null)
-  const verificacionEnCursoRef = useRef(false)
-  const flujoAccesoActivoRef = useRef(false)
-  const motorListoRef = useRef(false)
-  const ultimoMensajeMotorRef = useRef("")
-  const ultimoEventoIdRef = useRef(0)
-  const colaEventosRef = useRef<HuellaMotorEvent[]>([])
-  const huboActividadHuellaRef = useRef(false)
-  const pollingEnCursoRef = useRef(false)
-  const callbackActivoRef = useRef(false)
-  const deteccionesRecientesRef = useRef<Map<string, number>>(new Map())
-  const notificationTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
-  const isMounted = useRef(true)
+  const stopForSession = (error: any) => {
+    if (error?.status !== 401) return false
+    expiredRef.current = true
+    sseAbortRef.current?.abort()
+    setSessionExpired(true)
+    setSessionReason(AuthService.getToken() ? "expired" : "missing")
+    setEstado("error")
+    setErrorMsg(AuthService.getToken()
+      ? "La sesión expiró. Los eventos siguen pendientes en el motor."
+      : "No has iniciado sesión. Inicia sesión para continuar.")
+    setMensajeEscaneo("Inicia sesión para continuar. Ningún ingreso ha sido autorizado sin respuesta del servidor.")
+    return true
+  }
 
-  // Inicializar audios
-  useEffect(() => {
-    audioSuccessRef.current = new Audio("/sounds/success.wav")
-    audioBeepRef.current = new Audio("/sounds/beep-start.wav")
+  const encolarNotificacion = (tipo: TipoNotificacionAcceso, mensaje: string, socio: SocioData | null, allowed = false) => {
+    const id = crypto.randomUUID()
+    setNotificaciones(previous => [...previous.slice(-2), { id, tipo, mensaje, socio, allowed }])
+    const timer = setTimeout(() => {
+      if (mounted.current) setNotificaciones(previous => previous.filter(item => item.id !== id))
+      notificationTimers.current = notificationTimers.current.filter(item => item !== timer)
+    }, RESULT_NOTIFICATION_DURATION_MS)
+    notificationTimers.current.push(timer)
+  }
 
-    ;[audioSuccessRef, audioBeepRef].forEach((ref) => {
-      if (ref.current) {
-        ref.current.volume = 0.7
-        ref.current.preload = "auto"
+  const aplicarEstadoMotor = (payload: any) => {
+      const diagnostic = extraerEstadoMotor(payload)
+      if (!mounted.current) return
+      setEstadoMotor(diagnostic)
+      // One recovery push when a restarted motor reports an empty/uninitialized cache.
+      // Failed pushes wait for a change, reconnection or explicit retry; no cloud polling.
+      if (diagnostic.cacheCargada === false && !motorCacheMissingRef.current && !syncingRef.current) void sincronizar()
+      motorCacheMissingRef.current = diagnostic.cacheCargada === false
+      if (typeof payload.lastError === "string" && payload.lastError) setUltimoEventoMotor(payload.lastError)
+      if (diagnostic.cacheCargada !== true || diagnostic.lectorConectado !== true || diagnostic.detectorActivo !== true || diagnostic.queueError) {
+        setEstado("no-device")
+        setErrorMsg(diagnostic.queueError || (diagnostic.cacheCargada !== true ? "Caché biométrica no inicializada. Sincroniza para reconocer huellas." : diagnostic.lectorConectado !== true ? "Lector desconectado. El motor intentará reconectarlo." : "El lector no está disponible para detección continua."))
+      } else if (!pendingRef.current) {
+        setEstado("idle")
+        setErrorMsg("")
       }
-    })
-
-    return () => {
-      ;[audioSuccessRef, audioBeepRef].forEach((ref) => {
-        if (ref.current) {
-          ref.current.pause()
-          ref.current = null
-        }
-      })
-    }
-  }, [])
-
-  // Actualizar reloj
-  useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 1000)
-    return () => clearInterval(interval)
-  }, [])
-
-  // Inicializar motor al montar
-  useEffect(() => {
-    isMounted.current = true
-    inicializarMotor()
-    return () => {
-      isMounted.current = false
-      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-      if (autoRetryTimeoutRef.current) clearTimeout(autoRetryTimeoutRef.current)
-      if (pollingTimeoutRef.current) clearTimeout(pollingTimeoutRef.current)
-      if (arranqueEventoTimeoutRef.current) clearTimeout(arranqueEventoTimeoutRef.current)
-      if (compareAbortRef.current) compareAbortRef.current.abort()
-      notificationTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout))
-      notificationTimeoutsRef.current.clear()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    if (estado === "connecting") return
-
-    const interval = setInterval(() => {
-      void verificarEstadoMotorEnSegundoPlano()
-    }, MOTOR_HEALTHCHECK_INTERVAL_MS)
-
-    return () => clearInterval(interval)
-  }, [estado])
-
-  const sincronizarCursorEventos = async () => {
-    try {
-      const response = await fetch(`${MOTOR_EVENTOS_URL}?take=0`, {
-        cache: "no-store",
-      })
-
-      if (!response.ok) {
-        throw new Error("No se pudo sincronizar el cursor de eventos.")
-      }
-
-      const data = await response.json() as HuellaMotorEventsResponse
-
-      if (data.success) {
-        ultimoEventoIdRef.current = data.data.latestId
-        callbackActivoRef.current = data.data.latestId > 0
-      }
-    } catch (error) {
-      console.warn("[Huella] No se pudo sincronizar el cursor inicial:", error)
-    }
   }
 
   const consultarEstadoMotor = async () => {
+    if (!mounted.current || healthRef.current || expiredRef.current) return
+    healthRef.current = true
     try {
-      const response = await fetch(`${MOTOR_URL}/estado`, {
-        cache: "no-store",
-      })
+      const response = await motorFetch("/estado", {}, { signal: abortRef.current?.signal })
+      if (!response.ok) throw new Error("No se pudo consultar el estado del motor.")
+      const payload = await response.json()
+      aplicarEstadoMotor(payload)
+    } catch (error: any) {
+      if (!mounted.current || stopForSession(error)) return
+      setEstadoMotor(ESTADO_MOTOR_INICIAL)
+      setEstado("no-device")
+      setErrorMsg("No se pudo contactar al motor local. Verifica que está abierto y que el navegador permita acceder al lector local.")
+    } finally { healthRef.current = false }
+  }
 
-      if (!response.ok) {
-        throw new Error("No se pudo consultar el estado del motor.")
+  const sincronizar = async () => {
+    if (!mounted.current || expiredRef.current) return
+    syncRequestedRef.current = true
+    if (syncingRef.current) return
+    syncingRef.current = true
+    try {
+      do {
+        syncRequestedRef.current = false
+        setSyncMessage("Sincronizando caché…")
+        try {
+          const result = await sincronizarCacheMotorHuella(undefined, { signal: abortRef.current?.signal })
+          if (mounted.current) setSyncMessage(`Caché sincronizada: ${result.totalCargadas} huellas.`)
+        } catch (error: any) {
+          if (!mounted.current || stopForSession(error)) return
+          setSyncMessage(error?.message || "Sincronización fallida. Se conserva la caché anterior; el backend sigue autorizando cada ingreso.")
+        }
+        // A mutation arriving during a load must not be lost behind the older snapshot.
+      } while (syncRequestedRef.current && mounted.current && !expiredRef.current)
+    } finally { syncingRef.current = false }
+  }
+
+  const mostrarResultado = (event: HuellaMotorEvent, result: Awaited<ReturnType<typeof deliverEvent>>) => {
+    const key = event.eventId || `${instanceRef.current}:${event.id}`
+    if (shownEvents.current.has(key)) return
+    shownEvents.current.add(key)
+    if (shownEvents.current.size > 500) shownEvents.current.delete(shownEvents.current.values().next().value!)
+    const presentation = result.presentation
+    if (MOTOR_SSE) setUltimoEventoMotor(`${event.codigoSocio}: ${presentation.message}`)
+    const data = result.payload?.data
+    const socio = data?.socio && typeof data.socio.nombre_completo === "string" ? data as SocioData : null
+    encolarNotificacion(presentation.type as TipoNotificacionAcceso, presentation.message, socio, presentation.allowed)
+    audioRef.current?.play(presentation.type as TipoNotificacionAcceso)
+    setMensajeEscaneo("Escuchando el sensor. Coloca tu dedo en cualquier momento.")
+    setEstado("idle")
+  }
+
+  const procesarPagina = async (streamPage?: HuellaMotorEventsResponse): Promise<boolean> => {
+    let payload = streamPage
+    if (!payload) {
+    const response = await motorFetch(`/eventos?after=${cursorRef.current}&take=20`, {}, { signal: abortRef.current?.signal })
+    if (!response.ok) throw new Error("No se pudieron recuperar los eventos locales.")
+    payload = await response.json() as HuellaMotorEventsResponse
+    }
+    const instance = payload.data?.instanceId
+    if (payload.data?.cursorReset === true || instance && instanceRef.current && instance !== instanceRef.current) {
+      // Durable IDs survive reboot, but restarting at zero recovers every pending event.
+      instanceRef.current = instance || null
+      cursorRef.current = 0
+      return true
+    }
+    if (instance) instanceRef.current = instance
+    if (BIOMETRIC_LEGACY && typeof payload.data?.latestId === "number" && payload.data.latestId < cursorRef.current) {
+      cursorRef.current = 0
+      return true
+    }
+    const events: HuellaMotorEvent[] = validateEventPage(payload, cursorRef.current)
+    for (const event of events) {
+      if (!mounted.current || expiredRef.current) return false
+      setUltimoCallbackAt(event.capturedAtUtc || event.receivedAt)
+      setUltimoEventoMotor(event.message || "Huella reconocida. Autorización pendiente.")
+      if (BIOMETRIC_LEGACY && !event.codigoSocio) {
+        if (event.kind === "error") encolarNotificacion("error", event.message || "Huella no reconocida", null)
+        cursorRef.current = event.id
+        continue
       }
-
-      const data = await response.json()
-      const diagnostico = extraerEstadoMotor(data)
-      if (isMounted.current) {
-        setEstadoMotor(diagnostico)
-      }
-
-      return diagnostico
-    } catch (error) {
-      console.warn("[Huella] No se pudo consultar /estado del motor:", error)
-
-      if (isMounted.current) {
-        setEstadoMotor(ESTADO_MOTOR_INICIAL)
-      }
-
-      return ESTADO_MOTOR_INICIAL
-    }
-  }
-
-  const limpiarDeteccionesAntiguas = () => {
-    const ahora = Date.now()
-    const ventanaMs = 15000
-
-    deteccionesRecientesRef.current.forEach((timestamp, codigo) => {
-      if (ahora - timestamp > ventanaMs) {
-        deteccionesRecientesRef.current.delete(codigo)
-      }
-    })
-  }
-
-  const yaSeProcesoReciente = (codigoSocio: string) => {
-    limpiarDeteccionesAntiguas()
-    const ultimaDeteccion = deteccionesRecientesRef.current.get(codigoSocio)
-    return typeof ultimaDeteccion === "number"
-  }
-
-  const marcarDeteccionReciente = (codigoSocio: string) => {
-    limpiarDeteccionesAntiguas()
-    deteccionesRecientesRef.current.set(codigoSocio, Date.now())
-  }
-
-  const encolarNotificacion = (tipo: TipoNotificacionAcceso, mensaje: string, socio: SocioData | null) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-
-    setNotificaciones((prev) => [...prev.slice(-2), { id, tipo, mensaje, socio }])
-
-    const timeout = setTimeout(() => {
-      if (!isMounted.current) return
-
-      setNotificaciones((prev) => prev.filter((notificacion) => notificacion.id !== id))
-      notificationTimeoutsRef.current.delete(id)
-    }, RESULT_NOTIFICATION_DURATION_MS)
-
-    notificationTimeoutsRef.current.set(id, timeout)
-  }
-
-  const limpiarNotificaciones = () => {
-    notificationTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout))
-    notificationTimeoutsRef.current.clear()
-    setNotificaciones([])
-  }
-
-  const obtenerMensajeMotorNoDisponible = (diagnostico?: EstadoMotorDiagnostico) => {
-    if (diagnostico?.lectorConectado === false) {
-      return "Lector de huella desconectado. Verifica el sensor."
-    }
-
-    if (diagnostico?.detectorActivo === false) {
-      return "El detector del motor biometrico esta inactivo. Reinicia el lector."
-    }
-
-    return "Motor biometrico no disponible. Verifica la conexion con el sensor."
-  }
-
-  const manejarMotorNoDisponible = (mensaje: string) => {
-    motorListoRef.current = false
-    flujoAccesoActivoRef.current = false
-    verificacionEnCursoRef.current = false
-    callbackActivoRef.current = false
-    pollingEnCursoRef.current = false
-
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-    if (autoRetryTimeoutRef.current) clearTimeout(autoRetryTimeoutRef.current)
-    if (pollingTimeoutRef.current) clearTimeout(pollingTimeoutRef.current)
-    if (arranqueEventoTimeoutRef.current) clearTimeout(arranqueEventoTimeoutRef.current)
-    if (compareAbortRef.current) {
-      compareAbortRef.current.abort()
-      compareAbortRef.current = null
-    }
-
-    colaEventosRef.current = []
-    setSocioData(null)
-    setProgress(0)
-    setErrorMsg(mensaje)
-    limpiarNotificaciones()
-    setEstado("no-device")
-  }
-
-  const verificarEstadoMotorEnSegundoPlano = async () => {
-    if (!isMounted.current || estado === "connecting") return
-
-    const diagnostico = await consultarEstadoMotor()
-    const lectorDesconectado = diagnostico.lectorConectado === false
-    const detectorInactivo = diagnostico.detectorActivo === false
-    const estadoSinRespuesta =
-      motorListoRef.current &&
-      diagnostico.lectorConectado === null &&
-      diagnostico.detectorActivo === null &&
-      diagnostico.cacheCargada === null
-
-    if (lectorDesconectado || detectorInactivo || estadoSinRespuesta) {
-      manejarMotorNoDisponible(obtenerMensajeMotorNoDisponible(diagnostico))
-    }
-  }
-
-  const procesarSiguienteEvento = () => {
-    if (!isMounted.current || flujoAccesoActivoRef.current || verificacionEnCursoRef.current) return
-
-    const evento = colaEventosRef.current.shift()
-    if (!evento) return
-
-    callbackActivoRef.current = true
-
-    const mensajeEvento = (evento.message || "").trim()
-    setUltimoCallbackAt(evento.receivedAt)
-    setUltimoEventoMotor(
-      mensajeEvento ||
-      (evento.codigoSocio ? `Huella detectada para ${evento.codigoSocio}` : "Evento recibido desde el motor.")
-    )
-
-    if (evento.kind === "info" || evento.kind === "wait") {
-      if (evento.kind === "wait") {
-        setMensajeEscaneo("Escuchando el sensor. Coloca tu dedo en cualquier momento.")
-      }
-
-      setTimeout(() => {
-        procesarSiguienteEvento()
-      }, 0)
-      return
-    }
-
-    if (!evento.codigoSocio) {
-      flujoAccesoActivoRef.current = true
-      const mensajeError = mensajeEvento || "Huella no reconocida."
-      setProgress(100)
-      setMensajeEscaneo(mensajeError)
-      encolarNotificacion("error", mensajeError, null)
-      playWebAudioTone("error")
-      resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
-      return
-    }
-
-    if (yaSeProcesoReciente(evento.codigoSocio)) {
-      setTimeout(() => {
-        procesarSiguienteEvento()
-      }, 0)
-      return
-    }
-
-    flujoAccesoActivoRef.current = true
-    setEstado("scanning")
-    setProgress(35)
-    setSocioData(null)
-    setErrorMsg("")
-    setMensajeEscaneo(mensajeEvento || "Huella detectada. Preparando validacion...")
-    safePlay(audioBeepRef)
-
-    if (arranqueEventoTimeoutRef.current) clearTimeout(arranqueEventoTimeoutRef.current)
-    arranqueEventoTimeoutRef.current = setTimeout(() => {
-      if (!isMounted.current) return
-
-      marcarDeteccionReciente(evento.codigoSocio!)
+      pendingRef.current = true
       setEstado("validating")
-      setProgress(80)
-      setMensajeEscaneo("Validando asistencia y membresia...")
-      void registrarAsistencia(evento.codigoSocio!, evento.confidence ?? 100)
-    }, 250)
+      setMensajeEscaneo("Huella reconocida. Autorización pendiente del servidor…")
+      const result = await deliverEvent({ ...event, kioskId: KIOSK_ID }, async (body: object) => {
+        const server = await biometricApiFetch("/asistencia/huellas/validar", { method: "POST", body: JSON.stringify(body), signal: abortRef.current?.signal })
+        return { ok: server.ok, status: server.status, payload: await server.json() }
+      }, async (receipt: string) => {
+        const ack = await motorFetch("/eventos/ack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ receipt }) }, { signal: abortRef.current?.signal })
+        const confirmed = await ack.json()
+        if (!ack.ok || confirmed.success !== true) throw new Error("La asistencia se procesó, pero falta confirmar su entrega al motor. Se reintentará de forma segura.")
+      }, BIOMETRIC_LEGACY)
+      // Do not use latestId/nextCursor: only a completed, durably ACKed event advances this cursor.
+      cursorRef.current = event.id
+      pendingRef.current = false
+      if (mounted.current) mostrarResultado(event, result)
+    }
+    return payload.data.hasMore === true || events.length === 20
   }
 
-  const programarPollingEventos = (delay = EVENT_POLL_INTERVAL_MS) => {
-    if (pollingTimeoutRef.current) clearTimeout(pollingTimeoutRef.current)
-
-    pollingTimeoutRef.current = setTimeout(() => {
-      void consultarEventosMotor()
-    }, delay)
-  }
-
-  const programarEscuchaAutomatica = (delay = EVENT_POLL_INTERVAL_MS) => {
-    if (autoRetryTimeoutRef.current) clearTimeout(autoRetryTimeoutRef.current)
-
-    autoRetryTimeoutRef.current = setTimeout(() => {
-      if (!isMounted.current) return
-      programarPollingEventos(0)
-    }, delay)
+  const programarPolling = (delay: number) => {
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
+    if (mounted.current && !expiredRef.current) pollTimerRef.current = setTimeout(() => { void consultarEventosMotor() }, delay)
   }
 
   const consultarEventosMotor = async () => {
-    if (!isMounted.current || pollingEnCursoRef.current) return
-
-    pollingEnCursoRef.current = true
-    const after = ultimoEventoIdRef.current
-
+    if (!mounted.current || pollingRef.current || expiredRef.current) return
+    pollingRef.current = true
+    let delay = EVENT_POLL_INTERVAL_MS
     try {
-      const response = await fetch(`${MOTOR_EVENTOS_URL}?after=${after}`, {
-        cache: "no-store",
-      })
-
-      if (!response.ok) {
-        throw new Error("No se pudieron obtener eventos del motor.")
-      }
-
-      const data = await response.json() as HuellaMotorEventsResponse
-
-      if (data.success) {
-        if (typeof data.data.latestId === "number") {
-          ultimoEventoIdRef.current = Math.max(ultimoEventoIdRef.current, data.data.latestId)
-          callbackActivoRef.current = callbackActivoRef.current || data.data.latestId > 0
-        }
-
-        const nuevosEventos = data.data.eventos.filter((evento) => evento.id > after)
-        if (nuevosEventos.length > 0) {
-          callbackActivoRef.current = true
-          if (compareAbortRef.current) {
-            compareAbortRef.current.abort()
-            compareAbortRef.current = null
-          }
-
-          const ultimoEvento = nuevosEventos[nuevosEventos.length - 1]
-          setUltimoCallbackAt(ultimoEvento.receivedAt)
-          setUltimoEventoMotor(
-            (ultimoEvento.message || "").trim() ||
-            (ultimoEvento.codigoSocio
-              ? `Huella detectada para ${ultimoEvento.codigoSocio}`
-              : "Evento recibido desde el motor.")
-          )
-          colaEventosRef.current.push(...nuevosEventos)
-          procesarSiguienteEvento()
-        }
-      }
-    } catch (error) {
-      console.warn("[Huella] Error leyendo eventos locales del motor:", error)
-    } finally {
-      pollingEnCursoRef.current = false
-      if (isMounted.current) {
-        programarPollingEventos()
-      }
-    }
-  }
-
-  // ============================================================================
-  // INICIALIZAR MOTOR: Cargar huellas en cache del motor C#
-  // ============================================================================
-  const inicializarMotor = async () => {
-    if (!isMounted.current) return
-
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-    if (autoRetryTimeoutRef.current) clearTimeout(autoRetryTimeoutRef.current)
-    if (pollingTimeoutRef.current) clearTimeout(pollingTimeoutRef.current)
-    if (arranqueEventoTimeoutRef.current) clearTimeout(arranqueEventoTimeoutRef.current)
-    if (compareAbortRef.current) {
-      compareAbortRef.current.abort()
-      compareAbortRef.current = null
-    }
-
-    setEstado("connecting")
-    setProgress(0)
-    setSocioData(null)
-    setErrorMsg("")
-    setCountdown(5)
-    setMensajeEscaneo("Escuchando el sensor. Coloca tu dedo en cualquier momento.")
-    setUltimoCallbackAt("")
-    setUltimoEventoMotor("Sin eventos del motor todavia.")
-    setEstadoMotor(ESTADO_MOTOR_INICIAL)
-    limpiarNotificaciones()
-    colaEventosRef.current = []
-    flujoAccesoActivoRef.current = false
-    ultimoEventoIdRef.current = 0
-    ultimoMensajeMotorRef.current = ""
-    huboActividadHuellaRef.current = false
-    pollingEnCursoRef.current = false
-    callbackActivoRef.current = false
-    motorListoRef.current = false
-    verificacionEnCursoRef.current = false
-    deteccionesRecientesRef.current.clear()
-
-    try {
-      const token = AuthService.getToken()
-      if (!token) throw new Error("No se encontro la sesion para sincronizar huellas.")
-      await sincronizarCacheMotorHuella(token)
-      /*
-
-      
-      if (!resMotor.ok) throw new Error("Error al inyectar huellas en el motor biométrico.")
-
-      */
-      if (isMounted.current) {
-        const diagnostico = await consultarEstadoMotor()
-        const motorDisponible =
-          diagnostico.lectorConectado !== false &&
-          diagnostico.detectorActivo !== false
-
-        if (!motorDisponible) {
-          throw new Error(obtenerMensajeMotorNoDisponible(diagnostico))
-        }
-
-        motorListoRef.current = true
-        setEstado("idle")
-        await sincronizarCursorEventos()
-        programarPollingEventos(0)
-        programarEscuchaAutomatica(1200)
-      }
-    } catch (err: any) {
-      console.error("❌ Error inicializando motor:", err)
-      if (isMounted.current) {
-        manejarMotorNoDisponible(
-          err?.message?.includes("fetch")
-            ? "Motor biométrico no disponible. Verifica que esté corriendo en el puerto 4000."
-            : err?.message || "Error al inicializar el sistema biométrico."
-        )
-      }
-    }
-  }
-
-  // ============================================================================
-  // INICIAR VERIFICACIÓN: Llamar al motor para comparar huella
-  // ============================================================================
-  const iniciarVerificacion = async (silenciarEspera = false) => {
-    if (!motorListoRef.current || !isMounted.current || verificacionEnCursoRef.current) return
-
-    if (autoRetryTimeoutRef.current) clearTimeout(autoRetryTimeoutRef.current)
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-
-    verificacionEnCursoRef.current = true
-
-    setEstado("scanning")
-    setProgress(0)
-    setSocioData(null)
-    setErrorMsg("")
-    setCountdown(5)
-    setMensajeEscaneo("Escuchando el sensor. Coloca tu dedo en cualquier momento.")
-    ultimoMensajeMotorRef.current = ""
-    huboActividadHuellaRef.current = false
-
-    // Animación de progreso
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => {
-        const incremento = huboActividadHuellaRef.current ? 10 : 2
-        const siguiente = prev + incremento
-        return siguiente >= 85 ? 85 : siguiente
-      })
-    }, 250)
-
-    try {
-      const controller = new AbortController()
-      compareAbortRef.current = controller
-
-      const resMotor = await fetch(`${MOTOR_URL}/comparar`, {
-        method: "POST",
-        signal: controller.signal,
-      })
-
-      if (!resMotor.ok) throw new Error("No se pudo iniciar la lectura del lector biometrico.")
-      if (!resMotor.body) throw new Error("El navegador no soporta streams de respuesta.")
-
-      const streamReader = resMotor.body.getReader()
-      const decoder = new TextDecoder("utf-8")
-
-      let matchSuccess = false
-      let codigoSocioMatch = ""
-      let confidenceMatch = 100
-      let mensajeErrorMotor = ""
-      let buffer = ""
-
-      while (true) {
-        const { done, value } = await streamReader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lineas = buffer.split("\n")
-        buffer = lineas.pop() || ""
-
-        for (const linea of lineas) {
-          try {
-            const data = JSON.parse(linea)
-            if (data.tipo === "mensaje") {
-              const texto = String(data.texto || "").trim()
-              if (texto) {
-                ultimoMensajeMotorRef.current = texto
-                setMensajeEscaneo(texto)
-
-                if (esMensajeActividadHuella(texto) && !huboActividadHuellaRef.current) {
-                  huboActividadHuellaRef.current = true
-                  safePlay(audioBeepRef)
-                  setProgress((prev) => (prev < 20 ? 20 : prev))
-                }
-              }
-              continue
-            }
-            if (data.tipo === "resultado") {
-              if (!data.success) {
-                mensajeErrorMotor =
-                  data.message ||
-                  ultimoMensajeMotorRef.current ||
-                  "Huella no reconocida."
-                break
-              }
-              matchSuccess = true
-              codigoSocioMatch = data.codigoSocio
-              confidenceMatch = data.confidence ?? 100
-              huboActividadHuellaRef.current = true
-              break
-            }
-          } catch {
-            // ignorar líneas no JSON
-          }
-        }
-
-        if (matchSuccess || mensajeErrorMotor) break
-      }
-
-      clearInterval(progressInterval)
-      setProgress(90)
-
-      if (!isMounted.current) return
-
-      if (matchSuccess) {
-        if (yaSeProcesoReciente(codigoSocioMatch)) {
-          setProgress(0)
-          setMensajeEscaneo("Escuchando el sensor. Coloca tu dedo en cualquier momento.")
-          programarEscuchaAutomatica(AUTO_RETRY_DELAY_MS)
-          return
-        }
-
-        marcarDeteccionReciente(codigoSocioMatch)
-        setEstado("validating")
-        setMensajeEscaneo("Validando asistencia y membresia...")
-        await registrarAsistencia(codigoSocioMatch, confidenceMatch)
-      } else {
-        const mensajeNoCoincidencia =
-          mensajeErrorMotor ||
-          ultimoMensajeMotorRef.current ||
-          "Huella no reconocida. Intenta de nuevo."
-
-        const esEsperaSilenciosa =
-          !huboActividadHuellaRef.current || esMensajeEsperaHuella(mensajeNoCoincidencia)
-
-        if (silenciarEspera && esEsperaSilenciosa) {
-          setProgress(0)
-          setMensajeEscaneo("Escuchando el sensor. Coloca tu dedo en cualquier momento.")
-          programarEscuchaAutomatica(AUTO_RETRY_DELAY_MS)
-          return
-        }
-
-        setMensajeEscaneo(mensajeNoCoincidencia)
-        encolarNotificacion("error", mensajeNoCoincidencia, null)
-        playWebAudioTone("error")
-        resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
-      }
-    } catch (err: any) {
-      clearInterval(progressInterval)
-      console.error("❌ Error en comparación:", err)
-      if (err?.name === "AbortError") return
-      manejarMotorNoDisponible(
-        err?.message?.includes("fetch")
-          ? "Motor biométrico no disponible en el puerto 4000."
-          : err?.message || "Error al comunicarse con el motor biométrico."
-      )
-    } finally {
-      verificacionEnCursoRef.current = false
-      compareAbortRef.current = null
-    }
-  }
-
-  // ============================================================================
-  // REGISTRAR ASISTENCIA EN EL BACKEND
-  // ============================================================================
-  const registrarAsistencia = async (codigoSocio: string, confidence: number) => {
-    try {
-      const token = AuthService.getToken()
-
-      const resValidar = await fetch(`${API_BASE}/asistencia/huellas/validar`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          codigoSocio,
-          tipo: "IN",
-          kioskId: "KIOSKO-HUELLA-01",
-          confidence,
-        }),
-      })
-
-      const dataValidar = await resValidar.json()
-
-      if (!isMounted.current) return
-
-      setProgress(100)
-      const socioValidado = await completarSocioConDetalle(
-        enriquecerSocioConConfianza(
-          (dataValidar?.data || null) as SocioData | null,
-          confidence,
-        )
-      )
-
-      if (resValidar.ok && dataValidar.success) {
-        const diasRestantes = calcularDiasRestantesMembresia(
-          socioValidado?.socio?.fecha_fin_membresia || ""
-        )
-
-        if (diasRestantes < 0) {
-          encolarNotificacion("error", "Membresía vencida", socioValidado)
-          setErrorMsg("Membresía vencida")
-          playWebAudioTone("error")
-        } else if (diasRestantes <= 3) {
+      // This reduces duplicate UI work across tabs. Backend uniqueness + signed ACK remain authoritative.
+      const more = navigator.locks
+        ? await navigator.locks.request(`hexodus-biometric-${KIOSK_ID}`, { ifAvailable: true }, async lock => lock ? procesarPagina() : false)
+        : await procesarPagina()
+      backoffRef.current = EVENT_POLL_INTERVAL_MS
+      if (more) delay = 0
+    } catch (error: any) {
+      if (mounted.current && !stopForSession(error)) {
+        backoffRef.current = Math.min(30000, Math.max(1500, backoffRef.current * 2))
+        delay = backoffRef.current
+        if (pendingRef.current) {
           setEstado("warning")
-          encolarNotificacion("warning", "Tu membresía está próxima a vencer", socioValidado)
-          safePlay(audioSuccessRef)
-        } else {
-          setEstado("success")
-          encolarNotificacion("success", "Acceso permitido", socioValidado)
-          safePlay(audioSuccessRef)
+          setMensajeEscaneo("Huella reconocida, autorización o confirmación pendiente. Se reintentará al recuperar la conexión.")
         }
-        resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
-      } else if (resValidar.status === 403) {
-        const bloqueoPorVencimiento = esMembresiaVencida(
-          String(dataValidar.message || ""),
-          socioValidado?.socio?.fecha_fin_membresia
-            ? calcularDiasRestantesMembresia(socioValidado.socio.fecha_fin_membresia)
-            : null
-        )
-
-        setEstado(bloqueoPorVencimiento ? "error" : "warning")
-        setSocioData(socioValidado)
-        setErrorMsg(
-          bloqueoPorVencimiento
-            ? "Membresía vencida"
-            : dataValidar.message || "Membresía con restricciones."
-        )
-        encolarNotificacion(
-          bloqueoPorVencimiento ? "error" : "warning",
-          bloqueoPorVencimiento
-            ? "Membresía vencida"
-            : dataValidar.message || "Membresía con restricciones.",
-          socioValidado
-        )
-        playWebAudioTone(bloqueoPorVencimiento ? "error" : "warning")
-        resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
-      } else {
-        setSocioData(socioValidado)
-        setEstado("error")
-        setErrorMsg(dataValidar.message || "No se pudo registrar la asistencia.")
-        encolarNotificacion("error", dataValidar.message || "No se pudo registrar la asistencia.", socioValidado)
-        playWebAudioTone("error")
-        resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
+        setUltimoEventoMotor(error?.message || "Error temporal. Los eventos permanecen pendientes en el motor.")
       }
-    } catch (err: any) {
-      console.error("❌ Error registrando asistencia:", err)
-      if (isMounted.current) {
-        setEstado("error")
-        setErrorMsg("Error de conexión al validar membresía.")
-        encolarNotificacion("error", "Error de conexión al validar membresía.", null)
-        playWebAudioTone("error")
-        resetear(READY_FOR_NEXT_SCAN_DELAY_MS)
-      }
+    } finally {
+      pollingRef.current = false
+      programarPolling(delay)
     }
   }
 
-  const iniciarCountdown = (segundos: number) => {
-    setCountdown(segundos)
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-
-    countdownIntervalRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-          resetear()
-          return 0
+  const iniciarSse = () => {
+    sseAbortRef.current?.abort()
+    const controller = new AbortController()
+    sseAbortRef.current = controller
+    const signal = controller.signal
+    const active = () => mounted.current && !expiredRef.current && !signal.aborted
+    const listen = async () => {
+      let delay = 1500
+      while (active()) {
+        const started = Date.now()
+        try {
+          await consumirEventosMotorSse(async (type, payload) => {
+            if (!active()) return
+            if (type === "ready") {
+              // Every new stream replays only events still waiting for a signed ACK.
+              cursorRef.current = 0
+              instanceRef.current = payload.instanceId || null
+            } else if (type === "status") aplicarEstadoMotor(payload)
+            else if (type === "events") await procesarPagina(payload)
+          }, { signal })
+        } catch (error: any) {
+          if (!active() || stopForSession(error)) return
+          setUltimoEventoMotor(error?.message || "SSE desconectado. Los eventos siguen pendientes.")
+          if (pendingRef.current) {
+            setEstado("warning")
+            setMensajeEscaneo("Autorizacion o confirmacion pendiente. Reconectando de forma segura.")
+          } else {
+            setEstado("no-device")
+            setErrorMsg("Reconectando con el motor V2...")
+          }
         }
-        return prev - 1
-      })
-    }, 1000)
+        if (!active()) return
+        delay = Date.now() - started > 5000 ? 1500 : Math.min(30000, delay * 2)
+        await waitMotorRetry(delay, signal)
+      }
+    }
+    // One stream consumer per kiosk/browser. A second tab waits and takes over on close.
+    void (async () => {
+      try {
+        if (navigator.locks) await navigator.locks.request(`hexodus-biometric-${KIOSK_ID}`, { signal }, listen)
+        else await listen()
+      } catch (error) { if (!signal.aborted) setUltimoEventoMotor("No se pudo iniciar SSE. Reconecta el lector.") }
+    })()
   }
 
-  const resetear = (delay = AUTO_RETRY_DELAY_MS) => {
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-    flujoAccesoActivoRef.current = false
-    setEstado("idle")
-    setProgress(0)
-    setSocioData(null)
-    setErrorMsg("")
-    setCountdown(5)
-    setMensajeEscaneo("Escuchando el sensor. Coloca tu dedo en cualquier momento.")
-
-    if (arranqueEventoTimeoutRef.current) clearTimeout(arranqueEventoTimeoutRef.current)
-    procesarSiguienteEvento()
-    programarEscuchaAutomatica(delay)
+  const inicializarMotor = async () => {
+    if (!mounted.current) return
+    if (!AuthService.getToken()) { stopForSession({ status: 401 }); return }
+    expiredRef.current = false
+    setSessionExpired(false)
+    setEstado("connecting")
+    // Keep the cursor during manual reconnect; process startup always begins at zero.
+    await sincronizar()
+    await consultarEstadoMotor()
+    if (MOTOR_SSE) iniciarSse()
+    else programarPolling(0)
   }
+
+  useEffect(() => {
+    mounted.current = true
+    abortRef.current = new AbortController()
+    audioRef.current = getKioskAudio()
+    const unsubscribeAudio = audioRef.current.subscribe(setAudioState)
+    const stopAudioRecovery = attachKioskAudioRecovery(audioRef.current, window, document)
+    void inicializarMotor()
+    const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000)
+    const healthTimer = MOTOR_SSE ? null : setInterval(() => { void consultarEstadoMotor() }, MOTOR_HEALTHCHECK_INTERVAL_MS)
+    const receiveNotice = (notice: BiometricCacheNotice) => {
+      if (!notice || notice.kioskId !== KIOSK_ID || notice.motorUrl !== MOTOR_URL) return
+      if (notice.type === "synchronized" && typeof notice.totalCargadas === "number") {
+        setSyncMessage(`Caché sincronizada: ${notice.totalCargadas} huellas.`)
+        void consultarEstadoMotor()
+      } else if (notice.type === "changed") {
+        void sincronizar()
+      }
+    }
+    const changed = (event: Event) => receiveNotice((event as CustomEvent<BiometricCacheNotice>).detail)
+    const online = () => { void sincronizar() }
+    const logout = () => { stopForSession({ status: 401 }) }
+    const storage = (event: StorageEvent) => { if (event.key === "auth_token" && !event.newValue) logout() }
+    window.addEventListener(BIOMETRIC_CHANGED_EVENT, changed)
+    window.addEventListener("auth:logout", logout)
+    window.addEventListener("storage", storage)
+    window.addEventListener("online", online)
+    const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(BIOMETRIC_CHANNEL)
+    if (channel) channel.onmessage = event => receiveNotice(event.data)
+    return () => {
+      mounted.current = false
+      abortRef.current?.abort()
+      sseAbortRef.current?.abort()
+      clearInterval(clockTimer); if (healthTimer) clearInterval(healthTimer)
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
+      notificationTimers.current.forEach(clearTimeout)
+      window.removeEventListener(BIOMETRIC_CHANGED_EVENT, changed)
+      window.removeEventListener("auth:logout", logout)
+      window.removeEventListener("storage", storage)
+      window.removeEventListener("online", online)
+      channel?.close()
+      unsubscribeAudio()
+      stopAudioRecovery()
+      audioRef.current?.stop()
+    }
+  // Every long-lived operation reads mutable refs; no polling callback captures UI state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const formatTime = (date: Date): string =>
     date.toLocaleTimeString("es-MX", {
@@ -1169,11 +714,11 @@ export default function AsistenciaHuellaPage() {
                   {formatTime(currentTime)}
                 </p>
                 <div className="flex items-center gap-2 mt-1 justify-end">
-                  {estado === "no-device" || estado === "connecting" ? (
+                  {sessionExpired || estado === "no-device" || estado === "connecting" ? (
                     <>
                       <WifiOff className="h-4 w-4 text-red-500" />
                       <p className="text-xs text-red-500 font-medium">
-                        {estado === "connecting" ? "Inicializando..." : "Motor no disponible"}
+                        {sessionExpired ? sessionReason === "missing" ? "Sesión no iniciada" : "Sesión expirada" : estado === "connecting" ? "Inicializando..." : "Escaneo no disponible"}
                       </p>
                     </>
                   ) : (
@@ -1189,9 +734,25 @@ export default function AsistenciaHuellaPage() {
         </div>
       </header>
 
+      <div className="flex flex-wrap items-center justify-center gap-3 border-b border-border/50 px-4 py-2">
+        <p className="text-sm text-muted-foreground" role="status">
+          {audioState === "ready" ? "Sonido activado" : audioState === "unavailable"
+            ? "Audio no disponible. El registro de asistencia sigue activo."
+            : audioState === "activating" ? "Preparando sonido…"
+            : "El navegador bloqueó el sonido. Abre el acceso del kiosco o actívalo aquí."}
+        </p>
+        <button type="button" className="rounded-lg border border-accent px-4 py-2 text-sm font-semibold text-accent disabled:opacity-50"
+          disabled={audioState === "activating"}
+          onClick={() => { void audioRef.current?.activate().then(ready => { if (ready && mounted.current) audioRef.current?.play("success") }) }}>
+          {audioState === "activating" ? "Activando sonido…" : audioState === "ready" ? "Probar sonido" : "Activar sonido"}
+        </button>
+      </div>
+
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-2xl">
+          {BIOMETRIC_LEGACY && <p className="mb-4 rounded-lg border border-amber-500 p-3 text-amber-300">Modo compatible activo: los eventos antiguos no ofrecen autenticidad ni recuperación garantizada.</p>}
+          {sessionExpired && <p className="mb-4 rounded-lg border border-amber-500 p-3 text-amber-300">{sessionReason === "missing" ? "No has iniciado sesión." : "Tu sesión expiró."} Los eventos siguen pendientes. <a className="underline" href="/login">Iniciar sesión</a></p>}
           {(estado === "connecting") && <PantallaConectando />}
 
           {!notificacionActiva && (estado === "idle" || estado === "success" || estado === "warning" || estado === "error" || estado === "scanning" || estado === "validating") && (
@@ -1246,6 +807,12 @@ export default function AsistenciaHuellaPage() {
                 </p>
               </div>
               <p className="mt-3 border-t border-border/40 pt-3">
+                <span className="font-semibold text-foreground">Sincronización:</span>{" "}{syncMessage || "Sin sincronizar"}
+              </p>
+              <p>Estado de caché: {estadoMotor.cacheState === "valid_empty" ? "Válida, sin huellas" : estadoMotor.cacheState === "valid" ? "Válida" : estadoMotor.cacheState === "stale" || estadoMotor.cacheStale ? "Desactualizada" : estadoMotor.cacheState === "sync_failed" ? "Sincronización fallida" : "No inicializada"}</p>
+              {estadoMotor.lastSyncUtc && <p>Última actualización: {new Date(estadoMotor.lastSyncUtc).toLocaleString("es-MX")}</p>}
+              {estadoMotor.lastSyncError && <p className="text-amber-300">{estadoMotor.lastSyncError}</p>}
+              <p className="mt-3 border-t border-border/40 pt-3">
                 <span className="font-semibold text-foreground">Ultimo evento:</span>{" "}
                 {ultimoEventoMotor}
               </p>
@@ -1264,14 +831,14 @@ export default function AsistenciaHuellaPage() {
       <footer className="border-t border-border/50 bg-card/30 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-            <button 
+            <button
               onClick={() => window.location.href = '/asistencia/escaneo'}
               className="px-4 py-2 rounded-lg hover:bg-accent/10 hover:text-accent transition-colors"
             >
               🔄 Cambiar a Reconocimiento Facial
             </button>
             <span>|</span>
-            <button 
+            <button
               onClick={() => window.location.href = '/asistencia'}
               className="px-4 py-2 rounded-lg hover:bg-accent/10 hover:text-accent transition-colors"
             >
@@ -1358,9 +925,9 @@ function PantallaBaseHuella({
 }) {
   const estaValidando = estado === "validating"
   const estaCapturando = estado === "scanning"
-  const titulo = estaValidando ? "Validando Identidad" : "Escuchando el lector"
+  const titulo = estaValidando ? "Autorización pendiente" : "Escuchando el lector"
   const subtitulo = estaValidando
-    ? "Comparando con base de datos..."
+    ? "Huella reconocida. Esperando la decisión del servidor."
     : mensaje || "Coloca tu dedo en el sensor. La asistencia se registrara automaticamente."
 
   return (
@@ -1411,7 +978,7 @@ function PantallaNoDevice({ mensaje, onRetry }: { mensaje: string, onRetry: () =
         {/* Texto */}
         <div className="text-center space-y-4">
           <h2 className="text-4xl font-bold text-foreground">
-            Dispositivo No Conectado
+            Escaneo no disponible
           </h2>
           <p className="text-xl text-muted-foreground max-w-md mx-auto">
             {mensaje}
@@ -1484,7 +1051,7 @@ function PantallaScanning({
             {estado === "scanning" ? "⚡ Capturando Huella" : "🔍 Validando Identidad"}
           </h2>
           <p className="text-xl text-muted-foreground">
-            {estado === "scanning" 
+            {estado === "scanning"
               ? "Mantén el dedo firme en el sensor..."
               : "Comparando con base de datos..."
             }
@@ -1509,7 +1076,7 @@ function PantallaScanning({
         {/* Barra de progreso */}
         <div className="space-y-3">
           <div className="w-full h-4 bg-muted/30 rounded-full overflow-hidden">
-            <div 
+            <div
               className={`h-full bg-gradient-to-r from-accent to-accent/70 transition-all duration-300 ease-out rounded-full ${
                 estaEscuchando ? "animate-pulse" : ""
               }`}
@@ -1531,8 +1098,15 @@ function NotificacionAccesoCard({ notificacion }: { notificacion: NotificacionAc
       <div className="w-full max-w-2xl overflow-hidden rounded-[2rem] border border-border/80 bg-card shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
         {notificacion.tipo === "success" && notificacion.socio ? (
           <PantallaSuccess socio={notificacion.socio} />
-        ) : notificacion.tipo === "warning" && notificacion.socio ? (
-          <PantallaWarning socio={notificacion.socio} />
+        ) : notificacion.tipo === "warning" && notificacion.allowed && notificacion.socio ? (
+          <PantallaWarning socio={notificacion.socio} mensaje={notificacion.mensaje} />
+        ) : notificacion.tipo === "warning" ? (
+          <div className="rounded-3xl border-2 border-amber-500/50 p-12 text-center">
+            <AlertTriangle className="mx-auto mb-6 h-20 w-20 text-amber-500" />
+            <h2 className="mb-4 text-4xl font-bold text-amber-500">Registro recuperado</h2>
+            <p className="text-xl">{notificacion.mensaje}</p>
+            {notificacion.socio && <p className="mt-6 text-muted-foreground">{notificacion.socio.socio.nombre_completo}</p>}
+          </div>
         ) : (
           <PantallaError mensaje={notificacion.mensaje} socio={notificacion.socio} />
         )}
@@ -1559,7 +1133,7 @@ function NotificacionAccesoCard({ notificacion }: { notificacion: NotificacionAc
       : notificacion.tipo === "warning"
       ? {
           Icon: AlertTriangle,
-          titulo: "Acceso con aviso",
+          titulo: "Registro recuperado",
           cardClass: "border-amber-500/40 bg-amber-500/12",
           iconClass: "border-amber-500/40 bg-amber-500/15 text-amber-300",
           accentClass: "text-amber-200",
@@ -1739,7 +1313,7 @@ function PantallaSuccess({ socio, countdown }: { socio: SocioData, countdown?: n
   )
 }
 
-function PantallaWarning({ socio, countdown }: { socio: SocioData, countdown?: number }) {
+function PantallaWarning({ socio, countdown, mensaje }: { socio: SocioData, countdown?: number, mensaje?: string }) {
   const horaEntrada = socio.asistencia?.timestamp
     ? new Date(socio.asistencia.timestamp).toLocaleTimeString("es-MX", {
         hour: "2-digit",
@@ -1750,14 +1324,10 @@ function PantallaWarning({ socio, countdown }: { socio: SocioData, countdown?: n
 
   const diasRestantes = calcularDiasRestantesMembresia(socio.socio.fecha_fin_membresia)
   const precision = formatearNivelConfianza(socio.asistencia?.match_score)
-  const mensajeVencimiento =
+  const mensajeVencimiento = mensaje || (
     diasRestantes === 0
       ? "⏰ Tu membresía vence hoy"
-      : `⏰ Tu membresía vence en ${diasRestantes} ${diasRestantes === 1 ? "día" : "días"}`
-
-  if (diasRestantes < 0) {
-    return <PantallaError mensaje="Membresía vencida" countdown={countdown} socio={socio} />
-  }
+      : `⏰ Tu membresía vence en ${diasRestantes} ${diasRestantes === 1 ? "día" : "días"}`)
 
   return (
     <div className="animate-scale-in">
@@ -1875,13 +1445,13 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
   const diasRestantes = socio
     ? calcularDiasRestantesMembresia(socio.socio.fecha_fin_membresia)
     : null
-  const tipo = esMembresiaVencida(mensaje, diasRestantes)
+  const tipo = normalizarTexto(mensaje).includes('vencid')
     ? 'vencida'
     : normalizarTexto(mensaje).includes('no reconocida')
     ? 'noReconocida'
     : 'default'
   const mensajePrincipal = tipo === 'vencida' ? 'Membresía vencida' : mensaje
-  
+
   const info = mensajesMotivacionales[tipo]
 
   return (
@@ -1974,5 +1544,3 @@ function PantallaError({ mensaje, countdown, socio }: { mensaje: string, countdo
     </div>
   )
 }
-
-

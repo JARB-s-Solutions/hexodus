@@ -1,275 +1,84 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { X, Fingerprint, CheckCircle2, AlertCircle } from "lucide-react"
-
-const MOTOR_URL = process.env.NEXT_PUBLIC_MOTOR_URL || "http://localhost:4000"
-
-const MENSAJES_TRANSITORIOS = [
-  "lectura fallida",
-  "read failed",
-  "scan canceled",
-  "scan cancelled",
-  "captura cancelada",
-  "lectura cancelada",
-  "no finger",
-  "sin dedo",
-  "sin huella",
-  "no se detecto",
-  "no se detectó",
-  "timeout",
-  "time out",
-  "tiempo agotado",
-  "tiempo de espera",
-  "esperando huella",
-  "waiting for finger",
-  "coloca tu dedo",
-  "coloque su dedo",
-  "ponga el dedo",
-  "toque 1 de 4",
-  "toque 2 de 4",
-  "toque 3 de 4",
-  "toque 4 de 4",
-  "touch 1 of 4",
-  "touch 2 of 4",
-  "touch 3 of 4",
-  "touch 4 of 4",
-  "iniciando enrolamiento",
-  "starting enrollment",
-]
-
-const MENSAJES_TERMINALES = [
-  "error",
-  "fallo",
-  "failed",
-  "cancel",
-  "cancelado",
-  "cancelled",
-  "rechaz",
-  "desconect",
-  "denied",
-  "permiso",
-  "duplic",
-  "inval",
-]
+import { BIOMETRIC_LEGACY, motorFetch, sincronizarCacheMotorHuella } from "@/lib/motor-huella"
+import { encodeTemplateUtf8, parseEnrollmentLine } from "@/lib/biometric-protocol.mjs"
 
 interface CapturaHuellaModalProps {
   open: boolean
   onClose: () => void
-  onCapture: (template: string) => void
+  onCapture: (template: string, enrollmentProof?: string) => void
+  codigoSocio?: string
 }
 
-const normalizarTexto = (texto: string) =>
-  texto
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-
-const esMensajeTransitorio = (texto: string) => {
-  const normalizado = normalizarTexto(texto)
-  return MENSAJES_TRANSITORIOS.some((patron) => normalizado.includes(normalizarTexto(patron)))
-}
-
-const esMensajeTerminal = (texto: string) => {
-  const normalizado = normalizarTexto(texto)
-  return MENSAJES_TERMINALES.some((patron) => normalizado.includes(normalizarTexto(patron)))
-}
-
-const normalizarLineaStream = (linea: string) => linea.replace(/^data:\s*/i, "").trim()
-
-const extraerTemplateDesdeTexto = (texto: string) => {
-  const match = texto.match(/<Fmd[\s\S]*<\/Fmd>/i)
-  return match?.[0]?.trim() || ""
-}
-
-const extraerTemplate = (payload: Record<string, unknown>) => {
-  const candidates = [
-    payload.huellaTemplate,
-    payload.huella_template,
-    payload.fingerprintTemplate,
-    payload.fingerprint_template,
-    payload.template,
-    payload.templateXml,
-    payload.templateXML,
-    payload.xml,
-  ]
-
-  for (const value of candidates) {
-    if (typeof value === "string" && value.trim()) {
-      return value.trim()
-    }
-  }
-
-  return ""
-}
-
-export function CapturaHuellaModal({ open, onClose, onCapture }: CapturaHuellaModalProps) {
+export function CapturaHuellaModal({ open, onClose, onCapture, codigoSocio }: CapturaHuellaModalProps) {
   const [status, setStatus] = useState("Listo para capturar")
   const [capturing, setCapturing] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const captureAbort = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    if (open) {
-      setStatus("Listo para capturar")
-      setCapturing(false)
-      setSuccess(false)
-      setError(null)
-    }
+    if (open) { setStatus("Listo para capturar"); setCapturing(false); setSuccess(false); setError(null) }
+    return () => { captureAbort.current?.abort() }
   }, [open])
 
   const handleCapturar = async () => {
+    if (captureAbort.current) return
+    const controller = new AbortController()
+    captureAbort.current = controller
+    const timeout = setTimeout(() => controller.abort(), 180000)
     setCapturing(true)
     setError(null)
     setSuccess(false)
-    setStatus("Iniciando conexion con el motor biometrico...")
-
+    setStatus("Actualizando huellas para comprobar duplicados…")
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     try {
-      const res = await fetch(`${MOTOR_URL}/enrolar`, {
-        cache: "no-store",
-      })
-
-      if (!res.ok) {
-        throw new Error("El motor biometrico rechazo la captura de huella.")
+      const options = { scope: "enrollment" as const, codigoSocio, signal: controller.signal }
+      await sincronizarCacheMotorHuella(undefined, options)
+      setStatus("Coloca el mismo dedo para completar las cuatro lecturas.")
+      const response = await motorFetch("/enrolar", {}, options)
+      if (!response.ok || !response.body) {
+        const problem = await response.json().catch(() => ({}))
+        throw new Error(problem.code === "HUELLA_DUPLICADA" ? "Esta huella ya está registrada en otro socio. Verifica el registro antes de continuar." : problem.message || "El motor rechazó la captura de huella.")
       }
-
-      if (!res.body) {
-        throw new Error("El navegador no soporta streams de respuesta.")
-      }
-
-      const streamReader = res.body.getReader()
-      const decoder = new TextDecoder("utf-8")
-
+      reader = response.body.getReader()
+      const decoder = new TextDecoder("utf-8", { fatal: true })
       let buffer = ""
-      let templateCapturado = ""
-      let ultimoMensaje = ""
-      let mensajeErrorTerminal = ""
-
-      while (true) {
-        const { done, value } = await streamReader.read()
+      let captured: ReturnType<typeof parseEnrollmentLine> = null
+      while (!captured?.template) {
+        const { done, value } = await reader.read()
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
+        if (buffer.length > 2 * 1024 * 1024) throw new Error("Respuesta de captura demasiado grande.")
+        const lines = buffer.split("\n")
+        buffer = done ? "" : lines.pop() || ""
+        for (const line of lines) {
+          const parsed = parseEnrollmentLine(line, BIOMETRIC_LEGACY)
+          if (!parsed) continue
+          if (parsed.template) { captured = parsed; break }
+          setStatus(parsed.message)
+        }
         if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lineas = buffer.split("\n")
-        buffer = lineas.pop() || ""
-
-        for (const linea of lineas) {
-          const contenido = normalizarLineaStream(linea)
-          if (!contenido) continue
-
-          const templateEnTextoPlano = extraerTemplateDesdeTexto(contenido)
-          if (templateEnTextoPlano) {
-            templateCapturado = templateEnTextoPlano
-            break
-          }
-
-          try {
-            const data = JSON.parse(contenido) as Record<string, unknown>
-            const tipo = String(data.tipo || data.type || "").trim().toLowerCase()
-            const mensaje = String(data.texto || data.message || data.mensaje || "").trim()
-
-            if (mensaje) {
-              ultimoMensaje = mensaje
-            }
-
-            if (tipo === "mensaje" || tipo === "status" || tipo === "info") {
-              setStatus(mensaje || "Esperando huella...")
-              continue
-            }
-
-            const template = extraerTemplate(data)
-            const successFlag = typeof data.success === "boolean"
-              ? data.success
-              : Boolean(template)
-
-            if (template && successFlag) {
-              templateCapturado = template
-              break
-            }
-
-            if (tipo === "resultado" || tipo === "result" || typeof data.success === "boolean") {
-              if (!successFlag) {
-                const detalle = mensaje || ultimoMensaje || ""
-
-                if (!detalle || esMensajeTransitorio(detalle) || !esMensajeTerminal(detalle)) {
-                  setStatus(detalle || "Esperando huella. Coloca tu dedo en el sensor...")
-                  continue
-                }
-
-                mensajeErrorTerminal = detalle
-                break
-              }
-            }
-          } catch (parseErr: any) {
-            if (parseErr?.message && !parseErr.message.includes("JSON")) {
-              throw parseErr
-            }
-
-            ultimoMensaje = contenido
-
-            if (!esMensajeTerminal(contenido) || esMensajeTransitorio(contenido)) {
-              setStatus(contenido)
-              continue
-            }
-
-            mensajeErrorTerminal = contenido
-            break
-          }
-        }
-
-        if (templateCapturado || mensajeErrorTerminal) {
-          break
-        }
       }
-
-      if (!templateCapturado && buffer.trim()) {
-        try {
-          const contenidoFinal = normalizarLineaStream(buffer.trim())
-          const templatePlanoFinal = extraerTemplateDesdeTexto(contenidoFinal)
-
-          if (templatePlanoFinal) {
-            templateCapturado = templatePlanoFinal
-          } else {
-            const data = JSON.parse(contenidoFinal) as Record<string, unknown>
-            const template = extraerTemplate(data)
-            if (template) {
-              templateCapturado = template
-            } else if (typeof data.success === "boolean" && !data.success) {
-              const detalle = String(data.message || data.mensaje || ultimoMensaje || "").trim()
-              if (detalle && esMensajeTerminal(detalle) && !esMensajeTransitorio(detalle)) {
-                mensajeErrorTerminal = detalle
-              }
-            }
-          }
-        } catch {
-          const contenidoFinal = normalizarLineaStream(buffer.trim())
-          if (contenidoFinal && esMensajeTerminal(contenidoFinal) && !esMensajeTransitorio(contenidoFinal)) {
-            mensajeErrorTerminal = contenidoFinal
-          }
-        }
-      }
-
-      if (!templateCapturado) {
-        throw new Error(mensajeErrorTerminal || ultimoMensaje || "No se pudo capturar la huella.")
-      }
-
-      const huellaEnBase64 = btoa(templateCapturado)
-      setStatus("Huella capturada exitosamente")
+      if (!captured?.template) throw new Error("La captura terminó sin una plantilla válida. Intenta nuevamente.")
+      if (controller.signal.aborted) return
       setSuccess(true)
-      setCapturing(false)
-
-      setTimeout(() => {
-        onCapture(huellaEnBase64)
-        onClose()
-      }, 800)
-    } catch (err: any) {
-      console.error("Error en captura de huella:", err)
-      const msg = err?.message?.includes("fetch")
-        ? "No se pudo conectar al motor biometrico. Verifica que este corriendo en el puerto 4000."
-        : (err?.message || "Error desconocido al capturar huella.")
-      setError(msg)
-      setStatus("Error al capturar")
+      setStatus("Huella capturada. Pendiente de guardar el socio.")
+      onCapture(encodeTemplateUtf8(captured.template), captured.proof || undefined)
+      onClose()
+    } catch (problem: any) {
+      if (!controller.signal.aborted) {
+        setError(problem?.message || "No se pudo conectar con el lector. Verifica que el motor está abierto.")
+        setStatus("No se completó la captura")
+      } else {
+        setError("La captura se canceló o agotó el tiempo. Puedes volver a intentarlo.")
+        setStatus("Captura cancelada")
+      }
+    } finally {
+      await reader?.cancel().catch(() => undefined)
+      clearTimeout(timeout)
+      captureAbort.current = null
       setCapturing(false)
     }
   }
@@ -299,8 +108,7 @@ export function CapturaHuellaModal({ open, onClose, onCapture }: CapturaHuellaMo
             Captura de Huella Dactilar
           </h3>
           <button
-            onClick={onClose}
-            disabled={capturing}
+            onClick={() => { captureAbort.current?.abort(); onClose() }}
             className="text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
           >
             <X className="h-5 w-5" />

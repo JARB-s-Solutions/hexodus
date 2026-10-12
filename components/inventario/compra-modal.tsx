@@ -97,7 +97,7 @@ export function CompraModal({ open, onClose, onCompraRealizada, productosDisponi
       )
     : activos
 
-  function selectProduct(p: Producto) {
+  function selectProduct(p: ProductoExtendido) {
     setSelectedProducto(p)
     setSearchTerm("")
     setCostoUnitario(p.precioCompra.toFixed(2))

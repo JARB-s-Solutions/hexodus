@@ -7,7 +7,7 @@
 import type { LoginResponse, ForgotPasswordResponse, User } from './types/auth'
 
 // Usuarios de prueba
-const MOCK_USERS: User[] = [
+const MOCK_USERS: (User & { id: string })[] = [
   {
     id: '1',
     username: 'admin',
@@ -187,22 +187,22 @@ export async function mockGetMe(token: string): Promise<User> {
 
 /**
  * Para usar el Mock API en desarrollo:
- * 
+ *
  * 1. En lib/api.ts, importa las funciones mock:
  *    import { mockLogin, mockForgotPassword, mockLogout } from './mock-api'
- * 
+ *
  * 2. En lib/auth.ts, reemplaza las llamadas a apiPost con las funciones mock:
- *    
+ *
  *    // En lugar de:
  *    const response = await apiPost<LoginResponse>(API_ENDPOINTS.LOGIN, credentials)
- *    
+ *
  *    // Usa:
  *    const response = await mockLogin(username, password)
- * 
+ *
  * 3. Usuarios de prueba:
  *    - admin@hexodus.com / Admin123@  (Administrador)
  *    - staff@hexodus.com / Admin123@  (Personal)
  *    - usuario@hexodus.com / Admin123@ (Usuario)
- * 
+ *
  * 4. Para volver al backend real, simplemente revierte los cambios
  */
