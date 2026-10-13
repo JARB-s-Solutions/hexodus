@@ -50,26 +50,24 @@ npm install
 
 3. **Configurar variables de entorno**
 ```bash
-cp .env.example .env.local
+cp .env.biometric.example .env.local
 ```
 
-Edita `.env.local` con tus configuraciones:
+Completa `.env.local` con la URL de tu backend y el origen local del motor:
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001/api
 NEXT_PUBLIC_MOTOR_URL=http://localhost:4000
-NEXT_PUBLIC_TOKEN_EXPIRATION=604800
-HUELLA_MOTOR_CALLBACK_SECRET=
+NEXT_PUBLIC_KIOSK_ID=KIOSKO-HUELLA-01
+NEXT_PUBLIC_MOTOR_TRANSPORT=sse
+NEXT_PUBLIC_BIOMETRIC_LEGACY=false
+HUELLA_LEGACY_CLOUD_ENABLED=false
 ```
 
-Para el motor de huella always-on, configura el callback del backend hacia:
-- Desarrollo: `http://localhost:3000/api/asistencia/huella/callback`
-- Produccion: `https://hexodus.vercel.app/api/asistencia/huella/callback`
-
-Si desplegaras el frontend en Vercel y el kiosko seguira hablando con el motor local en
-`http://localhost:4000`, recuerda permitir CORS desde `https://hexodus.vercel.app` en tu motor local.
-
-Si decides proteger el callback, usa el mismo valor en `HUELLA_MOTOR_CALLBACK_SECRET`
-y en el header `x-motor-secret` que envie tu motor local.
+El frontend solicita al backend una sesión biométrica y se conecta al motor local por SSE.
+Configura en el motor el origen exacto del frontend que vas a usar y mantén las claves
+del dispositivo únicamente en la configuración protegida del motor y del backend.
+El callback y el polling heredados permanecen desactivados. Consulta la
+[guía del flujo SSE](docs/BIOMETRIA-SSE-FRONT-2026-10-12.md) antes de desplegar.
 
 4. **Ejecutar en desarrollo**
 ```bash
