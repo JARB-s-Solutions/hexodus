@@ -36,6 +36,8 @@ const ACTION_LABELS: Record<string, string> = {
   exportar: 'Exportar',
   generar: 'Generar reportes',
   registrarManual: 'Registro manual',
+  sincronizar: 'Sincronizar huellas',
+  enrolar: 'Registrar / reemplazar huellas',
   verGraficas: 'Ver gráficas',
   verAnalisis: 'Ver análisis',
   crearCorte: 'Crear corte',
@@ -63,6 +65,7 @@ const MODULOS_SISTEMA = [
   { id: 'membresias', nombre: 'Membresías', icono: '🎫', acciones: ['ver', 'crear', 'editar', 'eliminar', 'activar', 'desactivar'] },
   { id: 'socios', nombre: 'Socios', icono: '👥', acciones: ['ver', 'crear', 'editar', 'eliminar', 'verHistorial', 'pagar', 'renovar', 'imprimirTicket'] },
   { id: 'asistencia', nombre: 'Asistencia', icono: '📝', acciones: ['ver', 'crear', 'editar', 'eliminar', 'registrarManual', 'verHistorial', 'exportar'] },
+  { id: 'biometria', nombre: 'Biometría', icono: '🖐️', acciones: ['sincronizar', 'enrolar'] },
   { id: 'ventas', nombre: 'Ventas', icono: '💰', acciones: ['ver', 'crear', 'editar', 'eliminar', 'verAnalisis', 'crearCorte', 'verCortesAnteriores', 'imprimirTicket', 'exportar'] },
   { id: 'inventario', nombre: 'Inventario', icono: '📦', acciones: ['ver', 'crear', 'editar', 'eliminar', 'gestionarCompras', 'ajustarStock', 'gestionarCategorias'] },
   { id: 'movimientos', nombre: 'Movimientos', icono: '💸', acciones: ['ver', 'crear', 'editar', 'eliminar', 'verComparaciones', 'verConceptos', 'crearConcepto', 'editarConcepto', 'eliminarConcepto', 'exportar'] },
@@ -907,6 +910,15 @@ function RolDetails({ rol, onUpdate, onEditar, onEliminar }: RolDetailsProps) {
                     modulo="Asistencia"
                     permisos={rol.permisos.asistencia}
                     icono="📝"
+                  />
+                )}
+
+                {/* Biometría */}
+                {rol.permisos.biometria && (
+                  <PermisoModulo
+                    modulo="Biometría"
+                    permisos={rol.permisos.biometria}
+                    icono="🖐️"
                   />
                 )}
                 
