@@ -12,6 +12,7 @@ export type Modulo =
   | 'membresias'
   | 'socios'
   | 'asistencia'
+  | 'biometria'
   | 'ventas'
   | 'inventario'
   | 'movimientos'
@@ -55,6 +56,11 @@ export interface PermisosAsistencia extends AccionesBasicas {
   registrarManual: boolean
   verHistorial: boolean
   exportar: boolean
+}
+
+export interface PermisosBiometria {
+  sincronizar: boolean
+  enrolar: boolean
 }
 
 export interface PermisosVentas extends AccionesBasicas {
@@ -109,6 +115,7 @@ export interface ConjuntoPermisos {
   membresias: PermisosMembresias
   socios: PermisosSocios
   asistencia: PermisosAsistencia
+  biometria: PermisosBiometria
   ventas: PermisosVentas
   inventario: PermisosInventario
   movimientos: PermisosMovimientos
