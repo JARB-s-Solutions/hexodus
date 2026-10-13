@@ -1007,7 +1007,7 @@ function PermisoModulo({ modulo, permisos, icono }: PermisoModuloProps) {
   const permisosArray = Object.entries(permisos)
   const permisosActivos = permisosArray.filter(([_, value]) => value === true).length
   const permisosTotal = permisosArray.length
-  const tieneAcceso = permisos.ver === true
+  const tieneAcceso = permisosActivos > 0
 
   return (
     <div className="bg-muted/30 rounded-lg border border-border overflow-hidden">
