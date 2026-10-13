@@ -45,6 +45,10 @@ const PERMISOS_ADMINISTRADOR: ConjuntoPermisos = {
     verHistorial: true,
     exportar: true
   },
+  biometria: {
+    sincronizar: true,
+    enrolar: true
+  },
   ventas: {
     ver: true,
     crear: true,
@@ -152,6 +156,10 @@ const PERMISOS_RECEPCIONISTA: ConjuntoPermisos = {
     registrarManual: true,
     verHistorial: true,
     exportar: true
+  },
+  biometria: {
+    sincronizar: true,
+    enrolar: false
   },
   ventas: {
     ver: true,
