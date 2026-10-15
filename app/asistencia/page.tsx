@@ -621,20 +621,22 @@ export default function AsistenciaPage() {
     const nuevoRegistro: RegistroAcceso = {
       id: String(registroData.id),
       socioId: registroData.clave || String(registroData.socio_id),
+      socioDbId: registroData.socio_id ? Number(registroData.socio_id) : undefined,
       nombreSocio: registroData.nombre,
       tipo: String(registroData.tipo).toUpperCase() === 'DENEGADO' ? 'denegado' : 'permitido',
       motivo: registroData.notas || 'Registro manual',
-      confianza: "Manual",
+      confianza: formatConfidencePercent(registroData.confidence, 1),
+      metodoRegistro: getMetodoRegistroLabel(registroData.metodo || 'manual'),
       timestamp: registroData.timestamp,
       estadoMembresia: 'permitido',
     }
 
     // Agregar a registros de hoy (siempre son registros nuevos del día)
-    setRegistrosHoy((prev) => [nuevoRegistro, ...prev])
+    setRegistrosHoy((prev) => [nuevoRegistro, ...prev.filter((registro) => registro.id !== nuevoRegistro.id)])
 
     // Si estamos en historial, también agregar ahí
     if (tabActivo === "historial") {
-      setRegistrosHistorial((prev) => [nuevoRegistro, ...prev])
+      setRegistrosHistorial((prev) => [nuevoRegistro, ...prev.filter((registro) => registro.id !== nuevoRegistro.id)])
     }
 
     // Recargar KPIs
