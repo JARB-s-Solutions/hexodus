@@ -447,8 +447,16 @@ export function HistorialRegistros({
             <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
               <div className="text-right">
                 <p className="text-xs text-foreground">{formatHora(registro.timestamp)}</p>
-                <p className="max-w-[7rem] truncate text-[11px] text-muted-foreground">
-                  {registro.confianza === "N/A" ? "N/A" : `${registro.confianza}% confianza`}
+                <p
+                  className="max-w-[11rem] truncate text-[11px] text-muted-foreground"
+                  title={
+                    registro.confianza === "N/A"
+                      ? registro.metodoRegistro || "Método desconocido"
+                      : `${registro.metodoRegistro || "Método desconocido"} · ${registro.confianza}% confianza`
+                  }
+                >
+                  {registro.metodoRegistro || "Método desconocido"}
+                  {registro.confianza !== "N/A" && ` · ${registro.confianza}% confianza`}
                 </p>
               </div>
               {onVerHistorialSocio && registro.socioDbId && (
